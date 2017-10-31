@@ -214,7 +214,7 @@ BlockInputStreams StorageDistributed::read(
         external_tables = context.getExternalTables();
 
     ClusterProxy::SelectStreamFactory select_stream_factory(
-        processed_stage,  QualifiedTableName{remote_database, remote_table}, external_tables);
+        processed_stage, QualifiedTableName{remote_database, remote_table}, external_tables);
 
     return ClusterProxy::executeQuery(
             select_stream_factory, cluster, modified_query_ast, context, settings);
