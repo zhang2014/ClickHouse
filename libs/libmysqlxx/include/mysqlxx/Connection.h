@@ -9,6 +9,7 @@
 
 #include <mysqlxx/Query.h>
 #include <mysqlxx/Exception.h>
+#include <mysqlxx/PreparedQuery.h>
 
 #define MYSQLXX_DEFAULT_TIMEOUT 60
 #define MYSQLXX_DEFAULT_RW_TIMEOUT 1800
@@ -142,6 +143,8 @@ public:
 
     /// Creates query. It can be set with query string or later.
     Query query(const std::string & str = "");
+
+    BatchQuery preparedQuery(const std::string &str = "");
 
     /// Get MySQL C API MYSQL object.
     MYSQL * getDriver();

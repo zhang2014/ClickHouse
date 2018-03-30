@@ -142,6 +142,12 @@ Query Connection::query(const std::string & str)
     return Query(this, str);
 }
 
+PreparedQuery Connection::preparedQuery(const std::string &str)
+{
+    return PreparedQuery(this, str);
+}
+
+
 MYSQL * Connection::getDriver()
 {
     return driver.get();

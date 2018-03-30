@@ -7,6 +7,9 @@
 #include <Interpreters/evaluateConstantExpression.h>
 #include <Common/parseAddress.h>
 #include <Parsers/ASTLiteral.h>
+#include <DataStreams/MySQLBlockOutputStream.h>
+#include <Interpreters/InterpreterInsertQuery.h>
+#include <Common/typeid_cast.h>
 
 
 namespace DB
@@ -53,6 +56,17 @@ BlockInputStreams StorageMySQL::read(
     }
 
     return { std::make_shared<MySQLBlockInputStream>(pool.Get(), query, sample_block, max_block_size) };
+}
+
+BlockOutputStreamPtr StorageMySQL::write(const ASTPtr & ast, const Settings & /*settings*/)
+{
+    if (ASTInsertQuery * ast_insert = typeid_cast<ASTInsertQuery *>(ast.get()))
+    {
+        if (ast_insert->columns)
+            std::cout << "TODO: check columns";
+
+        return std::make_shared<MySQLBlockOutputStream>(pool.Get(), query);
+    }
 }
 
 
