@@ -3,6 +3,7 @@ add_library (mysqlxx ${SPLIT_SHARED}
     src/Connection.cpp
     src/Exception.cpp
     src/Query.cpp
+    src/PreparedQuery.cpp
     src/ResultBase.cpp
     src/StoreQueryResult.cpp
     src/UseQueryResult.cpp
@@ -19,6 +20,7 @@ add_library (mysqlxx ${SPLIT_SHARED}
     include/mysqlxx/Pool.h
     include/mysqlxx/PoolWithFailover.h
     include/mysqlxx/Query.h
+    include/mysqlxx/PreparedQuery.h
     include/mysqlxx/ResultBase.h
     include/mysqlxx/Row.h
     include/mysqlxx/StoreQueryResult.h

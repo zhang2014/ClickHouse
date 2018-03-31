@@ -1,7 +1,7 @@
 #pragma once
 
+#include <mysqlxx/PreparedQuery.h>
 #include <DataStreams/IBlockOutputStream.h>
-#include <mysqlxx/Query.h>
 #include <mysqlxx/PoolWithFailover.h>
 
 namespace DB

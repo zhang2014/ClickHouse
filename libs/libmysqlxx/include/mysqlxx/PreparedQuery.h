@@ -10,33 +10,24 @@
 namespace mysqlxx
 {
 
-class PreparedQuery : public std::ostream
+class PreparedQuery
 {
 public:
     PreparedQuery(Connection * conn_, const std::string & query_string = "");
+    PreparedQuery(const PreparedQuery & other);
     PreparedQuery & operator= (const PreparedQuery & other);
     ~PreparedQuery();
 
-    void execute();
-
-    std::string str() const
-    {
-        return query_buf.str();
-    }
+    void setString(size_t index, std::string value, bool nullable);
 
 private:
     Connection * conn;
-    std::stringbuf query_buf;
+    MYSQL_STMT * stmt;
+    std::vector<MYSQL_BIND> binds;
+    std::size_t affected_rows;
+
 
     void executeImpl();
 };
-
-
-/// Вывести текст запроса в ostream.
-inline std::ostream & operator<< (std::ostream & ostr, const Query & query)
-{
-    return ostr << query.rdbuf();
-}
-
 
 }

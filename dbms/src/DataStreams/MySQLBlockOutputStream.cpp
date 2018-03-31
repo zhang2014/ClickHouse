@@ -1,3 +1,6 @@
+#include <mysqlxx/Connection.h>
+#include <mysqlxx/Transaction.h>
+#include <mysqlxx/PreparedQuery.h>
 #include <DataStreams/MySQLBlockOutputStream.h>
 #include <Dictionaries/ExternalResultDescription.h>
 
@@ -15,7 +18,7 @@ void MySQLBlockOutputStream::write(const Block &block)
 {
     block.checkNumberOfRows();
 
-    /// TODO:开启事物
+    mysqlxx::Transaction trans(entry);
     for (size_t row_num = 0; row_num < block.rows(); ++row_num)
     {
         for (size_t column_num = 0; column_num < block.columns(); ++column_num)
@@ -24,14 +27,9 @@ void MySQLBlockOutputStream::write(const Block &block)
             const ColumnWithTypeAndName & column = block.safeGetByPosition(column_num);
             column.column->get(row_num, field);
 
-            //*column.column->
-            /// TODO: attach bind
-            writeData(column.name, *column.type, *column.column, marks, written_streams);
         }
-        /// TODO: execute
     }
-    /// TODO: 提交事物
-
+    trans.commit();
 }
 
 }
