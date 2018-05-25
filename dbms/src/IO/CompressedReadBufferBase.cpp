@@ -14,7 +14,6 @@
 #include <IO/BufferWithOwnMemory.h>
 #include <IO/CompressedStream.h>
 #include <IO/WriteHelpers.h>
-#include <Compression/CompressionCodecFactory.h>
 
 
 namespace ProfileEvents
