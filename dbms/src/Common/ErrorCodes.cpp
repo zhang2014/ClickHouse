@@ -378,7 +378,7 @@ namespace ErrorCodes
     extern const int FEATURE_IS_NOT_ENABLED_AT_BUILD_TIME = 401;
     extern const int CANNOT_IOSETUP = 402;
     extern const int CODEC_CANNOT_HAVE_ARGUMENTS = 398;
-    extern const int UNKNOWN_BYTECODE = 399;
+    extern const int UNKNOWN_CODEC = 399;
 
 
     extern const int KEEPER_EXCEPTION = 999;
