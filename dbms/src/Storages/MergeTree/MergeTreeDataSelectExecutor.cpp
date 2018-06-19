@@ -808,6 +808,11 @@ BlockInputStreams MergeTreeDataSelectExecutor::spreadMarkRangesAmongStreamsFinal
                     data.getSortDescription(), data.merging_params.version_column, max_block_size);
             break;
 
+        case MergeTreeData::MergingParams::RollupAggregating:
+            merged = std::make_shared<RollupAggregatingSortedBlockInputStream>(
+                    to_merge, data.getSortDescription(), data.merging_params.columns_to_sum, max_block_size);
+            break;
+
         case MergeTreeData::MergingParams::VersionedCollapsing: /// TODO Make VersionedCollapsingFinalBlockInputStream
             merged = std::make_shared<VersionedCollapsingSortedBlockInputStream>(
                     to_merge, data.getSortDescription(), data.merging_params.sign_column, max_block_size, true);

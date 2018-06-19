@@ -370,6 +370,8 @@ static StoragePtr create(const StorageFactory::Arguments & args)
         merging_params.mode = MergeTreeData::MergingParams::Replacing;
     else if (name_part == "Graphite")
         merging_params.mode = MergeTreeData::MergingParams::Graphite;
+    else if (name_part == "RollupAggregating")
+        merging_params.mode = MergeTreeData::MergingParams::RollupAggregating;
     else if (name_part == "VersionedCollapsing")
         merging_params.mode = MergeTreeData::MergingParams::VersionedCollapsing;
     else if (!name_part.empty())
@@ -649,6 +651,7 @@ void registerStorageMergeTree(StorageFactory & factory)
     factory.registerStorage("AggregatingMergeTree", create);
     factory.registerStorage("SummingMergeTree", create);
     factory.registerStorage("GraphiteMergeTree", create);
+    factory.registerStorage("RollupAggregatingMergeTree", create);
     factory.registerStorage("VersionedCollapsingMergeTree", create);
 
     factory.registerStorage("ReplicatedMergeTree", create);
@@ -657,6 +660,7 @@ void registerStorageMergeTree(StorageFactory & factory)
     factory.registerStorage("ReplicatedAggregatingMergeTree", create);
     factory.registerStorage("ReplicatedSummingMergeTree", create);
     factory.registerStorage("ReplicatedGraphiteMergeTree", create);
+    factory.registerStorage("ReplicatedRollupAggregatingMergeTree", create);
     factory.registerStorage("ReplicatedVersionedCollapsingMergeTree", create);
 }
 

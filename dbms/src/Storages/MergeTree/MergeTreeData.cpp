@@ -414,6 +414,7 @@ String MergeTreeData::MergingParams::getModeName() const
         case Aggregating:   return "Aggregating";
         case Replacing:     return "Replacing";
         case Graphite:      return "Graphite";
+        case RollupAggregating:    return "RollupAggregating";
         case VersionedCollapsing:  return "VersionedCollapsing";
 
         default:

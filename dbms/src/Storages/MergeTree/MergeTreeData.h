@@ -263,6 +263,7 @@ public:
             Replacing           = 5,
             Graphite            = 6,
             VersionedCollapsing = 7,
+            RollupAggregating = 8,
         };
 
         Mode mode;
@@ -321,6 +322,7 @@ public:
             || merging_params.mode == MergingParams::Summing
             || merging_params.mode == MergingParams::Aggregating
             || merging_params.mode == MergingParams::Replacing
+            || merging_params.mode == MergingParams::RollupAggregating
             || merging_params.mode == MergingParams::VersionedCollapsing;
     }
 
