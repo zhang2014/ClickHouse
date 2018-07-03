@@ -69,10 +69,16 @@ struct ColumnsDescription
 
     bool hasPhysical(const String & column_name) const;
 
+    ColumnCodecs getColumnCodecs() const;
+
 
     String toString() const;
 
     static ColumnsDescription parse(const String & str);
+
+    CompressionCodecPtr getColumnCodec(const String & column_name) const;
+
+    bool hasCompressionCodec(const String & column_name) const;
 };
 
 }

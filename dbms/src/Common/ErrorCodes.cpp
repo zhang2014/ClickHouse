@@ -379,6 +379,7 @@ namespace ErrorCodes
     extern const int CANNOT_IOSETUP = 402;
     extern const int CODEC_CANNOT_HAVE_ARGUMENTS = 398;
     extern const int UNKNOWN_CODEC = 399;
+    extern const int ILLEGAL_SYNTAX_FOR_CODEC_TYPE = 400;
 
 
     extern const int KEEPER_EXCEPTION = 999;

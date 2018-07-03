@@ -8,6 +8,88 @@
 #include <Parsers/ParserSetQuery.h>
 
 
+template<typename NameParser>
+bool DB::IParserColumnDeclaration<NameParser>::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
+{
+    /// name DEFAULT|MATERIALIZED|ALIAS expr
+    /// OR name codec DEFAULT|MATERIALIZED|ALIAS expr
+    /// OR name type [codec] [DEFAULT|MATERIALIZED|ALIAS expr]
+
+    ASTPtr column_name;
+    ASTPtr column_type;
+    ASTPtr column_codec;
+    NameParser name_parser;
+    ParserKeyword s_alias{"ALIAS"};
+    ParserKeyword s_default{"DEFAULT"};
+    ParserKeyword s_materialized{"MATERIALIZED"};
+    ParserIdentifierWithParameters codec_parser;
+    ParserTernaryOperatorExpression expr_parser;
+    ParserIdentifierWithOptionalParameters type_parser;
+
+
+    if (!name_parser.parse(pos, column_name, expected))
+        return false;
+
+    if (isDeclareColumnType(pos, expected))
+        type_parser.parse(pos, column_type, expected);
+
+    if (isDeclareColumnCodec(pos, expected))
+        codec_parser.parse(pos, column_codec, expected);
+
+    String default_specifier;
+    ASTPtr default_expression;
+    Pos pos_before_specifier = pos;
+    if (s_default.ignore(pos, expected) ||
+        s_materialized.ignore(pos, expected) ||
+        s_alias.ignore(pos, expected))
+    {
+        default_specifier = Poco::toUpper(std::string{pos_before_specifier->begin, pos_before_specifier->end});
+
+        /// should be followed by an expression
+        if (!expr_parser.parse(pos, default_expression, expected))
+            return false;
+    }
+
+    const auto column_declaration = std::make_shared<ASTColumnDeclaration>();
+
+    column_declaration->name = typeid_cast<ASTIdentifier &>(column_name).name;
+
+    if (column_type)
+    {
+        column_declaration->type = column_type;
+        column_declaration->children.push_back(std::move(column_type));
+    }
+
+    if (column_codec)
+    {
+        column_declaration->codec = column_codec;
+        column_declaration->children.push_back(std::move(column_codec));
+    }
+
+    if (default_expression)
+    {
+        column_declaration->default_specifier = default_specifier;
+        column_declaration->default_expression = default_expression;
+        column_declaration->children.push_back(std::move(default_expression));
+    }
+
+    node = column_declaration;
+    return true;
+}
+
+bool DB::IParserColumnDeclaration::isDeclareColumnType(Pos &pos, Expected &expected)
+{
+    return !ParserKeyword{"CODEC"}.check(pos, expected) &&
+           !ParserKeyword{"ALIAS"}.check(pos, expected) &&
+           !ParserKeyword{"DEFAULT"}.check(pos, expected) &&
+           !ParserKeyword{"MATERIALIZED"}.check(pos, expected);
+}
+
+bool DB::IParserColumnDeclaration::isDeclareColumnCodec(Pos &pos, Expected &expected)
+{
+    return ParserKeyword{"CODEC"}.check(pos, expected);
+}
+
 namespace DB
 {
 

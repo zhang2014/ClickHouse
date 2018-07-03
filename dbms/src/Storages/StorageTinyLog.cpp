@@ -136,13 +136,6 @@ private:
         {
         }
 
-        Stream(const std::string & data_path, size_t max_compress_block_size, ColumnCodecs codecs, const String & name) :
-                plain(data_path, max_compress_block_size, O_APPEND | O_CREAT | O_WRONLY),
-                compressed(plain, CompressionSettings(CompressionMethod::LZ4, codecs, name),
-                           max_compress_block_size)
-        {
-        }
-
         WriteBufferFromFile plain;
         CompressedWriteBuffer compressed;
 
@@ -237,11 +230,7 @@ void TinyLogBlockOutputStream::writeData(const String & name, const IDataType & 
             return nullptr;
 
         if (!streams.count(stream_name))
-        {
-            const auto codecs = storage.getColumns().codecs;
-            streams[stream_name] = std::make_unique<Stream>(storage.files[stream_name].data_file.path(),
-                                                            storage.max_compress_block_size, codecs, name);
-        }
+            streams[stream_name] = std::make_unique<Stream>(storage.files[stream_name].data_file.path(), storage.max_compress_block_size);
 
         return &streams[stream_name]->compressed;
     };

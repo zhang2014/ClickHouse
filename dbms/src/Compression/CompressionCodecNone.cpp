@@ -1,41 +1,49 @@
 #include <Compression/CompressionCodecNone.h>
 #include <Compression/CompressionCodecFactory.h>
+#include <common/unaligned.h>
 
 namespace DB
 {
 
-size_t CompressionCodecNone::getMaxCompressedSize(size_t uncompressed_size) const { return uncompressed_size; }
-
-size_t CompressionCodecNone::compress(char * source, char * dest, size_t input_size, size_t)
+void NoneCompressedWriteBuffer::nextImpl()
 {
-    memcpy(dest, source, input_size);
-    return input_size;
+    if (!offset())
+        return;
+
+    size_t uncompressed_size = offset();
+    size_t compressed_size = 0;
+    char * compressed_buffer_ptr = nullptr;
+
+    static constexpr size_t header_size = 1 + sizeof (UInt32) + sizeof (UInt32);
+
+    compressed_size = header_size + uncompressed_size;
+    UInt32 uncompressed_size_32 = uncompressed_size;
+    UInt32 compressed_size_32 = compressed_size;
+
+    compressed_buffer.resize(compressed_size);
+
+    compressed_buffer[0] = static_cast<char>(CompressionMethodByte::NONE);
+
+    unalignedStore(&compressed_buffer[1], compressed_size_32);
+    unalignedStore(&compressed_buffer[5], uncompressed_size_32);
+    memcpy(&compressed_buffer[9], working_buffer.begin(), uncompressed_size);
+
+    compressed_buffer_ptr = &compressed_buffer[0];
+
+    CityHash_v1_0_2::uint128 checksum = CityHash_v1_0_2::CityHash128(compressed_buffer_ptr, compressed_size);
+    out.write(reinterpret_cast<const char *>(&checksum), sizeof(checksum));
+
+    out.write(compressed_buffer_ptr, compressed_size);
 }
 
-size_t CompressionCodecNone::decompress(char * source, char * dest, size_t input_size, size_t)
+String CompressionCodecNone::getName()
 {
-    memcpy(dest, source, input_size);
-    return input_size;
+    return "Codec(None)";
 }
 
-size_t CompressionCodecNone::getCompressedSize() const { return 0; }
-
-size_t CompressionCodecNone::getDecompressedSize() const { return 0; }
-
-size_t CompressionCodecNone::parseHeader(const char *) { return 0; }
-
-size_t CompressionCodecNone::writeHeader(char * header)
+WriteBuffer * CompressionCodecNone::writeImpl(WriteBuffer &upstream)
 {
-    *header = bytecode;
-    return 1;
-}
-
-void registerCodecNone(CompressionCodecFactory & factory)
-{
-    auto creator = static_cast<CompressionCodecPtr(*)()>([] { return CompressionCodecPtr(std::make_shared<CompressionCodecNone>()); });
-
-    factory.registerSimpleCodec("None", creator);
-    factory.registerCodecBytecode(0x0, creator);
+    return new NoneCompressedWriteBuffer(upstream);
 }
 
 }

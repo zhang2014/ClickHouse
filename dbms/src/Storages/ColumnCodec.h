@@ -2,12 +2,11 @@
 
 #include <string>
 #include <unordered_map>
-
-#include <Compression/CompressionPipeline.h>
 #include <Parsers/IAST.h>
+#include <Compression/ICompressionCodec.h>
 
 namespace DB {
 
-using ColumnCodecs = std::unordered_map<std::string, CompressionPipelinePtr>;
+using ColumnCodecs = std::unordered_map<std::string, CompressionCodecPtr>;
 
 }

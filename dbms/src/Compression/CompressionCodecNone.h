@@ -1,38 +1,32 @@
 #include <Compression/ICompressionCodec.h>
+#include <IO/BufferWithOwnMemory.h>
+#include <IO/CompressionSettings.h>
 
 namespace DB {
+
+class NoneCompressedWriteBuffer : public BufferWithOwnMemory<WriteBuffer>
+{
+public:
+    NoneCompressedWriteBuffer(WriteBuffer & out, size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE) : BufferWithOwnMemory(buf_size), out(out)
+    {}
+
+private:
+    WriteBuffer &out;
+    CompressionSettings compression_settings;
+
+    PODArray<char> compressed_buffer;
+
+    void nextImpl() override;
+
+};
 
 class CompressionCodecNone final : public ICompressionCodec
 {
 public:
-    CompressionCodecNone() {}
 
-    const uint8_t bytecode = 0x0;
+    virtual String getName() override;
 
-    std::string getName() const
-    {
-        return "None()";
-    }
-
-    const char * getFamilyName() const override
-    {
-        return "None";
-    }
-
-    size_t getHeaderSize() const { return 0; }
-
-    size_t writeHeader(char *) override;
-    size_t parseHeader(const char *);
-
-    size_t getCompressedSize() const override;
-    size_t getDecompressedSize() const override;
-
-    size_t getMaxCompressedSize(size_t uncompressed_size) const override;
-
-    size_t compress(char * source, char * dest, size_t input_size, size_t max_output_size) override;
-    size_t decompress(char * source, char * dest, size_t input_size, size_t max_output_size) override;
-
-    ~CompressionCodecNone() {}
+    WriteBuffer * writeImpl(WriteBuffer &upstream) override;
 };
 
 }

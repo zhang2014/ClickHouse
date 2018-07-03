@@ -1,42 +1,32 @@
 #include <Compression/ICompressionCodec.h>
+#include <IO/BufferWithOwnMemory.h>
+#include <IO/CompressionSettings.h>
 
 namespace DB {
+
+class ZSTDCompressedWriteBuffer : public BufferWithOwnMemory<WriteBuffer>
+{
+public:
+    ZSTDCompressedWriteBuffer(WriteBuffer &out, size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE) : BufferWithOwnMemory(buf_size), out(out)
+    {}
+
+private:
+    WriteBuffer &out;
+    CompressionSettings compression_settings;
+
+    PODArray<char> compressed_buffer;
+
+    void nextImpl() override;
+};
+
 
 class CompressionCodecZSTD final : public ICompressionCodec
 {
 public:
-    CompressionCodecZSTD() {}
-    CompressionCodecZSTD(uint8_t argument_)
-            : argument(argument_)
-    {}
 
-    static const uint8_t bytecode = 0x90;
-    static const bool is_hc = false;
-    uint8_t argument = 1;
+    virtual String getName() override;
 
-    std::string getName() const
-    {
-        return "ZSTD(" + std::to_string(argument) + ")";
-    }
-
-    const char * getFamilyName() const override
-    {
-        return "ZSTD";
-    }
-
-    size_t writeHeader(char * header) override;
-    size_t parseHeader(const char * header);
-    size_t getHeaderSize() const;
-
-    size_t getCompressedSize() const { return 0; };
-    size_t getDecompressedSize() const { return 0; };
-
-    size_t getMaxCompressedSize(size_t uncompressed_size) const override;
-
-    size_t compress(char * source, char * dest, size_t input_size, size_t max_output_size) override;
-    size_t decompress(char * source, char * dest, size_t inupt_size, size_t max_output_size) override;
-
-    ~CompressionCodecZSTD() {}
+    WriteBuffer * writeImpl(WriteBuffer &upstream) override;
 };
 
 }

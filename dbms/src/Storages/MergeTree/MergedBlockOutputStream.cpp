@@ -6,6 +6,8 @@
 #include <Common/typeid_cast.h>
 #include <Common/MemoryTracker.h>
 #include <Poco/File.h>
+#include <IO/CompressedStream.h>
+#include <Compression/CompressionCodecFactory.h>
 
 
 namespace DB
@@ -54,12 +56,18 @@ void IMergedBlockOutputStream::addStreams(
         if (column_streams.count(stream_name))
             return;
 
+        const auto columns = storage.getColumns();
+
+        const auto column_codec = columns.hasCompressionCodec(name) ? columns.getColumnCodec(name) :
+            CompressionCodecFactory::instance().get(CompressionMethod::LZ4);
+
         column_streams[stream_name] = std::make_unique<ColumnStream>(
             stream_name,
             path + stream_name, DATA_FILE_EXTENSION,
             path + stream_name, MARKS_FILE_EXTENSION,
             max_compress_block_size,
-            compression_settings.getNamedSettings(name),
+            compression_settings,
+            column_codec,
             estimated_size,
             aio_threshold);
     };
@@ -170,14 +178,15 @@ IMergedBlockOutputStream::ColumnStream::ColumnStream(
     const std::string & marks_path,
     const std::string & marks_file_extension_,
     size_t max_compress_block_size,
-    CompressionSettings compression_settings,
+    CompressionSettings /*compression_settings*/,
+    const CompressionCodecPtr & compression_codec,
     size_t estimated_size,
     size_t aio_threshold) :
     escaped_column_name(escaped_column_name_),
     data_file_extension{data_file_extension_},
     marks_file_extension{marks_file_extension_},
     plain_file(createWriteBufferFromFileBase(data_path + data_file_extension, estimated_size, aio_threshold, max_compress_block_size)),
-    plain_hashing(*plain_file), compressed_buf(plain_hashing, compression_settings), compressed(compressed_buf),
+    plain_hashing(*plain_file), compressed_buf(compression_codec->makeWriteBuffer(plain_hashing)), compressed(*compressed_buf),
     marks_file(marks_path + marks_file_extension, 4096, O_TRUNC | O_CREAT | O_WRONLY), marks(marks_file)
 {
 }

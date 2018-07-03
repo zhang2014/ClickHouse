@@ -1,5 +1,5 @@
 #include <Compression/CompressionCodecLZ4.h>
-
+#include <common/unaligned.h>
 #include <lz4.h>
 #include <lz4hc.h>
 
@@ -20,73 +20,61 @@ namespace ErrorCodes
     extern const int CANNOT_COMPRESS;
 }
 
-size_t CompressionCodecLZ4::writeHeader(char * header)
+void LZ4CompressedWriteBuffer::nextImpl()
 {
-    *header = bytecode;
-    return 1;
+    if (!offset())
+        return;
+
+    size_t uncompressed_size = offset();
+    size_t compressed_size = 0;
+    char * compressed_buffer_ptr = nullptr;
+
+    {
+        static constexpr size_t header_size = 1 + sizeof(UInt32) + sizeof(UInt32);
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+        compressed_buffer.resize(header_size + LZ4_COMPRESSBOUND(uncompressed_size));
+#pragma GCC diagnostic pop
+
+        compressed_buffer[0] = static_cast<char>(CompressionMethodByte::LZ4);
+
+        if (compression_settings.method == CompressionMethod::LZ4)
+            compressed_size = header_size + LZ4_compress_default(
+                working_buffer.begin(),
+                &compressed_buffer[header_size],
+                uncompressed_size,
+                LZ4_COMPRESSBOUND(uncompressed_size));
+        else
+            compressed_size = header_size + LZ4_compress_HC(
+                working_buffer.begin(),
+                &compressed_buffer[header_size],
+                uncompressed_size,
+                LZ4_COMPRESSBOUND(uncompressed_size),
+                compression_settings.level);
+
+        UInt32 compressed_size_32 = compressed_size;
+        UInt32 uncompressed_size_32 = uncompressed_size;
+
+        unalignedStore(&compressed_buffer[1], compressed_size_32);
+        unalignedStore(&compressed_buffer[5], uncompressed_size_32);
+
+        compressed_buffer_ptr = &compressed_buffer[0];
+    }
+    CityHash_v1_0_2::uint128 checksum = CityHash_v1_0_2::CityHash128(compressed_buffer_ptr, compressed_size);
+    out.write(reinterpret_cast<const char *>(&checksum), sizeof(checksum));
+
+    out.write(compressed_buffer_ptr, compressed_size);
 }
 
-size_t CompressionCodecLZ4::parseHeader(const char *) { return 0; }
-
-size_t CompressionCodecLZ4::getMaxCompressedSize(size_t uncompressed_size) const { return LZ4_COMPRESSBOUND(uncompressed_size); }
-
-size_t CompressionCodecLZ4::compress(char * source, char * dest, size_t input_size, size_t max_output_size)
+String CompressionCodecLZ4::getName()
 {
-    auto wrote = LZ4_compress_default(source, dest, input_size, max_output_size);
-
-    if (!wrote)
-        throw Exception("Cannot LZ4_compress_default", ErrorCodes::CANNOT_COMPRESS);
-
-    return wrote;
+    return "Codec(LZ4)";
 }
 
-size_t CompressionCodecLZ4::decompress(char * source, char * dest, size_t input_size, size_t max_output_size)
+WriteBuffer * CompressionCodecLZ4::writeImpl(WriteBuffer &upstream)
 {
-    auto read = LZ4_decompress_fast(source, dest, max_output_size);
-
-    if (read > static_cast<int64_t>(input_size) || read < 0)
-        throw Exception("Cannot LZ4_decompress_fast", ErrorCodes::CANNOT_DECOMPRESS);
-
-    return max_output_size;
-}
-
-size_t CompressionCodecLZ4HC::compress(char * source, char * dest, size_t input_size, size_t max_output_size)
-{
-    auto wrote = LZ4_compress_HC(source, dest, input_size, max_output_size, argument);
-
-    if (!wrote)
-        throw Exception("Cannot LZ4_compress_HC", ErrorCodes::CANNOT_COMPRESS);
-
-    return wrote;
-}
-
-template <typename T>
-static CompressionCodecPtr create(const ASTPtr & arguments)
-{
-    if (!arguments)
-        return std::make_shared<T>();
-
-    if (arguments->children.size() != 1)
-        throw Exception("LZ4 codec can optionally have only one argument", ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH);
-
-    const ASTLiteral * arg = typeid_cast<const ASTLiteral *>(arguments->children[0].get());
-    if (!arg || arg->value.getType() != Field::Types::UInt64)
-        throw Exception("Parameter for LZ4 codec must be UInt8 literal", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
-
-    return std::make_shared<T>(arg->value.get<UInt8>());
-}
-
-template<typename T>
-static CompressionCodecPtr createSimple()
-{
-    return std::make_shared<T>();
-}
-
-void registerCodecLZ4(CompressionCodecFactory & factory)
-{
-    factory.registerCodec("LZ4", create<CompressionCodecLZ4>);
-    factory.registerCodecBytecode(CompressionCodecLZ4::bytecode, createSimple<CompressionCodecLZ4>);
-    factory.registerCodec("LZ4HC", create<CompressionCodecLZ4HC>);
+    return new LZ4CompressedWriteBuffer(upstream);
 }
 
 }

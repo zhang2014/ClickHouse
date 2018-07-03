@@ -36,6 +36,7 @@ protected:
             const std::string & marks_file_extension_,
             size_t max_compress_block_size,
             CompressionSettings compression_settings,
+            const CompressionCodecPtr & compression_codec,
             size_t estimated_size,
             size_t aio_threshold);
 
@@ -46,7 +47,7 @@ protected:
         /// compressed -> compressed_buf -> plain_hashing -> plain_file
         std::unique_ptr<WriteBufferFromFileBase> plain_file;
         HashingWriteBuffer plain_hashing;
-        CompressedWriteBuffer compressed_buf;
+        std::unique_ptr<WriteBuffer> compressed_buf;
         HashingWriteBuffer compressed;
 
         /// marks -> marks_file

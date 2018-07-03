@@ -100,87 +100,14 @@ class IParserColumnDeclaration : public IParserBase
 protected:
     const char * getName() const { return "column declaration"; }
     bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected);
+
+    bool isDeclareColumnType(Pos &pos, Expected &expected);
+
+    bool isDeclareColumnCodec(Pos &pos, Expected &expected);
 };
 
 using ParserColumnDeclaration = IParserColumnDeclaration<ParserIdentifier>;
 using ParserCompoundColumnDeclaration = IParserColumnDeclaration<ParserCompoundIdentifier>;
-
-template <typename NameParser>
-bool IParserColumnDeclaration<NameParser>::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
-{
-    NameParser name_parser;
-    ParserIdentifierWithOptionalParameters type_parser;
-    ParserCodec codec_parser;
-    ParserKeyword s_default{"DEFAULT"};
-    ParserKeyword s_materialized{"MATERIALIZED"};
-    ParserKeyword s_alias{"ALIAS"};
-    ParserTernaryOperatorExpression expr_parser;
-
-    /// mandatory column name
-    ASTPtr name;
-    if (!name_parser.parse(pos, name, expected))
-        return false;
-
-    /** column name should be followed by type name if it
-      *    is not immediately followed by {DEFAULT, MATERIALIZED, ALIAS}
-      */
-    ASTPtr type;
-    const auto fallback_pos = pos;
-    if (!s_default.check(pos, expected) &&
-        !s_materialized.check(pos, expected) &&
-        !s_alias.check(pos, expected))
-    {
-        type_parser.parse(pos, type, expected);
-    }
-    else
-        pos = fallback_pos;
-
-    ASTPtr codec;
-    const auto codec_fallback_pos = pos;
-    if (!codec_parser.parse(pos, codec, expected))
-        pos = codec_fallback_pos;
-
-    /// parse {DEFAULT, MATERIALIZED, ALIAS}
-    String default_specifier;
-    ASTPtr default_expression;
-    Pos pos_before_specifier = pos;
-    if (s_default.ignore(pos, expected) ||
-        s_materialized.ignore(pos, expected) ||
-        s_alias.ignore(pos, expected))
-    {
-        default_specifier = Poco::toUpper(std::string{pos_before_specifier->begin, pos_before_specifier->end});
-
-        /// should be followed by an expression
-        if (!expr_parser.parse(pos, default_expression, expected))
-            return false;
-    }
-    else if (!type)
-        return false; /// reject sole column name without type
-
-    const auto column_declaration = std::make_shared<ASTColumnDeclaration>();
-    node = column_declaration;
-    column_declaration->name = typeid_cast<ASTIdentifier &>(*name).name;
-    if (type)
-    {
-        column_declaration->type = type;
-        column_declaration->children.push_back(std::move(type));
-    }
-
-    if (default_expression)
-    {
-        column_declaration->default_specifier = default_specifier;
-        column_declaration->default_expression = default_expression;
-        column_declaration->children.push_back(std::move(default_expression));
-    }
-
-    if (codec)
-    {
-        column_declaration->codec = codec;
-        column_declaration->children.push_back(std::move(codec));
-    }
-
-    return true;
-}
 
 class ParserColumnDeclarationList : public IParserBase
 {

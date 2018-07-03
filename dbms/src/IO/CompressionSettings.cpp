@@ -1,5 +1,6 @@
-#include <IO/CompressionSettings.h>
 #include <Interpreters/Settings.h>
+
+#include "CompressionSettings.h"
 
 
 namespace DB

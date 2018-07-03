@@ -162,4 +162,19 @@ ColumnsDescription ColumnsDescription::parse(const String & str)
     return result;
 }
 
+bool ColumnsDescription::hasCompressionCodec(const String & column_name) const
+{
+    return codecs.find(column_name) != codecs.end();
+}
+
+CompressionCodecPtr ColumnsDescription::getColumnCodec(const String & column_name) const
+{
+    const auto codec = codecs.find(column_name);
+
+    if (codec == codecs.end())
+        throw Exception("");
+
+    return codec->second;
+}
+
 }
