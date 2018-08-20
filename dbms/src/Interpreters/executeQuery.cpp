@@ -22,6 +22,7 @@
 #include <Interpreters/ProcessList.h>
 #include <Interpreters/QueryLog.h>
 #include <Interpreters/executeQuery.h>
+#include <QingCloud/Interpreters/QingCloudInterpreterFactory.h>
 #include "DNSCacheUpdater.h"
 
 
@@ -198,7 +199,7 @@ static std::tuple<ASTPtr, BlockIO> executeQueryImpl(
             context.setProcessListElement(&process_list_entry->get());
         }
 
-        auto interpreter = InterpreterFactory::get(ast, context, stage);
+        auto interpreter = QingCloudInterpreterFactory::get(ast, context, stage);
         res = interpreter->execute();
 
         /// Delayed initialization of query streams (required for KILL QUERY purposes)
