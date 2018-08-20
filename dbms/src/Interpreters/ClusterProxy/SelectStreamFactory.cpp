@@ -78,12 +78,16 @@ void SelectStreamFactory::createForShard(
 {
     auto emplace_local_stream = [&]()
     {
-        res.emplace_back(createLocalStream(query_ast, context, processed_stage));
+        Context query_context = context;
+        query_context.getSettingsRef().query_shard_index = shard_info.shard_num;
+        res.emplace_back(createLocalStream(query_ast, query_context, processed_stage));
     };
 
     auto emplace_remote_stream = [&]()
     {
-        auto stream = std::make_shared<RemoteBlockInputStream>(shard_info.pool, query, header, context, nullptr, throttler, external_tables, processed_stage);
+        Context query_context = context;
+        query_context.getSettingsRef().query_shard_index = shard_info.shard_num;
+        auto stream = std::make_shared<RemoteBlockInputStream>(shard_info.pool, query, header, query_context, nullptr, throttler, external_tables, processed_stage);
         stream->setPoolMode(PoolMode::GET_MANY);
         if (!table_func_ptr)
             stream->setMainTable(main_table);
@@ -210,7 +214,11 @@ void SelectStreamFactory::createForShard(
             }
 
             if (try_results.empty() || local_delay < max_remote_delay)
-                return createLocalStream(query_ast, context, stage);
+            {
+                Context query_context = context;
+                query_context.getSettingsRef().query_shard_index = shard_num;
+                return createLocalStream(query_ast, query_context, stage);
+            }
             else
             {
                 std::vector<IConnectionPool::Entry> connections;
@@ -218,8 +226,10 @@ void SelectStreamFactory::createForShard(
                 for (auto & try_result : try_results)
                     connections.emplace_back(std::move(try_result.entry));
 
+                Context query_context = context;
+                query_context.getSettingsRef().query_shard_index = shard_num;
                 return std::make_shared<RemoteBlockInputStream>(
-                    std::move(connections), query, header, context, nullptr, throttler, external_tables, stage);
+                    std::move(connections), query, header, query_context, nullptr, throttler, external_tables, stage);
             }
         };
 

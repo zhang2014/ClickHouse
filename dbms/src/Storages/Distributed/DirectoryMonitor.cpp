@@ -17,6 +17,7 @@
 #include <boost/algorithm/string/finder.hpp>
 
 #include <Poco/DirectoryIterator.h>
+#include "DirectoryMonitor.h"
 
 
 namespace CurrentMetrics
@@ -48,7 +49,10 @@ namespace
 
         for (auto it = boost::make_split_iterator(name, boost::first_finder(",")); it != decltype(it){}; ++it)
         {
-            const auto address = boost::copy_range<std::string>(*it);
+            const char * version_begin = boost::copy_range<std::string>(*it).data();
+            const char * version_end = strchr(version_begin, '_');
+            const char * shard_number_end = strchr(version_end + 1, '_');
+            const auto address = std::string(shard_number_end + 1);
             const char * address_begin = static_cast<const char*>(address.data());
             const char * address_end = address_begin + address.size();
 
@@ -96,10 +100,16 @@ StorageDistributedDirectoryMonitor::StorageDistributedDirectoryMonitor(StorageDi
     , sleep_time{default_sleep_time}
     , log{&Logger::get(getLoggerName())}
 {
-    const Settings & settings = storage.context.getSettingsRef();
+    settings = storage.context.getSettingsRef();
     should_batch_inserts = settings.distributed_directory_monitor_batch_inserts;
     min_batched_block_size_rows = settings.min_insert_block_size_rows;
     min_batched_block_size_bytes = settings.min_insert_block_size_bytes;
+    const char * begin = name.data();
+    const char * version_end = strchr(begin, '_');
+    const char * shard_number_begin = version_end + 1;
+    const char * shard_number_end = strchr(shard_number_begin, '_');
+    settings.writing_version = parse<String>(begin, version_end - begin);
+    settings.writing_shard_index = parse<UInt64>(shard_number_begin, shard_number_end - shard_number_begin);
 }
 
 
@@ -140,6 +150,7 @@ void StorageDistributedDirectoryMonitor::run()
     std::unique_lock<std::mutex> lock{mutex};
 
     const auto quit_requested = [this] { return quit.load(std::memory_order_relaxed); };
+
 
     while (!quit_requested())
     {
@@ -232,7 +243,7 @@ bool StorageDistributedDirectoryMonitor::findFiles()
 void StorageDistributedDirectoryMonitor::processFile(const std::string & file_path)
 {
     LOG_TRACE(log, "Started processing `" << file_path << '`');
-    auto connection = pool->get();
+    auto connection = pool->get(&settings);
 
     try
     {
@@ -243,7 +254,7 @@ void StorageDistributedDirectoryMonitor::processFile(const std::string & file_pa
         std::string insert_query;
         readStringBinary(insert_query, in);
 
-        RemoteBlockOutputStream remote{*connection, insert_query};
+        RemoteBlockOutputStream remote{*connection, insert_query, &settings};
 
         remote.writePrefix();
         remote.writePrepared(in);
@@ -335,7 +346,7 @@ struct StorageDistributedDirectoryMonitor::Batch
             writeText(out);
         }
 
-        auto connection = parent.pool->get();
+        auto connection = parent.pool->get(&parent.settings);
 
         bool batch_broken = false;
         try
@@ -360,7 +371,7 @@ struct StorageDistributedDirectoryMonitor::Batch
                 if (first)
                 {
                     first = false;
-                    remote = std::make_unique<RemoteBlockOutputStream>(*connection, insert_query);
+                    remote = std::make_unique<RemoteBlockOutputStream>(*connection, insert_query, &parent.settings);
                     remote->writePrefix();
                 }
 
@@ -545,6 +556,12 @@ bool StorageDistributedDirectoryMonitor::maybeMarkAsBroken(const std::string & f
 std::string StorageDistributedDirectoryMonitor::getLoggerName() const
 {
     return storage.table_name + '.' + storage.getName() + ".DirectoryMonitor";
+}
+
+void StorageDistributedDirectoryMonitor::waitForFlushedOtherServer()
+{
+    if (!quit)
+        std::lock_guard<std::mutex> lock{mutex};
 }
 
 }

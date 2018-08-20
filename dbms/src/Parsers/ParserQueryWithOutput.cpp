@@ -4,6 +4,7 @@
 #include <Parsers/ParserTablePropertiesQuery.h>
 #include <Parsers/ParserDescribeTableQuery.h>
 #include <Parsers/ParserShowProcesslistQuery.h>
+#include <QingCloud/Parsers/ParserQingCloudQuery.h>
 #include <Parsers/ParserCheckQuery.h>
 #include <Parsers/ParserCreateQuery.h>
 #include <Parsers/ParserRenameQuery.h>
@@ -19,6 +20,7 @@ namespace DB
 
 bool ParserQueryWithOutput::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
 {
+    ParserQingCloudQuery qing_cloud_p;
     ParserShowTablesQuery show_tables_p;
     ParserSelectWithUnionQuery select_p;
     ParserTablePropertiesQuery table_p;
@@ -50,6 +52,7 @@ bool ParserQueryWithOutput::parseImpl(Pos & pos, ASTPtr & node, Expected & expec
         || rename_p.parse(pos, query, expected)
         || drop_p.parse(pos, query, expected)
         || check_p.parse(pos, query, expected)
+        || qing_cloud_p.parse(pos, query, expected)
         || kill_query_p.parse(pos, query, expected)
         || optimize_p.parse(pos, query, expected);
 

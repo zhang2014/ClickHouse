@@ -1,0 +1,5 @@
+add_subdirectory(Common)
+add_subdirectory(Parsers)
+add_subdirectory(Storages)
+add_subdirectory(Datastream)
+add_subdirectory(Interpreters)

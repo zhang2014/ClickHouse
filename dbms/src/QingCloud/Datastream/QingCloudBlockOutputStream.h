@@ -1,0 +1,143 @@
+#pragma once
+
+#include <Parsers/formatAST.h>
+#include <DataStreams/IBlockOutputStream.h>
+#include <Core/Block.h>
+#include <Common/Throttler.h>
+#include <common/ThreadPool.h>
+#include <atomic>
+#include <memory>
+#include <chrono>
+#include <optional>
+#include <Interpreters/Cluster.h>
+#include <Interpreters/Context.h>
+#include <Interpreters/ExpressionActions.h>
+#include "QingCloudAsynchronism.h"
+
+
+namespace Poco
+{
+    class Logger;
+}
+
+namespace DB
+{
+
+/** If insert_sync_ is true, the write is synchronous. Uses insert_timeout_ if it is not zero.
+ *  Otherwise, the write is asynchronous - the data is first written to the local filesystem, and then sent to the remote servers.
+ *  If the Distributed table uses more than one shard, then in order to support the write,
+ *  when creating the table, an additional parameter must be specified for ENGINE - the sharding key.
+ *  Sharding key is an arbitrary expression from the columns. For example, rand() or UserID.
+ *  When writing, the data block is splitted by the remainder of the division of the sharding key by the total weight of the shards,
+ *  and the resulting blocks are written in a compressed Native format in separate directories for sending.
+ *  For each destination address (each directory with data to send), a separate thread is created in StorageDistributed,
+ *  which monitors the directory and sends data. */
+class QingCloudBlockOutputStream : public IBlockOutputStream
+{
+public:
+    QingCloudBlockOutputStream(const Context &context, QingCloudAsynchronism &asynchronism,
+                               const ASTPtr &query_ast, const ClusterPtr &cluster_,
+                               const Settings &settings_, bool insert_sync_, UInt64 insert_timeout_,
+                               const String &sharding_column_name_, const ExpressionActionsPtr &sharding_key_expr,
+                               const Block &header, const String & current_writing_version_);
+
+    Block getHeader() const override;
+    void write(const Block & block) override;
+    void writePrefix() override;
+
+    void writeSuffix() override;
+
+private:
+
+    IColumn::Selector createSelector(const Block & source_block);
+
+
+    void writeAsync(const Block & block);
+
+    /// Split block between shards.
+    Blocks splitBlock(const Block & block);
+
+    void writeSplitAsync(const Block & block);
+
+    void writeAsyncImpl(const Block & block, const size_t shard_id = 0);
+
+    /// Increments finished_writings_count after each repeat.
+    void writeToLocal(const Block &block, const size_t repeats, const Context &context);
+
+    /// Performs synchronous insertion to remote nodes. If timeout_exceeded flag was set, throws.
+    void writeSync(const Block & block);
+
+    void initWritingJobs(const Block & first_block);
+
+    struct JobReplica;
+    ThreadPool::Job runWritingJob(JobReplica & job, const Block & current_block);
+
+    void waitForJobs();
+
+    /// Returns the number of blocks was written for each cluster node. Uses during exception handling.
+    std::string getCurrentStateDescription();
+
+private:
+    const Context & context;
+    QingCloudAsynchronism & asynchronism;
+    ASTPtr query_ast;
+    ClusterPtr cluster;
+    const String current_writing_version;
+    const Block & header;
+    const Settings & settings;
+    const String sharding_column_name;
+    const ExpressionActionsPtr sharding_key_expr;
+    size_t inserted_blocks = 0;
+    size_t inserted_rows = 0;
+
+    bool insert_sync;
+
+    /// Sync-related stuff
+    UInt64 insert_timeout; // in seconds
+    Stopwatch watch;
+    Stopwatch watch_current_block;
+    std::optional<ThreadPool> pool;
+    ThrottlerPtr throttler;
+    String query_string;
+
+    struct JobReplica
+    {
+        JobReplica() = default;
+        JobReplica(size_t shard_index, size_t replica_index, bool is_local_job, const Block & sample_block)
+            : shard_index(shard_index), replica_index(replica_index), is_local_job(is_local_job), current_shard_block(sample_block.cloneEmpty()) {}
+
+        size_t shard_index = 0;
+        size_t replica_index = 0;
+        bool is_local_job = false;
+
+        Block current_shard_block;
+
+        ConnectionPool::Entry connection_entry;
+        std::shared_ptr<Context> local_context;
+        BlockOutputStreamPtr stream;
+
+        UInt64 blocks_written = 0;
+        UInt64 rows_written = 0;
+
+        UInt64 blocks_started = 0;
+        UInt64 elapsed_time_ms = 0;
+        UInt64 max_elapsed_time_for_block_ms = 0;
+    };
+
+    struct JobShard
+    {
+        std::list<JobReplica> replicas_jobs;
+        IColumn::Permutation shard_current_block_permuation;
+    };
+
+    std::vector<JobShard> per_shard_jobs;
+
+    size_t remote_jobs_count = 0;
+    size_t local_jobs_count = 0;
+
+    std::atomic<unsigned> finished_jobs_count{0};
+
+    Poco::Logger * log;
+};
+
+}

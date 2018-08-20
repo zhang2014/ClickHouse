@@ -27,6 +27,11 @@ public:
             UInt16 clickhouse_port, bool treat_local_as_remote);
 
     Cluster(const Cluster &) = delete;
+
+    Cluster() = default;
+
+    virtual ~Cluster() = default;
+
     Cluster & operator=(const Cluster &) = delete;
 
     /// is used to set a limit on the size of the timeout
@@ -120,8 +125,10 @@ public:
     using ShardsInfo = std::vector<ShardInfo>;
 
     String getHashOfAddresses() const { return hash_of_addresses; }
-    const ShardsInfo & getShardsInfo() const { return shards_info; }
-    const AddressesWithFailover & getShardsAddresses() const { return addresses_with_failover; }
+
+    virtual const ShardsInfo & getShardsInfo() const { return shards_info; }
+
+    virtual const AddressesWithFailover & getShardsAddresses() const { return addresses_with_failover; }
 
     const ShardInfo & getAnyShardInfo() const
     {
@@ -138,17 +145,17 @@ public:
     size_t getLocalShardCount() const { return local_shard_count; }
 
     /// The number of all shards.
-    size_t getShardCount() const { return shards_info.size(); }
+    virtual size_t getShardCount() const { return shards_info.size(); }
 
     /// Get a subcluster consisting of one shard - index by count (from 0) of the shard of this cluster.
     std::unique_ptr<Cluster> getClusterWithSingleShard(size_t index) const;
 
-private:
     using SlotToShard = std::vector<UInt64>;
+private:
     SlotToShard slot_to_shard;
 
 public:
-    const SlotToShard & getSlotToShard() const { return slot_to_shard; }
+    virtual const SlotToShard & getSlotToShard() const { return slot_to_shard; }
 
 private:
     void initMisc();

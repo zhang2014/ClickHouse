@@ -22,6 +22,8 @@ public:
 
     static ConnectionPoolPtr createPool(const std::string & name, const StorageDistributed & storage);
 
+    void waitForFlushedOtherServer();
+
     void shutdownAndDropAllData();
 private:
     void run();
@@ -55,6 +57,7 @@ private:
     std::mutex mutex;
     std::condition_variable cond;
     Logger * log;
+    Settings settings;
     std::thread thread {&StorageDistributedDirectoryMonitor::run, this};
 };
 

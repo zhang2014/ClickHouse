@@ -99,6 +99,8 @@ bool ParserStorage::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
     ParserKeyword s_order_by("ORDER BY");
     ParserKeyword s_sample_by("SAMPLE BY");
     ParserKeyword s_settings("SETTINGS");
+    ParserKeyword s_distributed_by("DISTRIBUTED BY");
+    ParserKeyword s_randomly("RANDOMLY");
 
     ParserIdentifierWithOptionalParameters ident_with_optional_params_p;
     ParserExpression expression_p;
@@ -109,6 +111,7 @@ bool ParserStorage::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
     ASTPtr order_by;
     ASTPtr sample_by;
     ASTPtr settings;
+    ASTPtr distributed_by;
 
     if (!s_engine.ignore(pos, expected))
         return false;
@@ -150,6 +153,16 @@ bool ParserStorage::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
                 return false;
         }
 
+        if (s_distributed_by.ignore(pos, expected))
+        {
+            if (s_randomly.ignore(pos, expected))
+            {
+                distributed_by = std::make_shared<ASTIdentifier>("randomly");
+            }
+            else if (!expression_p.parse(pos, distributed_by, expected))
+                return false;
+        }
+
         break;
     }
 
@@ -159,6 +172,7 @@ bool ParserStorage::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
     storage->set(storage->order_by, order_by);
     storage->set(storage->sample_by, sample_by);
     storage->set(storage->settings, settings);
+    storage->set(storage->distributed_by, distributed_by);
 
     node = storage;
     return true;

@@ -268,7 +268,10 @@ ThreadPool::Job DistributedBlockOutputStream::runWritingJob(DistributedBlockOutp
                 if (throttler)
                     job.connection_entry->setThrottler(throttler);
 
-                job.stream = std::make_shared<RemoteBlockOutputStream>(*job.connection_entry, query_string, &settings);
+                Settings query_settings = settings;
+                query_settings.query_shard_index = shard_info.shard_num;
+
+                job.stream = std::make_shared<RemoteBlockOutputStream>(*job.connection_entry, query_string, &query_settings);
                 job.stream->writePrefix();
             }
 
@@ -280,8 +283,10 @@ ThreadPool::Job DistributedBlockOutputStream::runWritingJob(DistributedBlockOutp
             if (!job.stream)
             {
                 /// Forward user settings
+                Settings query_settings = settings;
+                query_settings.query_shard_index = shard_info.shard_num;
                 job.local_context = std::make_unique<Context>(storage.context);
-                job.local_context->setSettings(settings);
+                job.local_context->setSettings(query_settings);
 
                 InterpreterInsertQuery interp(query_ast, *job.local_context);
                 job.stream = interp.execute().out;
@@ -469,25 +474,25 @@ void DistributedBlockOutputStream::writeAsyncImpl(const Block & block, const siz
         if (shard_info.getLocalNodeCount() > 0)
         {
             /// Prefer insert into current instance directly
-            writeToLocal(block, shard_info.getLocalNodeCount());
+            writeToLocal(block, shard_info.getLocalNodeCount(), shard_info.shard_num);
         }
         else
         {
             if (shard_info.dir_name_for_internal_replication.empty())
                 throw Exception("Directory name for async inserts is empty, table " + storage.getTableName(), ErrorCodes::LOGICAL_ERROR);
 
-            writeToShard(block, {shard_info.dir_name_for_internal_replication});
+            writeToShard(block, {settings.writing_version.toString() + "_" + toString(shard_info.shard_num) + "_" +shard_info.dir_name_for_internal_replication});
         }
     }
     else
     {
         if (shard_info.getLocalNodeCount() > 0)
-            writeToLocal(block, shard_info.getLocalNodeCount());
+            writeToLocal(block, shard_info.getLocalNodeCount(), shard_info.shard_num);
 
         std::vector<std::string> dir_names;
         for (const auto & address : cluster->getShardsAddresses()[shard_id])
             if (!address.is_local)
-                dir_names.push_back(address.toStringFull());
+                dir_names.push_back(settings.writing_version.toString() + "_" + toString(shard_info.shard_num) + "_" + address.toStringFull());
 
         if (!dir_names.empty())
             writeToShard(block, dir_names);
@@ -495,10 +500,14 @@ void DistributedBlockOutputStream::writeAsyncImpl(const Block & block, const siz
 }
 
 
-void DistributedBlockOutputStream::writeToLocal(const Block & block, const size_t repeats)
+void DistributedBlockOutputStream::writeToLocal(const Block & block, const size_t repeats, size_t shard_number)
 {
     /// Async insert does not support settings forwarding yet whereas sync one supports
-    InterpreterInsertQuery interp(query_ast, storage.context);
+    std::unique_ptr<Context> query_context = std::make_unique<Context>(storage.context);
+    query_context->getSettingsRef().writing_shard_index = shard_number;
+    query_context->getSettingsRef().writing_version = settings.writing_version;
+
+    InterpreterInsertQuery interp(query_ast, *query_context);
 
     auto block_io = interp.execute();
     block_io.out->writePrefix();

@@ -22,6 +22,7 @@
 #include <Interpreters/ProcessList.h>
 #include <Interpreters/QueryLog.h>
 #include <Interpreters/executeQuery.h>
+#include <QingCloud/Interpreters/QingCloudInterpreterFactory.h>
 #include "DNSCacheUpdater.h"
 
 
@@ -202,7 +203,7 @@ static std::tuple<ASTPtr, BlockIO> executeQueryImpl(
         /// Load external tables if they were provided
         context.initializeExternalTablesIfSet();
 
-        auto interpreter = InterpreterFactory::get(ast, context, stage);
+        auto interpreter = QingCloudInterpreterFactory::get(ast, context, stage);
         res = interpreter->execute();
 
         if (process_list_entry)

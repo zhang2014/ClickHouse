@@ -19,6 +19,7 @@ public:
     IAST * order_by = nullptr;
     IAST * sample_by = nullptr;
     ASTSetQuery * settings = nullptr;
+    IAST * distributed_by = nullptr;
 
     String getID() const override { return "Storage definition"; }
 
@@ -37,6 +38,8 @@ public:
             res->set(res->sample_by, sample_by->clone());
         if (settings)
             res->set(res->settings, settings->clone());
+        if (distributed_by)
+            res->set(res->distributed_by, distributed_by->clone());
 
         return res;
     }
@@ -68,7 +71,11 @@ public:
             s.ostr << (s.hilite ? hilite_keyword : "") << s.nl_or_ws << "SETTINGS " << (s.hilite ? hilite_none : "");
             settings->formatImpl(s, state, frame);
         }
-
+        if (distributed_by)
+        {
+            s.ostr << (s.hilite ? hilite_keyword : "") << s.nl_or_ws << "DISTRIBUTED BY " << (s.hilite ? hilite_none : "");
+            distributed_by->formatImpl(s, state, frame);
+        }
     }
 };
 

@@ -103,6 +103,8 @@ public:
     /// ensure connection pool creation and return it
     ConnectionPoolPtr requireConnectionPool(const std::string & name);
 
+    void waitForFlushedOtherServer();
+
     ClusterPtr getCluster() const;
 
 
@@ -134,6 +136,8 @@ public:
         void requireConnectionPool(const std::string & name, const StorageDistributed & storage);
         /// Creates directory_monitor if not exists.
         void requireDirectoryMonitor(const std::string & name, StorageDistributed & storage);
+
+        void waitForFlushedOtherServer();
 
         void shutdownAndDropAllData();
     };

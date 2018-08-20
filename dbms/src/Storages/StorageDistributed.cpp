@@ -413,6 +413,13 @@ ClusterPtr StorageDistributed::getCluster() const
     return owned_cluster ? owned_cluster : context.getCluster(cluster_name);
 }
 
+void StorageDistributed::waitForFlushedOtherServer()
+{
+    std::lock_guard lock(cluster_nodes_mutex);
+    for (auto it = cluster_nodes_data.begin(); it != cluster_nodes_data.end();)
+        it->second.waitForFlushedOtherServer();
+}
+
 void StorageDistributed::ClusterNodeData::requireConnectionPool(const std::string & name, const StorageDistributed & storage)
 {
     if (!conneciton_pool)
@@ -423,12 +430,19 @@ void StorageDistributed::ClusterNodeData::requireDirectoryMonitor(const std::str
 {
     requireConnectionPool(name, storage);
     if (!directory_monitor)
+    {
         directory_monitor = std::make_unique<StorageDistributedDirectoryMonitor>(storage, name, conneciton_pool);
+    }
 }
 
 void StorageDistributed::ClusterNodeData::shutdownAndDropAllData()
 {
     directory_monitor->shutdownAndDropAllData();
+}
+
+void StorageDistributed::ClusterNodeData::waitForFlushedOtherServer()
+{
+    directory_monitor->waitForFlushedOtherServer();
 }
 
 

@@ -107,6 +107,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
     registerTableFunctions();
     registerStorages();
 
+
     CurrentMetrics::set(CurrentMetrics::Revision, ClickHouseRevision::get());
 
     /** Context contains all that query execution is dependent:
@@ -302,6 +303,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
         {
             buildLoggers(*config);
             global_context->setClustersConfig(config);
+            global_context->setQingCloudConfig(config);
             global_context->setMacros(std::make_unique<Macros>(*config, "macros"));
         },
         /* already_loaded = */ true);
@@ -639,6 +641,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
 
         LOG_INFO(log, "Ready for connections.");
 
+        global_context->getDDLSynchronism();
         SCOPE_EXIT({
             LOG_DEBUG(log, "Received termination signal.");
             LOG_DEBUG(log, "Waiting for current connections to close.");

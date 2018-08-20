@@ -18,6 +18,8 @@
 #include <Interpreters/Settings.h>
 #include <Interpreters/ClientInfo.h>
 #include <IO/CompressionSettings.h>
+#include <QingCloud/Interpreters/MultiplexedVersionCluster.h>
+#include <QingCloud/Interpreters/Paxos/QingCloudDDLSynchronism.h>
 
 
 namespace Poco
@@ -372,8 +374,11 @@ public:
 
     Clusters & getClusters() const;
     std::shared_ptr<Cluster> getCluster(const std::string & cluster_name) const;
+    std::shared_ptr<QingCloudDDLSynchronism> getDDLSynchronism() const;
+    std::shared_ptr<MultiplexedVersionCluster> getMultiplexedVersion() const;
     std::shared_ptr<Cluster> tryGetCluster(const std::string & cluster_name) const;
     void setClustersConfig(const ConfigurationPtr & config, const String & config_name = "remote_servers");
+    void setQingCloudConfig(const ConfigurationPtr & config, const String & config_name = "QingCloudServers");
     /// Sets custom cluster, but doesn't update configuration
     void setCluster(const String & cluster_name, const std::shared_ptr<Cluster> & cluster);
     void reloadClusterConfig();
