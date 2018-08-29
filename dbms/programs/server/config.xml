@@ -148,7 +148,7 @@
     <!-- Configuration of clusters that could be used in Distributed tables.
          https://clickhouse.yandex/docs/en/table_engines/distributed/
       -->
-    <remote_servers incl="clickhouse_remote_servers" >
+    <remote_servers>
         <!-- Test only shard config for testing distributed storage -->
         <test_shard_localhost>
             <shard>
@@ -169,7 +169,24 @@
         </test_shard_localhost_secure>
     </remote_servers>
 
-
+    <QingCloudServers>
+        <Version id="1" readable="true" writeable="false">
+            <Shard host="127.0.0.1" port="9000" />
+        </Version>
+        <Version id="2" readable="true" writeable="true">
+            <Shard>
+                <Replica host="127.0.0.1" port="9000" />
+            </Shard>
+        </Version>
+        <Version id="3" readable="true" writeable="false">
+            <Shard>
+                <Replica>
+                    <host>127.0.0.1</host>
+                    <port>9000</port>
+                </Replica>
+            </Shard>
+        </Version>
+    </QingCloudServers>
     <!-- If element has 'incl' attribute, then for it's value will be used corresponding substitution from another file.
          By default, path to file with substitutions is /etc/metrika.xml. It could be changed in config in 'include_from' element.
          Values for substitutions are specified in /yandex/name_of_substitution elements in that file.

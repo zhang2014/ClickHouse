@@ -4,6 +4,8 @@
 #include <Common/typeid_cast.h>
 
 #include <algorithm>
+#include <QingCloud/Storages/StorageQingCloud.h>
+#include <Parsers/ASTLiteral.h>
 
 
 namespace DB

@@ -33,6 +33,13 @@ struct Settings
       */
 
 #define APPLY_FOR_SETTINGS(M) \
+    /* Begin QingCloud Settings*/ \
+    M(SettingBool, internal_query, false, "") \
+    M(SettingUInt64, query_version, 0, "") \
+    M(SettingUInt64, query_shard_index, 0, "") \
+    M(SettingUInt64, writing_version, 0, "") \
+    M(SettingUInt64, writing_shard_index, 0, "") \
+    /* End QingCloud Settings*/ \
     M(SettingUInt64, min_compress_block_size, 65536, "The actual size of the block to compress, if the uncompressed data less than max_compress_block_size is no less than this value and no less than the volume of data for one mark.") \
     M(SettingUInt64, max_compress_block_size, 1048576, "The maximum size of blocks of uncompressed data before compressing for writing to a table.") \
     M(SettingUInt64, max_block_size, DEFAULT_BLOCK_SIZE, "Maximum block size for reading") \

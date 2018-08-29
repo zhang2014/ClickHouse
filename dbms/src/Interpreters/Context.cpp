@@ -51,6 +51,8 @@
 #include <Common/Config/ConfigProcessor.h>
 #include <Common/ZooKeeper/ZooKeeper.h>
 #include <common/logger_useful.h>
+#include <QingCloud/Interpreters/MultiplexedVersionCluster.h>
+#include <QingCloud/Common/notifyAllQingCloudStorage.h>
 
 
 namespace ProfileEvents
@@ -175,6 +177,9 @@ struct ContextShared
     std::unique_ptr<Clusters> clusters;
     ConfigurationPtr clusters_config;                        /// Soteres updated configs
     mutable std::mutex clusters_mutex;                        /// Guards clusters and clusters_config
+    std::shared_ptr<MultiplexedVersionCluster> qingcloud_cluster;
+    ConfigurationPtr qingcloud_clusters_config;
+    mutable std::mutex qing_clusters_mutex;
 
     bool shutdown_called = false;
 
@@ -1439,6 +1444,17 @@ std::shared_ptr<Cluster> Context::getCluster(const std::string & cluster_name) c
     return res;
 }
 
+std::shared_ptr<MultiplexedVersionCluster> Context::getMultiplexedVersion() const
+{
+    std::lock_guard<std::mutex> lock(shared->qing_clusters_mutex);
+    if (!shared->qingcloud_cluster)
+    {
+        auto & config = shared->qingcloud_clusters_config ? *shared->qingcloud_clusters_config : getConfigRef();
+        shared->qingcloud_cluster = std::make_shared<MultiplexedVersionCluster>(config, settings, "QingCloudServers");
+    }
+
+    return shared->qingcloud_cluster;
+}
 
 std::shared_ptr<Cluster> Context::tryGetCluster(const std::string & cluster_name) const
 {
@@ -1499,6 +1515,25 @@ void Context::setClustersConfig(const ConfigurationPtr & config, const String & 
         shared->clusters->updateClusters(*shared->clusters_config, settings, config_name);
 }
 
+void Context::setQingCloudConfig(const ConfigurationPtr & config, const String & config_name)
+{
+    bool is_create = false;
+    {
+        std::lock_guard<std::mutex> lock(shared->qing_clusters_mutex);
+
+        shared->qingcloud_clusters_config = config;
+
+        if (!shared->qingcloud_cluster)
+        {
+            is_create = true;
+            shared->qingcloud_cluster = std::make_shared<MultiplexedVersionCluster>(*shared->qingcloud_clusters_config, settings, config_name);
+        }
+        else
+            shared->qingcloud_cluster->updateMultiplexedVersionCluster(*shared->qingcloud_clusters_config, settings, config_name);
+    }
+
+    notifyAllQingCloudStorage(*this, is_create);
+}
 
 void Context::setCluster(const String & cluster_name, const std::shared_ptr<Cluster> & cluster)
 {

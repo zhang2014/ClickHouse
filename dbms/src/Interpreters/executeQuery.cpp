@@ -199,6 +199,7 @@ static std::tuple<ASTPtr, BlockIO> executeQueryImpl(
             context.setProcessListElement(&process_list_entry->get());
         }
 
+        /// if qingcloud is true, this request is from other node.
         auto interpreter = QingCloudInterpreterFactory::get(ast, context, stage);
         res = interpreter->execute();
 

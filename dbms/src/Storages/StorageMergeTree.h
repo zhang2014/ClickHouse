@@ -147,6 +147,7 @@ private:
     friend class MergeTreeBlockOutputStream;
     friend class MergeTreeData;
     friend struct CurrentlyMergingPartsTagger;
+    friend class StorageQingCloud;
 
 protected:
     /** Attach the table with the appropriate name, along the appropriate path (with  / at the end),
@@ -173,5 +174,4 @@ protected:
         const MergeTreeSettings & settings_,
         bool has_force_restore_data_flag);
 };
-
 }

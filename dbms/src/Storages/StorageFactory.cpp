@@ -96,7 +96,7 @@ StoragePtr StorageFactory::get(
             }
 
             if ((storage_def->partition_by || storage_def->order_by || storage_def->sample_by)
-                && !endsWith(name, "MergeTree"))
+                && !endsWith(name, "MergeTree") && name != "QingCloud")
             {
                 throw Exception(
                     "Engine " + name + " doesn't support PARTITION BY, ORDER BY or SAMPLE BY clauses. "

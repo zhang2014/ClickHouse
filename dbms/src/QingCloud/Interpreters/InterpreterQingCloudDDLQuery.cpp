@@ -1,45 +1,51 @@
 #include <DataStreams/RemoteBlockInputStream.h>
 #include <DataStreams/UnionBlockInputStream.h>
-#include <Interpreters/Cluster.h>
-#include <Interpreters/Context.h>
 #include <Parsers/queryToString.h>
 #include <QingCloud/Interpreters/InterpreterQingCloudDDLQuery.h>
 
-DB::BlockIO DB::InterpreterQingCloudDDLQuery::execute()
+namespace DB
 {
-    const auto cluster = context.getCluster("QingCloudCluster");
 
-    if (!local_interpreter || !cluster)
-        return {};
+BlockIO InterpreterQingCloudDDLQuery::execute()
+{
+    Settings & settings = context.getSettingsRef();
+    const auto multiplexed_version_cluster = context.getMultiplexedVersion();
+    const auto address_and_connection_pools = multiplexed_version_cluster->getAddressesAndConnections();
 
-    auto each_all_replica_of_shard = [&cluster](BlockInputStreamPtr (*func)(const ConnectionPoolPtr &)) {
-        BlockInputStreams streams;
-        for (const auto & shard_info : cluster->getShardsInfo())
-            for (const auto & replica_pool : shard_info.per_replica_pools)
-                streams.emplace_back(std::move(func(replica_pool)));
-
-        return streams;
-    };
-
+    Block header;
+    String query_string = queryToString(query);
 
     BlockIO res = local_interpreter->execute();
 
     if (res.in)
+        header = res.in->getHeader();
+
+    BlockInputStreams streams;
+    for (const auto & address_and_connections : address_and_connection_pools)
     {
-        BlockInputStreamPtr input = res.in;
-
-        /// TODO: thread pool
-        BlockInputStreams streams = each_all_replica_of_shard([&input](const ConnectionPoolPtr & replica_pool) -> BlockInputStreamPtr {
-            /// TODO: retries
-            Settings settings = context.getSettings();
-            ConnectionPool::Entry connection = replica_pool->get(&settings);
-            auto stream = std::make_shared<RemoteBlockInputStream>(connection, query, input->getHeader(), context, nullptr);
-            stream->setPoolMode(PoolMode::GET_MANY);
-            return stream;
-        });
-
-        streams.emplace_back(std::move(input));
-        res.in = std::make_shared<UnionBlockInputStream<>>(streams, nullptr, 1);
+        if (!address_and_connections.first.is_local)
+        {
+            settings.internal_query = true;
+            const auto connections = address_and_connections.second;
+            ConnectionPool::Entry connection = connections->get(&settings);
+            auto stream = std::make_shared<RemoteBlockInputStream>(*connection, query_string, header, context, &settings);
+            streams.emplace_back(std::move(stream));
+        }
     }
+    /// TODO make ddl block input stream
+    /// header  :
+    /// host          result          message
+    /// other         success
+    /// 192.168.1.1   failure         table already exists.
+//    res.in = std::make_shared<UnionBlockInputStream<>>(streams, nullptr, 1);
+
     return res;
+}
+
+InterpreterQingCloudDDLQuery::InterpreterQingCloudDDLQuery(std::unique_ptr<IInterpreter> local_interpreter_, Context & context, ASTPtr & query)
+    : context(context), query(query)
+{
+    local_interpreter = std::move(local_interpreter_);
+}
+
 }
