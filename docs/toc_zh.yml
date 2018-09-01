@@ -1,0 +1,177 @@
+nav:
+
+- '介绍':
+  - '概览': 'index.md'
+  - 'ClickHouse的独特功能': 'introduction/distinctive_features.md'
+  - 'ClickHouse的缺点': 'introduction/features_considered_disadvantages.md'
+  - '性能': 'introduction/performance.md'
+  - 'Yandex.Metrica 项目': 'introduction/ya_metrika_task.md'
+
+- '开始起步':
+  - '部署和运行': 'getting_started/index.md'
+  - '样例数据集':
+    - 'OnTime': 'getting_started/example_datasets/ontime.md'
+    - 'New York Taxi data': 'getting_started/example_datasets/nyc_taxi.md'
+    - 'AMPLab Big Data Benchmark': 'getting_started/example_datasets/amplab_benchmark.md'
+    - 'WikiStat': 'getting_started/example_datasets/wikistat.md'
+    - 'Terabyte click logs from Criteo': 'getting_started/example_datasets/criteo.md'
+    - 'Star Schema Benchmark': 'getting_started/example_datasets/star_schema.md'
+
+- '接口':
+  - '介绍': 'interfaces/index.md'
+  - '命令行客户端': 'interfaces/cli.md'
+  - 'HTTP 客户端': 'interfaces/http_interface.md'
+  - 'JDBC 驱动': 'interfaces/jdbc.md'
+  - '原生TCP驱动': 'interfaces/tcp.md'
+  - '三方开发的库': 'interfaces/third-party_client_libraries.md'
+  - '三方开发的可视化界面': 'interfaces/third-party_gui.md'
+  - '输入输出的格式': 'interfaces/formats.md'
+
+- '数据类型':
+  - '介绍': 'data_types/index.md'
+  - 'UInt8, UInt16, UInt32, UInt64, Int8, Int16, Int32, Int64': 'data_types/int_uint.md'
+  - 'Float32, Float64': 'data_types/float.md'
+  - 'Boolean values': 'data_types/boolean.md'
+  - 'String': 'data_types/string.md'
+  - 'FixedString(N)': 'data_types/fixedstring.md'
+  - 'Date': 'data_types/date.md'
+  - 'DateTime': 'data_types/datetime.md'
+  - 'Enum': 'data_types/enum.md'
+  - 'Array(T)': 'data_types/array.md'
+  - 'AggregateFunction(name, types_of_arguments...)': 'data_types/nested_data_structures/aggregatefunction.md'
+  - 'Tuple(T1, T2, ...)': 'data_types/tuple.md'
+  - '嵌套类型':
+    - 'hidden': 'data_types/nested_data_structures/index.md'
+    - 'Nested(Name1 Type1, Name2 Type2, ...)': 'data_types/nested_data_structures/nested.md'
+  - '特殊类型':
+    - 'hidden': 'data_types/special_data_types/index.md'
+    - 'Expression': 'data_types/special_data_types/expression.md'
+    - 'Set': 'data_types/special_data_types/set.md'
+
+- 'SQL 语法参考':
+  - 'hidden': 'query_language/index.md'
+  - 'SELECT': 'query_language/select.md'
+  - 'INSERT INTO': 'query_language/insert_into.md'
+  - 'CREATE': 'query_language/create.md'
+  - 'ALTER': 'query_language/alter.md'
+  - '其他的查询语句': 'query_language/misc.md'
+  - '函数':
+    - '介绍': 'query_language/functions/index.md'
+    - '算术函数': 'query_language/functions/arithmetic_functions.md'
+    - '比较函数': 'query_language/functions/comparison_functions.md'
+    - '逻辑函数': 'query_language/functions/logical_functions.md'
+    - '类型转换函数': 'query_language/functions/type_conversion_functions.md'
+    - '日期处理函数': 'query_language/functions/date_time_functions.md'
+    - '字符串处理函数': 'query_language/functions/string_functions.md'
+    - '字符串查找函数': 'query_language/functions/string_search_functions.md'
+    - '字符串查找替换函数': 'query_language/functions/string_replace_functions.md'
+    - '条件函数': 'query_language/functions/conditional_functions.md'
+    - '数学函数': 'query_language/functions/math_functions.md'
+    - '舍入函数': 'query_language/functions/rounding_functions.md'
+    - '数组处理函数': 'query_language/functions/array_functions.md'
+    - '字符串和数组分割合并函数': 'query_language/functions/splitting_merging_functions.md'
+    - '位操作函数': 'query_language/functions/bit_functions.md'
+    - 'Hash函数': 'query_language/functions/hash_functions.md'
+    - '伪随机数生成函数': 'query_language/functions/random_functions.md'
+    - '压缩函数': 'query_language/functions/encoding_functions.md'
+    - 'URL处理函数': 'query_language/functions/url_functions.md'
+    - 'IP地址处理函数': 'query_language/functions/ip_address_functions.md'
+    - 'JSON处理函数': 'query_language/functions/json_functions.md'
+    - '高阶函数': 'query_language/functions/higher_order_functions.md'
+    - '其他函数': 'query_language/functions/other_functions.md'
+    - '内部字典处理函数': 'query_language/functions/ext_dict_functions.md'
+    - 'Yandex.Metrica 字典处理函数': 'query_language/functions/ym_dict_functions.md'
+    - 'IN 操作符函数': 'query_language/functions/in_functions.md'
+    - 'arrayJoin 函数': 'query_language/functions/array_join.md'
+  - '聚合函数':
+    - '介绍': 'query_language/agg_functions/index.md'
+    - '函数参考': 'query_language/agg_functions/reference.md'
+    - '组合聚合函数': 'query_language/agg_functions/combinators.md'
+    - '参数化聚合函数': 'query_language/agg_functions/parametric_functions.md'
+  - '表函数':
+    - '介绍': 'query_language/table_functions/index.md'
+    - 'file': 'query_language/table_functions/file.md'
+    - 'merge': 'query_language/table_functions/merge.md'
+    - 'numbers': 'query_language/table_functions/numbers.md'
+    - 'remote': 'query_language/table_functions/remote.md'
+    - 'url': 'query_language/table_functions/url.md'
+  - '字典':
+    - '介绍': 'query_language/dicts/index.md'
+    - '外部字典':
+      - '一般说明': 'query_language/dicts/external_dicts.md'
+      - '配置外部字典': 'query_language/dicts/external_dicts_dict.md'
+      - '存储字典到内存中': 'query_language/dicts/external_dicts_dict_layout.md'
+      - '字典更新': 'query_language/dicts/external_dicts_dict_lifetime.md'
+      - '外部字典的数据源': 'query_language/dicts/external_dicts_dict_sources.md'
+      - '字典的键值对': 'query_language/dicts/external_dicts_dict_structure.md'
+    - '内部字典': 'query_language/dicts/internal_dicts.md'
+  - '运算符': 'query_language/operators.md'
+  - '基本语法': 'query_language/syntax.md'
+
+- '操作':
+  - 'hidden': 'operations/index.md'
+  - '表引擎':
+    - '介绍': 'operations/table_engines/index.md'
+    - 'MergeTree 家族引擎':
+      - 'MergeTree': 'operations/table_engines/mergetree.md'
+      - '数据副本': 'operations/table_engines/replication.md'
+      - '自定义分区键': 'operations/table_engines/custom_partitioning_key.md'
+      - 'ReplacingMergeTree': 'operations/table_engines/replacingmergetree.md'
+      - 'SummingMergeTree': 'operations/table_engines/summingmergetree.md'
+      - 'AggregatingMergeTree': 'operations/table_engines/aggregatingmergetree.md'
+      - 'CollapsingMergeTree': 'operations/table_engines/collapsingmergetree.md'
+      - 'GraphiteMergeTree': 'operations/table_engines/graphitemergetree.md'
+    - '面向小数据集的引擎':
+      - 'TinyLog': 'operations/table_engines/tinylog.md'
+      - 'Log': 'operations/table_engines/log.md'
+      - 'Memory': 'operations/table_engines/memory.md'
+      - 'Buffer': 'operations/table_engines/buffer.md'
+      - 'External data': 'operations/table_engines/external_data.md'
+    - '特殊的引擎':
+      - 'Distributed': 'operations/table_engines/distributed.md'
+      - 'Dictionary': 'operations/table_engines/dictionary.md'
+      - 'Merge': 'operations/table_engines/merge.md'
+      - 'File': 'operations/table_engines/file.md'
+      - 'Null': 'operations/table_engines/null.md'
+      - 'Set': 'operations/table_engines/set.md'
+      - 'Join': 'operations/table_engines/join.md'
+      - 'URL': 'operations/table_engines/url.md'
+      - 'View': 'operations/table_engines/view.md'
+      - 'MaterializedView': 'operations/table_engines/materializedview.md'
+    - '与三方存储集成的引擎':
+      - 'Kafka': 'operations/table_engines/kafka.md'
+      - 'MySQL': 'operations/table_engines/mysql.md'
+  - '权限': 'operations/access_rights.md'
+  - '配置文件': 'operations/configuration_files.md'
+  - '配额': 'operations/quotas.md'
+  - '系统表': 'operations/system_tables.md'
+  - '使用建议': 'operations/tips.md'
+  - '服务端配置参数':
+    - '介绍': 'operations/server_settings/index.md'
+    - '服务端参数': 'operations/server_settings/settings.md'
+  - '设置':
+    - '介绍': 'operations/settings/index.md'
+    - '查询复杂性的限制': 'operations/settings/query_complexity.md'
+    - '设置的参数': 'operations/settings/settings.md'
+    - '设置配置文件': 'operations/settings/settings_profiles.md'
+
+  - '工具':
+    - '概览': 'operations/utils/index.md'
+    - 'clickhouse-copier': 'operations/utils/clickhouse-copier.md'
+    - 'clickhouse-local': 'operations/utils/clickhouse-local.md'
+
+- '常见问题':
+  - '常见问题': 'faq/general.md'
+
+- '开发':
+  - 'hidden': 'development/index.md'
+  - 'ClickHouse架构概览': 'development/architecture.md'
+  - '如何在Linux下编译ClickHouse': 'development/build.md'
+  - '如何在Mac OS X下编译ClickHouse': 'development/build_osx.md'
+  - '如何编写C++ code代码': 'development/style.md'
+  - '如何编写ClickHouse测试代码': 'development/tests.md'
+
+- '新特性':
+  - '未来路线': 'roadmap.md'
+  - '更新日志': 'changelog.md'
+  - '安全相关更新日志': 'security_changelog.md'
