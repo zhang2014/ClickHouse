@@ -61,7 +61,7 @@ def build_for_lang(lang, args):
             'static_templates': ['404.html'],
             'extra': {
                 'single_page': False,
-                'opposite_lang': 'ru' if lang == 'en' else 'en',
+                'opposite_lang': lang,
                 'now': datetime.datetime.now() # TODO better way to avoid caching
             }
 
@@ -69,7 +69,7 @@ def build_for_lang(lang, args):
 
         cfg = config.load_config(
             config_file=config_path,
-            site_name='ClickHouse Documentation' if lang == 'en' else 'Документация ClickHouse',
+            site_name='ClickHouse Documentation' if lang == 'en' or lang == 'zh' else 'Документация ClickHouse',
             docs_dir=os.path.join(args.docs_dir, lang),
             site_dir=os.path.join(args.output_dir, lang),
             strict=True,
@@ -87,17 +87,18 @@ def build_for_lang(lang, args):
             ],
             plugins=[{
                 'search': {
-                    'lang': ['en'] if lang == 'en' else ['en', lang]
+                    'lang': ['en'] if lang == 'en' or lang == 'zh' else ['en', lang]
                 }
             }],
             extra={
                 'search': {
-                    'language': 'en' if lang == 'en' else 'en,%s' % lang
+                    'language': 'en' if lang == 'en' or lang == 'zh' else 'en,%s' % lang
                 }
             }
         )
 
         mkdocs_build.build(cfg)
+        logging.info('Building %s docs' % lang)
 
         if not args.skip_single_page:
             build_single_page_version(lang, args, cfg)
