@@ -118,7 +118,7 @@ private:
     String default_format;  /// Format, used when server formats data by itself and if query does not have FORMAT specification.
                             /// Thus, used in HTTP interface. If not specified - then some globally default format is used.
     TableAndCreateASTs external_tables;     /// Temporary tables.
-    Tables table_function_results;          /// Temporary tables obtained by execution of table functions. Keyed by AST tree id.
+    mutable Tables table_function_results;          /// Temporary tables obtained by execution of table functions. Keyed by AST tree id.
     Context * query_context = nullptr;
     Context * session_context = nullptr;    /// Session context or nullptr. Could be equal to this.
     Context * global_context = nullptr;     /// Global context or nullptr. Could be equal to this.
@@ -211,7 +211,7 @@ public:
     void addExternalTable(const String & table_name, const StoragePtr & storage, const ASTPtr & ast = {});
     StoragePtr tryRemoveExternalTable(const String & table_name);
 
-    StoragePtr executeTableFunction(const ASTPtr & table_expression);
+    StoragePtr executeTableFunction(const ASTPtr & table_expression) const;
 
     void addDatabase(const String & database_name, const DatabasePtr & database);
     DatabasePtr detachDatabase(const String & database_name);
