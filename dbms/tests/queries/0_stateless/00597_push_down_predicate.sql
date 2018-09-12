@@ -11,15 +11,13 @@ INSERT INTO test.test VALUES('2000-01-01', 2, 'test string 2', 2);
 
 SET enable_optimize_predicate_expression = 1;
 
-SELECT '-------Query that previously worked but now doesn\'t work.-------';
-SELECT * FROM (SELECT 1) WHERE `1` = 1; -- { serverError 47 }
-
 SELECT '-------Not need optimize predicate, but it works.-------';
 SELECT 1;
 SELECT 1 AS id WHERE id = 1;
 SELECT arrayJoin([1,2,3]) AS id WHERE id = 1;
 
 SELECT '-------Need push down-------';
+SELECT * FROM (SELECT 1 AS id UNION ALL SELECT 2) WHERE id = 1;
 SELECT * FROM (SELECT arrayJoin([1, 2, 3]) AS id) WHERE id = 1;
 SELECT id FROM (SELECT arrayJoin([1, 2, 3]) AS id) WHERE id = 1;
 SELECT date, id, name, value FROM (SELECT date, name, value,min(id) AS id FROM test.test GROUP BY date, name, value) WHERE id = 1;
