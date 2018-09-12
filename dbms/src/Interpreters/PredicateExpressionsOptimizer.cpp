@@ -232,7 +232,7 @@ void PredicateExpressionsOptimizer::cloneOuterPredicateForInnerPredicate(
                 ASTPtr & ast = projection.first;
                 if (!typeid_cast<ASTIdentifier *>(ast.get()) && ast->tryGetAlias().empty())
                     ast->setAlias(ast->getColumnName());
-                require.first->name = ast->tryGetAlias();
+                require.first->name = ast->getAliasOrColumnName();
             }
         }
     }
@@ -300,7 +300,7 @@ ASTs PredicateExpressionsOptimizer::getSelectQueryProjectionColumns(ASTPtr & ast
 {
     ASTs projection_columns;
     auto select_query = static_cast<ASTSelectQuery *>(ast.get());
-    
+
     for (const auto & projection_column : select_query->select_expression_list->children)
     {
         if (typeid_cast<ASTAsterisk *>(projection_column.get()) || typeid_cast<ASTQualifiedAsterisk *>(projection_column.get()))
