@@ -318,7 +318,6 @@ private:
       * For literal nodes, substitute aliases.
       */
     void normalizeTree();
-    void normalizeTreeImpl(ASTPtr & ast, MapOfASTs & finished_asts, SetOfASTs & current_asts, std::string current_alias, size_t level);
 
     ///    Eliminates injective function calls and constant expressions from group by statement
     void optimizeGroupBy();

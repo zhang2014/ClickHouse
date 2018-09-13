@@ -20,9 +20,9 @@ private:
     using MapOfASTs = std::map<ASTPtr, ASTPtr>;
 
     ASTPtr & query;
-    Aliases & aliases;
-    Settings & settings;
-    Names & all_columns_name;
+    const Aliases & aliases;
+    const Settings & settings;
+    const Names & all_columns_name;
 
     void performImpl(ASTPtr &ast, MapOfASTs &finished_asts, SetOfASTs &current_asts, std::string current_alias, size_t level);
 };

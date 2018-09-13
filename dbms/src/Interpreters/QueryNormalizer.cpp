@@ -29,6 +29,12 @@ bool functionIsInOrGlobalInOperator(const String & name)
 
 }
 
+QueryNormalizer::QueryNormalizer(
+    ASTPtr & query, const QueryNormalizer::Aliases & aliases, const Settings & settings, const Names & all_columns_name)
+    : query(query), aliases(aliases), settings(settings), all_columns_name(all_columns_name)
+{
+}
+
 void QueryNormalizer::perform()
 {
     SetOfASTs tmp_set;
