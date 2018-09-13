@@ -11,6 +11,8 @@
 #include <Common/typeid_cast.h>
 #include <Interpreters/PredicateExpressionsOptimizer.h>
 #include <Parsers/ASTAsterisk.h>
+#include <iostream>
+#include <Parsers/queryToString.h>
 
 namespace DB
 {
@@ -57,7 +59,7 @@ BlockInputStreams StorageView::read(
 
         replaceTableNameWithSubquery(new_outer_select, new_inner_query);
 
-        if (PredicateExpressionsOptimizer(new_outer_select, context.getSettingsRef(), context).optimize())
+        if (PredicateExpressionsOptimizer(new_outer_select, context.getSettings(), context).optimize())
             current_inner_query = new_inner_query;
     }
 
@@ -83,9 +85,12 @@ void StorageView::replaceTableNameWithSubquery(ASTSelectQuery * select_query, AS
     if (!table_expression->database_and_table_name)
         throw Exception("Logical error: incorrect table expression", ErrorCodes::LOGICAL_ERROR);
 
+    const auto alias = table_expression->database_and_table_name->tryGetAlias();
     table_expression->database_and_table_name = {};
     table_expression->subquery = std::make_shared<ASTSubquery>();
-    table_expression->subquery->children.push_back(subquery->clone());
+    table_expression->subquery->children.push_back(subquery);
+    if (!alias.empty())
+        table_expression->subquery->setAlias(alias);
 }
 
 

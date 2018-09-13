@@ -42,6 +42,8 @@ bool PredicateExpressionsOptimizer::optimizeImpl(
     /// split predicate with `and`
     PredicateExpressions outer_predicate_expressions = splitConjunctionPredicate(outer_expression);
 
+    using DatabaseAndTablesWithAliases = std::vector<DatabaseAndTableWithAlias>;
+
     std::vector<ASTTableExpression *> tables_expression = getSelectTablesExpression(ast_select);
     std::vector<DatabaseAndTableWithAlias> database_and_table_with_aliases;
     for (const auto & table_expression : tables_expression)
@@ -167,10 +169,11 @@ bool PredicateExpressionsOptimizer::cannotPushDownOuterPredicate(
 
         for (auto projection_column : subquery_projection_columns)
         {
-            if (projection_column.second == predicate_dependency.second)
+            if (projection_column.first == predicate_dependency.first)
             {
                 is_found = true;
-                optimize_kind = isAggregateFunction(projection_column.first) ? OptimizeKind::PUSH_TO_HAVING : optimize_kind;
+                /// 这一列可能是一个复杂列,包含各类引用
+                optimize_kind = isAggregateFunction(projection_column.second, subquery_projection_columns) ? OptimizeKind::PUSH_TO_HAVING : optimize_kind;
             }
         }
 
@@ -193,22 +196,30 @@ bool PredicateExpressionsOptimizer::isArrayJoinFunction(const ASTPtr & node)
     }
 
     for (auto & child : node->children)
-        if (isAggregateFunction(child))
+        if (isArrayJoinFunction(child))
             return true;
 
     return false;
 }
 
-bool PredicateExpressionsOptimizer::isAggregateFunction(ASTPtr & node)
+bool PredicateExpressionsOptimizer::isAggregateFunction(ASTPtr & node, const ProjectionsWithAliases & aliases)
 {
     if (auto function = typeid_cast<ASTFunction *>(node.get()))
     {
         if (AggregateFunctionFactory::instance().isAggregateFunctionName(function->name))
             return true;
     }
+    else if (auto identifier = typeid_cast<ASTIdentifier *>(node.get()))
+    {
+        /// TODO: quifier name
+        auto alias_it = aliases.find(identifier->name);
+
+        if (alias_it != aliases.end() && isAggregateFunction(alias_it->second, aliases))
+            return true;
+    }
 
     for (auto & child : node->children)
-        if (isAggregateFunction(child))
+        if (isAggregateFunction(child, aliases))
             return true;
 
     return false;
@@ -227,9 +238,9 @@ void PredicateExpressionsOptimizer::cloneOuterPredicateForInnerPredicate(
     {
         for (auto projection : projection_columns)
         {
-            if (require.second == projection.second)
+            if (require.second == projection.first)
             {
-                ASTPtr & ast = projection.first;
+                ASTPtr & ast = projection.second;
                 if (!typeid_cast<ASTIdentifier *>(ast.get()) && ast->tryGetAlias().empty())
                     ast->setAlias(ast->getColumnName());
                 require.first->name = ast->getAliasOrColumnName();
@@ -288,8 +299,8 @@ void PredicateExpressionsOptimizer::getSubqueryProjectionColumns(SubqueriesProje
                 select_with_union_projections = select_projection_columns;
 
             for (size_t i = 0; i < select_projection_columns.size(); i++)
-                subquery_projections.emplace_back(std::pair(select_projection_columns[i],
-                                                            qualified_name_prefix + select_with_union_projections[i]->getAliasOrColumnName()));
+                subquery_projections[qualified_name_prefix +
+                                     select_with_union_projections[i]->getAliasOrColumnName()] = select_projection_columns[i];
 
             all_subquery_projection_columns.insert(std::pair(select_without_union_query.get(), subquery_projections));
         }
@@ -299,7 +310,15 @@ void PredicateExpressionsOptimizer::getSubqueryProjectionColumns(SubqueriesProje
 ASTs PredicateExpressionsOptimizer::getSelectQueryProjectionColumns(ASTPtr & ast)
 {
     ASTs projection_columns;
+    std::map<String, ASTPtr> aliases;
     auto select_query = static_cast<ASTSelectQuery *>(ast.get());
+
+    for (const auto & expression : select_query->select_expression_list->children)
+    {
+        String alias = expression->tryGetAlias();
+        if (!alias.empty())
+            aliases[alias] = expression;
+    }
 
     for (const auto & projection_column : select_query->select_expression_list->children)
     {

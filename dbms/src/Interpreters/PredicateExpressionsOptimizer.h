@@ -21,8 +21,7 @@ namespace ErrorCodes
 }
 
 using PredicateExpressions = std::vector<ASTPtr>;
-using ProjectionWithAlias = std::pair<ASTPtr, String>;
-using ProjectionsWithAliases = std::vector<ProjectionWithAlias>;
+using ProjectionsWithAliases = std::map<String, ASTPtr>;
 using SubqueriesProjectionColumns = std::map<IAST *, ProjectionsWithAliases>;
 using IdentifierWithQualifiedName = std::pair<ASTIdentifier *, String>;
 using IdentifiersWithQualifiedNameSet = std::vector<IdentifierWithQualifiedName>;
@@ -59,7 +58,7 @@ private:
         PUSH_TO_HAVING,
     };
 
-    bool isAggregateFunction(ASTPtr & node);
+    bool isAggregateFunction(ASTPtr &node, const ProjectionsWithAliases & aliases);
 
     bool isArrayJoinFunction(const ASTPtr & node);
 
