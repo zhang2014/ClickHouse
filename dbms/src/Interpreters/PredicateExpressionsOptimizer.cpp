@@ -44,8 +44,6 @@ bool PredicateExpressionsOptimizer::optimizeImpl(
     /// split predicate with `and`
     PredicateExpressions outer_predicate_expressions = splitConjunctionPredicate(outer_expression);
 
-    using DatabaseAndTablesWithAliases = std::vector<DatabaseAndTableWithAlias>;
-
     std::vector<ASTTableExpression *> tables_expression = getSelectTablesExpression(ast_select);
     std::vector<DatabaseAndTableWithAlias> database_and_table_with_aliases;
     for (const auto & table_expression : tables_expression)
@@ -174,7 +172,7 @@ bool PredicateExpressionsOptimizer::cannotPushDownOuterPredicate(
             if (projection_column.first == predicate_dependency.first)
             {
                 is_found = true;
-                optimize_kind = isAggregateFunction(projection_column.second, subquery_projection_columns) ? OptimizeKind::PUSH_TO_HAVING : optimize_kind;
+                optimize_kind = isAggregateFunction(projection_column.second) ? OptimizeKind::PUSH_TO_HAVING : optimize_kind;
             }
         }
 
@@ -203,24 +201,16 @@ bool PredicateExpressionsOptimizer::isArrayJoinFunction(const ASTPtr & node)
     return false;
 }
 
-bool PredicateExpressionsOptimizer::isAggregateFunction(ASTPtr & node, const ProjectionsWithAliases & aliases)
+bool PredicateExpressionsOptimizer::isAggregateFunction(ASTPtr & node)
 {
     if (auto function = typeid_cast<ASTFunction *>(node.get()))
     {
         if (AggregateFunctionFactory::instance().isAggregateFunctionName(function->name))
             return true;
     }
-    else if (auto identifier = typeid_cast<ASTIdentifier *>(node.get()))
-    {
-        /// TODO: quifier name
-        auto alias_it = aliases.find(identifier->name);
-
-        if (alias_it != aliases.end() && isAggregateFunction(alias_it->second, aliases))
-            return true;
-    }
 
     for (auto & child : node->children)
-        if (isAggregateFunction(child, aliases))
+        if (isAggregateFunction(child))
             return true;
 
     return false;

@@ -6,6 +6,7 @@
 #include <Parsers/ASTSelectWithUnionQuery.h>
 #include <Parsers/formatAST.h>
 #include <Parsers/ASTSubquery.h>
+#include <IO/WriteHelpers.h>
 
 namespace DB
 {

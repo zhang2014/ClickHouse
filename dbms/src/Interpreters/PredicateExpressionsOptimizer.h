@@ -58,7 +58,7 @@ private:
         PUSH_TO_HAVING,
     };
 
-    bool isAggregateFunction(ASTPtr &node, const ProjectionsWithAliases & aliases);
+    bool isAggregateFunction(ASTPtr &node);
 
     bool isArrayJoinFunction(const ASTPtr & node);
 
