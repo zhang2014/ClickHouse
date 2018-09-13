@@ -18,11 +18,22 @@ namespace ErrorCodes
     extern const int CYCLIC_ALIASES;
 }
 
+
+namespace
+{
+
+bool functionIsInOrGlobalInOperator(const String & name)
+{
+    return name == "in" || name == "notIn" || name == "globalIn" || name == "globalNotIn";
+}
+
+}
+
 void QueryNormalizer::perform()
 {
     SetOfASTs tmp_set;
     MapOfASTs tmp_map;
-    normalizeTreeImpl(query, tmp_map, tmp_set, "", 0);
+    performImpl(query, tmp_map, tmp_set, "", 0);
 
     try
     {
@@ -35,7 +46,10 @@ void QueryNormalizer::perform()
     }
 }
 
-void QueryNormalizer::normalizeTreeImpl(ASTPtr & ast, MapOfASTs & finished_asts, SetOfASTs & current_asts, std::string current_alias, size_t level)
+/// finished_asts - already processed vertices (and by what they replaced)
+/// current_asts - vertices in the current call stack of this method
+/// current_alias - the alias referencing to the ancestor of ast (the deepest ancestor with aliases)
+void QueryNormalizer::performImpl(ASTPtr & ast, MapOfASTs & finished_asts, SetOfASTs & current_asts, std::string current_alias, size_t level)
 {
     if (level > settings.max_ast_depth)
         throw Exception("Normalized AST is too deep. Maximum: " + settings.max_ast_depth.toString(), ErrorCodes::TOO_DEEP_AST);
@@ -127,20 +141,10 @@ void QueryNormalizer::normalizeTreeImpl(ASTPtr & ast, MapOfASTs & finished_asts,
         ASTs & asts = expr_list->children;
         for (int i = static_cast<int>(asts.size()) - 1; i >= 0; --i)
         {
-            if (typeid_cast<ASTAsterisk *>(asts[i].get()))
+            if (typeid_cast<ASTAsterisk *>(asts[i].get()) && !all_columns_name.empty())
             {
-                Names all_columns_name;
-
-                auto columns_name = storage ? storage->getColumns().ordinary.getNames() : source_columns.getNames();
-                all_columns_name.insert(all_columns_name.begin(), columns_name.begin(), columns_name.end());
-
-                if (!settings.asterisk_left_columns_only)
-                {
-                    auto columns_from_joined_table = analyzed_join.getColumnsFromJoinedTable(context, select_query).getNames();
-                    all_columns_name.insert(all_columns_name.end(), columns_from_joined_table.begin(), columns_from_joined_table.end());
-                }
-
                 asts.erase(asts.begin() + i);
+
                 for (size_t idx = 0; idx < all_columns_name.size(); idx++)
                     asts.insert(asts.begin() + idx + i, std::make_shared<ASTIdentifier>(all_columns_name[idx]));
             }
@@ -164,7 +168,7 @@ void QueryNormalizer::normalizeTreeImpl(ASTPtr & ast, MapOfASTs & finished_asts,
     /// If we replace the root of the subtree, we will be called again for the new root, in case the alias is replaced by an alias.
     if (replaced)
     {
-        normalizeTreeImpl(ast, finished_asts, current_asts, current_alias, level + 1);
+        performImpl(ast, finished_asts, current_asts, current_alias, level + 1);
         current_asts.erase(initial_ast.get());
         current_asts.erase(ast.get());
         finished_asts[initial_ast] = ast;
@@ -185,7 +189,7 @@ void QueryNormalizer::normalizeTreeImpl(ASTPtr & ast, MapOfASTs & finished_asts,
             if (typeid_cast<const ASTSelectQuery *>(child.get()) || typeid_cast<const ASTTableExpression *>(child.get()))
                 continue;
 
-            normalizeTreeImpl(child, finished_asts, current_asts, current_alias, level + 1);
+            performImpl(child, finished_asts, current_asts, current_alias, level + 1);
         }
     }
     else if (identifier_node)
@@ -198,7 +202,7 @@ void QueryNormalizer::normalizeTreeImpl(ASTPtr & ast, MapOfASTs & finished_asts,
             if (typeid_cast<const ASTSelectQuery *>(child.get()) || typeid_cast<const ASTTableExpression *>(child.get()))
                 continue;
 
-            normalizeTreeImpl(child, finished_asts, current_asts, current_alias, level + 1);
+            performImpl(child, finished_asts, current_asts, current_alias, level + 1);
         }
     }
 
@@ -206,11 +210,11 @@ void QueryNormalizer::normalizeTreeImpl(ASTPtr & ast, MapOfASTs & finished_asts,
     if (ASTSelectQuery * select = typeid_cast<ASTSelectQuery *>(ast.get()))
     {
         if (select->prewhere_expression)
-            normalizeTreeImpl(select->prewhere_expression, finished_asts, current_asts, current_alias, level + 1);
+            performImpl(select->prewhere_expression, finished_asts, current_asts, current_alias, level + 1);
         if (select->where_expression)
-            normalizeTreeImpl(select->where_expression, finished_asts, current_asts, current_alias, level + 1);
+            performImpl(select->where_expression, finished_asts, current_asts, current_alias, level + 1);
         if (select->having_expression)
-            normalizeTreeImpl(select->having_expression, finished_asts, current_asts, current_alias, level + 1);
+            performImpl(select->having_expression, finished_asts, current_asts, current_alias, level + 1);
     }
 
     current_asts.erase(initial_ast.get());

@@ -67,6 +67,8 @@
 #include <Parsers/parseQuery.h>
 #include <Parsers/queryToString.h>
 #include <Interpreters/evaluateQualified.h>
+#include <Interpreters/QueryNormalizer.h>
+#include <Interpreters/getAliasesForQuery.h>
 
 
 namespace DB
@@ -860,85 +862,29 @@ static NamesAndTypesList::iterator findColumn(const String & name, NamesAndTypes
 }
 
 
-/// ignore_levels - aliases in how many upper levels of the subtree should be ignored.
-/// For example, with ignore_levels=1 ast can not be put in the dictionary, but its children can.
 void ExpressionAnalyzer::addASTAliases(ASTPtr & ast, int ignore_levels)
 {
-    /// Bottom-up traversal. We do not go into subqueries.
-    for (auto & child : ast->children)
-    {
-        int new_ignore_levels = std::max(0, ignore_levels - 1);
-
-        /// The top-level aliases in the ARRAY JOIN section have a special meaning, we will not add them
-        ///  (skip the expression list itself and its children).
-        if (typeid_cast<ASTArrayJoin *>(ast.get()))
-            new_ignore_levels = 3;
-
-        /// Don't descent into table functions and subqueries.
-        if (!typeid_cast<ASTTableExpression *>(child.get())
-            && !typeid_cast<ASTSelectWithUnionQuery *>(child.get()))
-            addASTAliases(child, new_ignore_levels);
-    }
-
-    if (ignore_levels > 0)
-        return;
-
-    String alias = ast->tryGetAlias();
-    if (!alias.empty())
-    {
-        if (aliases.count(alias) && ast->getTreeHash() != aliases[alias]->getTreeHash())
-        {
-            std::stringstream message;
-            message << "Different expressions with the same alias " << backQuoteIfNeed(alias) << ":\n";
-            formatAST(*ast, message, false, true);
-            message << "\nand\n";
-            formatAST(*aliases[alias], message, false, true);
-            message << "\n";
-
-            throw Exception(message.str(), ErrorCodes::MULTIPLE_EXPRESSIONS_FOR_ALIAS);
-        }
-
-        aliases[alias] = ast;
-    }
-    else if (auto subquery = typeid_cast<ASTSubquery *>(ast.get()))
-    {
-        /// Set unique aliases for all subqueries. This is needed, because content of subqueries could change after recursive analysis,
-        ///  and auto-generated column names could become incorrect.
-
-        if (subquery->alias.empty())
-        {
-            size_t subquery_index = 1;
-            while (true)
-            {
-                alias = "_subquery" + toString(subquery_index);
-                if (!aliases.count("_subquery" + toString(subquery_index)))
-                    break;
-                ++subquery_index;
-            }
-
-            subquery->setAlias(alias);
-            subquery->prefer_alias_to_column_name = true;
-            aliases[alias] = ast;
-        }
-    }
+    getQueryAliases(ast, aliases, ignore_levels);
 }
 
 
 void ExpressionAnalyzer::normalizeTree()
 {
-    SetOfASTs tmp_set;
-    MapOfASTs tmp_map;
-    normalizeTreeImpl(query, tmp_map, tmp_set, "", 0);
+    Names all_columns_name;
 
-    try
+    auto columns_name = storage ? storage->getColumns().ordinary.getNames() : source_columns.getNames();
+    all_columns_name.insert(all_columns_name.begin(), columns_name.begin(), columns_name.end());
+
+    if (!settings.asterisk_left_columns_only)
     {
-        query->checkSize(settings.max_expanded_ast_elements);
+        auto columns_from_joined_table = analyzed_join.getColumnsFromJoinedTable(context, select_query).getNames();
+        all_columns_name.insert(all_columns_name.end(), columns_from_joined_table.begin(), columns_from_joined_table.end());
     }
-    catch (Exception & e)
-    {
-        e.addMessage("(after expansion of aliases)");
-        throw;
-    }
+
+    if (all_columns_name.empty())
+        throw Exception("Logical error: an asterisk cannot be replaced with empty columns.", ErrorCodes::LOGICAL_ERROR);
+
+    QueryNormalizer(query, aliases, settings, all_columns_name).perform();
 }
 
 

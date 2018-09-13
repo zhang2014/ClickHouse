@@ -7,6 +7,8 @@
 #include <Parsers/ASTAsterisk.h>
 #include <Parsers/ASTQualifiedAsterisk.h>
 #include <Parsers/queryToString.h>
+#include <Interpreters/QueryNormalizer.h>
+#include <Interpreters/getAliasesForQuery.h>
 
 namespace DB
 {
@@ -172,7 +174,6 @@ bool PredicateExpressionsOptimizer::cannotPushDownOuterPredicate(
             if (projection_column.first == predicate_dependency.first)
             {
                 is_found = true;
-                /// 这一列可能是一个复杂列,包含各类引用
                 optimize_kind = isAggregateFunction(projection_column.second, subquery_projection_columns) ? OptimizeKind::PUSH_TO_HAVING : optimize_kind;
             }
         }
@@ -309,16 +310,13 @@ void PredicateExpressionsOptimizer::getSubqueryProjectionColumns(SubqueriesProje
 
 ASTs PredicateExpressionsOptimizer::getSelectQueryProjectionColumns(ASTPtr & ast)
 {
-    ASTs projection_columns;
-    std::map<String, ASTPtr> aliases;
-    auto select_query = static_cast<ASTSelectQuery *>(ast.get());
+    /// first should normalize query tree.
+    std::unordered_map<String, ASTPtr> aliases;
+    getQueryAliases(query, aliases, 0);
+    QueryNormalizer(ast, aliases, settings, {}).perform();
 
-    for (const auto & expression : select_query->select_expression_list->children)
-    {
-        String alias = expression->tryGetAlias();
-        if (!alias.empty())
-            aliases[alias] = expression;
-    }
+    ASTs projection_columns;
+    auto select_query = static_cast<ASTSelectQuery *>(ast.get());
 
     for (const auto & projection_column : select_query->select_expression_list->children)
     {
