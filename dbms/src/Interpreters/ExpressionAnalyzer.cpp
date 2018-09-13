@@ -68,7 +68,7 @@
 #include <Parsers/queryToString.h>
 #include <Interpreters/evaluateQualified.h>
 #include <Interpreters/QueryNormalizer.h>
-#include <Interpreters/getAliasesForQuery.h>
+#include <Interpreters/getQueryAliases.h>
 
 
 namespace DB
@@ -228,7 +228,7 @@ ExpressionAnalyzer::ExpressionAnalyzer(
     LogicalExpressionsOptimizer(select_query, settings).perform();
 
     /// Creates a dictionary `aliases`: alias -> ASTPtr
-    addASTAliases(query);
+    getQueryAliases(query, aliases);
 
     /// Common subexpression elimination. Rewrite rules.
     normalizeTree();
@@ -859,12 +859,6 @@ static NamesAndTypesList::iterator findColumn(const String & name, NamesAndTypes
 {
     return std::find_if(cols.begin(), cols.end(),
         [&](const NamesAndTypesList::value_type & val) { return val.name == name; });
-}
-
-
-void ExpressionAnalyzer::addASTAliases(ASTPtr & ast, int ignore_levels)
-{
-    getQueryAliases(ast, aliases, ignore_levels);
 }
 
 

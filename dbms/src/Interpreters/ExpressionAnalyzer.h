@@ -310,10 +310,6 @@ private:
     /// Parse JOIN ON expression and collect ASTs for joined columns.
     void collectJoinedColumnsFromJoinOnExpr();
 
-    /** Create a dictionary of aliases.
-      */
-    void addASTAliases(ASTPtr & ast, int ignore_levels = 0);
-
     /** For star nodes(`*`), expand them to a list of all columns.
       * For literal nodes, substitute aliases.
       */

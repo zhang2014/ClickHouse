@@ -1,6 +1,6 @@
 #include <ostream>
 #include <sstream>
-#include <Interpreters/getAliasesForQuery.h>
+#include <Interpreters/getQueryAliases.h>
 #include <Parsers/ASTTablesInSelectQuery.h>
 #include <Common/typeid_cast.h>
 #include <Parsers/ASTSelectWithUnionQuery.h>
