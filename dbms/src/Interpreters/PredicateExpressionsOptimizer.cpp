@@ -169,10 +169,10 @@ bool PredicateExpressionsOptimizer::cannotPushDownOuterPredicate(
 
         for (auto projection_column : subquery_projection_columns)
         {
-            if (projection_column.first == predicate_dependency.first)
+            if (projection_column.second == predicate_dependency.second)
             {
                 is_found = true;
-                optimize_kind = isAggregateFunction(projection_column.second) ? OptimizeKind::PUSH_TO_HAVING : optimize_kind;
+                optimize_kind = isAggregateFunction(projection_column.first) ? OptimizeKind::PUSH_TO_HAVING : optimize_kind;
             }
         }
 
@@ -229,9 +229,9 @@ void PredicateExpressionsOptimizer::cloneOuterPredicateForInnerPredicate(
     {
         for (auto projection : projection_columns)
         {
-            if (require.second == projection.first)
+            if (require.second == projection.second)
             {
-                ASTPtr & ast = projection.second;
+                ASTPtr & ast = projection.first;
                 if (!typeid_cast<ASTIdentifier *>(ast.get()) && ast->tryGetAlias().empty())
                     ast->setAlias(ast->getColumnName());
                 require.first->name = ast->getAliasOrColumnName();
@@ -290,8 +290,8 @@ void PredicateExpressionsOptimizer::getSubqueryProjectionColumns(SubqueriesProje
                 select_with_union_projections = select_projection_columns;
 
             for (size_t i = 0; i < select_projection_columns.size(); i++)
-                subquery_projections[qualified_name_prefix +
-                                     select_with_union_projections[i]->getAliasOrColumnName()] = select_projection_columns[i];
+                subquery_projections.emplace_back(std::pair(select_projection_columns[i],
+                                                            qualified_name_prefix + select_with_union_projections[i]->getAliasOrColumnName()));
 
             all_subquery_projection_columns.insert(std::pair(select_without_union_query.get(), subquery_projections));
         }
