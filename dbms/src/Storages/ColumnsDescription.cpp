@@ -15,6 +15,7 @@
 #include <ext/map.h>
 
 #include <boost/range/join.hpp>
+#include <Compression/CompressionFactory.h>
 
 
 namespace DB
@@ -102,6 +103,15 @@ String ColumnsDescription::toString() const
     return buf.str();
 }
 
+CompressionCodecPtr ColumnsDescription::getCodec(const String & column_name) const
+{
+    const auto codec = codecs.find(column_name);
+
+    if (codec == codecs.end())
+        return CompressionCodecFactory::instance().getDefaultCodec();
+
+    return codec->second;
+}
 
 ColumnsDescription ColumnsDescription::parse(const String & str)
 {
