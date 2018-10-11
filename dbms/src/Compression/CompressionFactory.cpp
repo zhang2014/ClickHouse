@@ -95,7 +95,7 @@ void CompressionCodecFactory::registerSimpleCompressionCodec(const String & fami
 
 void registerCodecLZ4(CompressionCodecFactory & factory);
 void registerCodecNone(CompressionCodecFactory & factory);
-//void registerCodecZSTD(CompressionCodecFactory & factory);
+void registerCodecZSTD(CompressionCodecFactory & factory);
 //void registerCodecDelta(CompressionCodecFactory & factory);
 
 CompressionCodecFactory::CompressionCodecFactory()
@@ -103,7 +103,7 @@ CompressionCodecFactory::CompressionCodecFactory()
     default_codec = std::make_shared<CompressionCodecLZ4>();
     registerCodecLZ4(*this);
     registerCodecNone(*this);
-//    registerCodecZSTD(*this);
+    registerCodecZSTD(*this);
 //    registerCodecDelta(*this);
 }
 
