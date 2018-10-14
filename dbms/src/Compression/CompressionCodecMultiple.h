@@ -18,6 +18,8 @@ public:
 
     size_t getCompressedReserveSize(size_t uncompressed_size) override;
 
+    size_t decompress(char *source, size_t source_size, char *dest, size_t decompressed_size) override;
+
 private:
     Codecs codecs;
     String codec_desc;

@@ -5,9 +5,8 @@
 #include <Common/hex.h>
 #include <IO/WriteHelpers.h>
 #include <IO/ReadBufferFromFileBase.h>
-#include <common/typeid_cast.h>
-#include "ICompressionCodec.h"
-#include "CompressionFactory.h"
+#include <Common/typeid_cast.h>
+#include <Compression/CompressionFactory.h>
 
 namespace ProfileEvents
 {

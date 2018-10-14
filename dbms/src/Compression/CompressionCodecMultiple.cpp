@@ -66,4 +66,9 @@ size_t CompressionCodecMultiple::compress(char * source, size_t source_size, cha
     return source_size;
 }
 
+size_t CompressionCodecMultiple::decompress(char * /*source*/, size_t /*source_size*/, char * /*dest*/, size_t /*decompressed_size*/)
+{
+    return 0;
+}
+
 }

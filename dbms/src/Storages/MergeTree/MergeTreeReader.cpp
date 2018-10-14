@@ -56,7 +56,7 @@ MergeTreeReader::MergeTreeReader(const String & path,
         {
             CompressionCodecPtr codec = columns_desc.getCodec(column.name, {});
 
-            addStreams(column.name, *column.type, all_mark_ranges, profile_callback, clock_type);
+            addStreams(column.name, *column.type, codec, all_mark_ranges, profile_callback, clock_type);
         }
     }
     catch (...)
@@ -165,6 +165,7 @@ size_t MergeTreeReader::readRows(size_t from_mark, bool continue_reading, size_t
 
 MergeTreeReader::Stream::Stream(
     const String & path_prefix_, const String & extension_, size_t marks_count_,
+    const CompressionCodecPtr & codec,
     const MarkRanges & all_mark_ranges,
     MarkCache * mark_cache_, bool save_marks_in_cache_,
     UncompressedCache * uncompressed_cache,
@@ -232,7 +233,6 @@ MergeTreeReader::Stream::Stream(
                 estimated_size += offset_end - offset_begin;
         }
     }
-    const CompressionCodecPtr compression_codec;
 
     const auto file_buffer = createReadBufferFromFileBase(path_prefix + extension, estimated_size, aio_threshold, buffer_size);
 
@@ -242,18 +242,18 @@ MergeTreeReader::Stream::Stream(
     /// Initialize the objects that shall be used to perform read operations.
     if (uncompressed_cache)
     {
-        const auto compressed_buffer = compression_codec->liftCompressed(file_buffer.get());
+        auto compressed_buffer = codec->liftCompressed(*file_buffer);
 
         const auto cached_compressed_buffer =
-            std::make_unique<CachedCompressedReadBuffer>(path_prefix + extension, uncompressed_cache, compressed_buffer);
+            std::make_shared<CachedCompressedReadBuffer>(path_prefix + extension, uncompressed_cache, compressed_buffer);
 
-        cached_buffer = std::move(cached_compressed_buffer);
+        cached_buffer = cached_compressed_buffer;
         data_buffer = cached_buffer.get();
     }
     else
     {
-        const auto compressed_buffer = compression_codec->liftCompressed(file_buffer.get());
-        non_cached_buffer = std::move(compressed_buffer);
+        const auto compressed_buffer = codec->liftCompressed(*file_buffer);
+        non_cached_buffer = compressed_buffer;
         data_buffer = non_cached_buffer.get();
     }
 }
@@ -361,8 +361,8 @@ void MergeTreeReader::Stream::seekToStart()
 }
 
 
-void MergeTreeReader::addStreams(const String & name, const IDataType & type, const MarkRanges & all_mark_ranges,
-    const ReadBufferFromFileBase::ProfileCallback & profile_callback, clockid_t clock_type)
+void MergeTreeReader::addStreams(const String & name, const IDataType & type, const CompressionCodecPtr & codec,
+    const MarkRanges & all_mark_ranges, const ReadBufferFromFileBase::ProfileCallback & profile_callback, clockid_t clock_type)
 {
     IDataType::StreamCallback callback = [&] (const IDataType::SubstreamPath & substream_path)
     {
@@ -381,7 +381,7 @@ void MergeTreeReader::addStreams(const String & name, const IDataType & type, co
 
         streams.emplace(stream_name, std::make_unique<Stream>(
             path + stream_name, DATA_FILE_EXTENSION, data_part->marks_count,
-            all_mark_ranges, mark_cache, save_marks_in_cache,
+            codec, all_mark_ranges, mark_cache, save_marks_in_cache,
             uncompressed_cache, aio_threshold, max_read_buffer_size, profile_callback, clock_type));
     };
 
