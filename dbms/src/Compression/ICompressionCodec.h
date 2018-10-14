@@ -9,6 +9,7 @@
 #include <DataTypes/IDataType.h>
 #include <boost/noncopyable.hpp>
 #include <IO/UncompressedCache.h>
+#include <IO/LZ4_decompress_faster.h>
 
 namespace DB
 {
@@ -49,9 +50,13 @@ public:
     size_t size_decompressed = 0;
     bool loaded_compressed = false;
 
+    LZ4::PerformanceStatistics lz4_stat;
+
     CompressionCodecReadBuffer(ICompressionCodec & codec, ReadBuffer & origin);
 
-    void loadCompressedData();
+    size_t readCompressedData(size_t & size_decompressed, size_t & size_compressed);
+
+    void decompress(char * to, size_t size_decompressed, size_t size_compressed_without_checksum);
 
     void seek(size_t offset_in_compressed_file, size_t offset_in_decompressed_block);
 

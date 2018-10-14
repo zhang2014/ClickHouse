@@ -88,6 +88,7 @@ private:
         bool save_marks_in_cache;
         MarkCache::MappedPtr marks;
 
+        std::unique_ptr<ReadBufferFromFileBase> file_in;
         std::shared_ptr<CachedCompressedReadBuffer> cached_buffer;
         std::shared_ptr<CompressionCodecReadBuffer> non_cached_buffer;
     };

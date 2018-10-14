@@ -51,11 +51,9 @@ MergeTreeReader::MergeTreeReader(const String & path,
             throw Exception("Part " + path + " is missing", ErrorCodes::NOT_FOUND_EXPECTED_DATA_PART);
 
         const auto columns_desc = storage.getColumns();
-//        const auto columns = storage.getColumns();
         for (const NameAndTypePair & column : columns)
         {
             CompressionCodecPtr codec = columns_desc.getCodec(column.name, {});
-
             addStreams(column.name, *column.type, codec, all_mark_ranges, profile_callback, clock_type);
         }
     }
@@ -234,25 +232,26 @@ MergeTreeReader::Stream::Stream(
         }
     }
 
-    const auto file_buffer = createReadBufferFromFileBase(path_prefix + extension, estimated_size, aio_threshold, buffer_size);
-
-    if (profile_callback)
-        file_buffer->setProfileCallback(profile_callback, clock_type);
-
     /// Initialize the objects that shall be used to perform read operations.
     if (uncompressed_cache)
     {
-        auto compressed_buffer = codec->liftCompressed(*file_buffer);
+        auto buffer = std::make_shared<CachedCompressedReadBuffer>(
+            path_prefix + extension, uncompressed_cache, codec, estimated_size, aio_threshold, buffer_size);
 
-        const auto cached_compressed_buffer =
-            std::make_shared<CachedCompressedReadBuffer>(path_prefix + extension, uncompressed_cache, compressed_buffer);
+        if (profile_callback)
+            buffer->setProfileCallback(profile_callback, clock_type);
 
-        cached_buffer = cached_compressed_buffer;
+        cached_buffer = std::move(buffer);
         data_buffer = cached_buffer.get();
     }
     else
     {
-        const auto compressed_buffer = codec->liftCompressed(*file_buffer);
+        file_in = createReadBufferFromFileBase(path_prefix + extension, estimated_size, aio_threshold, buffer_size);
+
+        if (profile_callback)
+            file_in->setProfileCallback(profile_callback, clock_type);
+
+        const auto compressed_buffer = codec->liftCompressed(*file_in);
         non_cached_buffer = compressed_buffer;
         data_buffer = non_cached_buffer.get();
     }
