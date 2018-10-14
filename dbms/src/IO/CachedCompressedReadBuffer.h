@@ -6,6 +6,7 @@
 #include <IO/CompressedReadBufferBase.h>
 #include <IO/UncompressedCache.h>
 #include <port/clock.h>
+#include <Compression/ICompressionCodec.h>
 
 
 namespace DB
@@ -27,6 +28,7 @@ private:
     size_t estimated_size;
     size_t aio_threshold;
 
+    CompressionCodecReadBufferPtr in;
     std::unique_ptr<ReadBufferFromFileBase> file_in;
     size_t file_pos;
 
@@ -41,6 +43,11 @@ private:
     clockid_t clock_type {};
 
 public:
+    CachedCompressedReadBuffer(
+        const std::string & path_, UncompressedCache * cache_, CompressionCodecReadBufferPtr & compressed_buffer,
+        size_t buf_size_ = DBMS_DEFAULT_BUFFER_SIZE
+    );
+
     CachedCompressedReadBuffer(
         const std::string & path_, UncompressedCache * cache_, size_t estimated_size_, size_t aio_threshold_,
         size_t buf_size_ = DBMS_DEFAULT_BUFFER_SIZE);

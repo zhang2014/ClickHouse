@@ -9,6 +9,7 @@
 #include <Storages/MergeTree/MergeTreeReader.h>
 #include <Common/typeid_cast.h>
 #include <Poco/File.h>
+#include <IO/createReadBufferFromFileBase.h>
 
 
 namespace DB
@@ -49,8 +50,14 @@ MergeTreeReader::MergeTreeReader(const String & path,
         if (!Poco::File(path).exists())
             throw Exception("Part " + path + " is missing", ErrorCodes::NOT_FOUND_EXPECTED_DATA_PART);
 
+        const auto columns_desc = storage.getColumns();
+//        const auto columns = storage.getColumns();
         for (const NameAndTypePair & column : columns)
+        {
+            CompressionCodecPtr codec = columns_desc.getCodec(column.name, {});
+
             addStreams(column.name, *column.type, all_mark_ranges, profile_callback, clock_type);
+        }
     }
     catch (...)
     {
@@ -225,28 +232,28 @@ MergeTreeReader::Stream::Stream(
                 estimated_size += offset_end - offset_begin;
         }
     }
+    const CompressionCodecPtr compression_codec;
+
+    const auto file_buffer = createReadBufferFromFileBase(path_prefix + extension, estimated_size, aio_threshold, buffer_size);
+
+    if (profile_callback)
+        file_buffer->setProfileCallback(profile_callback, clock_type);
 
     /// Initialize the objects that shall be used to perform read operations.
     if (uncompressed_cache)
     {
-        auto buffer = std::make_unique<CachedCompressedReadBuffer>(
-            path_prefix + extension, uncompressed_cache, estimated_size, aio_threshold, buffer_size);
+        const auto compressed_buffer = compression_codec->liftCompressed(file_buffer.get());
 
-        if (profile_callback)
-            buffer->setProfileCallback(profile_callback, clock_type);
+        const auto cached_compressed_buffer =
+            std::make_unique<CachedCompressedReadBuffer>(path_prefix + extension, uncompressed_cache, compressed_buffer);
 
-        cached_buffer = std::move(buffer);
+        cached_buffer = std::move(cached_compressed_buffer);
         data_buffer = cached_buffer.get();
     }
     else
     {
-        auto buffer = std::make_unique<CompressedReadBufferFromFile>(
-            path_prefix + extension, estimated_size, aio_threshold, buffer_size);
-
-        if (profile_callback)
-            buffer->setProfileCallback(profile_callback, clock_type);
-
-        non_cached_buffer = std::move(buffer);
+        const auto compressed_buffer = compression_codec->liftCompressed(file_buffer.get());
+        non_cached_buffer = std::move(compressed_buffer);
         data_buffer = non_cached_buffer.get();
     }
 }

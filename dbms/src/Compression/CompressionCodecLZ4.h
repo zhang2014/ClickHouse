@@ -4,6 +4,7 @@
 #include <Compression/ICompressionCodec.h>
 #include <IO/BufferWithOwnMemory.h>
 #include <Parsers/StringRange.h>
+#include <IO/LZ4_decompress_faster.h>
 
 namespace DB
 {
@@ -15,7 +16,14 @@ public:
 
     void getCodecDesc(String & codec_desc) override;
 
-    void compress(char * uncompressed_buf, size_t uncompressed_size, PODArray<char> & compressed_buf, size_t & compressed_size) override;
+    size_t compress(char * source, size_t source_size, char * dest) override;
+
+    size_t getCompressedReserveSize(size_t uncompressed_size) override;
+
+    size_t decompress(char * source, size_t source_size, char * dest, size_t decompressed_size) override;
+
+private:
+    LZ4::PerformanceStatistics lz4_stat;
 };
 
 }

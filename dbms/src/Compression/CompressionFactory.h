@@ -34,6 +34,8 @@ public:
 
     CompressionCodecPtr get(const ASTPtr & ast) const;
 
+    CompressionCodecPtr get(const UInt8 byte_code) const;
+
     void registerCompressionCodec(const String & family_name, UInt8 byte_code, Creator creator);
 
     void registerSimpleCompressionCodec(const String & family_name, UInt8 byte_code, SimpleCreator creator);

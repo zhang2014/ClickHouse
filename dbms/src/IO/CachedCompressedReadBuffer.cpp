@@ -3,6 +3,7 @@
 #include <IO/WriteHelpers.h>
 #include <IO/CompressedStream.h>
 #include <IO/LZ4_decompress_faster.h>
+#include "CachedCompressedReadBuffer.h"
 
 
 namespace DB
@@ -36,20 +37,22 @@ bool CachedCompressedReadBuffer::nextImpl()
 
     if (!owned_cell)
     {
-        /// If not, read it from the file.
-        initInput();
-        file_in->seek(file_pos);
+//        /// If not, read it from the file.
+//        initInput();
+//        file_in->seek(file_pos);
 
         owned_cell = std::make_shared<UncompressedCacheCell>();
 
-        size_t size_decompressed;
-        size_t size_compressed_without_checksum;
-        owned_cell->compressed_size = readCompressedData(size_decompressed, size_compressed_without_checksum);
+//        size_t size_decompressed;
+//        size_t size_compressed_without_checksum;
+//        owned_cell->compressed_size = readCompressedData(size_decompressed, size_compressed_without_checksum);
 
-        if (owned_cell->compressed_size)
+        in->loadCompressedData();
+        if (in->size_compressed)
         {
-            owned_cell->data.resize(size_decompressed + LZ4::ADDITIONAL_BYTES_AT_END_OF_BUFFER);
-            decompress(owned_cell->data.data(), size_decompressed, size_compressed_without_checksum);
+            owned_cell->data.resize(in->size_decompressed + LZ4::ADDITIONAL_BYTES_AT_END_OF_BUFFER);
+            in->buffer() = Buffer(owned_cell->data.data(), owned_cell->data.data() + owned_cell->data.size() - LZ4::ADDITIONAL_BYTES_AT_END_OF_BUFFER);
+            in->next();
 
             /// Put data into cache.
             cache->set(key, owned_cell);
@@ -62,9 +65,9 @@ bool CachedCompressedReadBuffer::nextImpl()
         return false;
     }
 
-    working_buffer = Buffer(owned_cell->data.data(), owned_cell->data.data() + owned_cell->data.size() - LZ4::ADDITIONAL_BYTES_AT_END_OF_BUFFER);
+    working_buffer = in->buffer();
 
-    file_pos += owned_cell->compressed_size;
+//    file_pos += owned_cell->compressed_size;
 
     return true;
 }
@@ -79,6 +82,12 @@ CachedCompressedReadBuffer::CachedCompressedReadBuffer(
 }
 
 
+CachedCompressedReadBuffer::CachedCompressedReadBuffer(
+    const std::string & path_, UncompressedCache * cache_, CompressionCodecReadBufferPtr & compressed_buffer, size_t buf_size_)
+    : ReadBuffer(nullptr, 0), path(path_), cache(cache_), buf_size(buf_size_), in(compressed_buffer), file_pos(0)
+{
+}
+
 void CachedCompressedReadBuffer::seek(size_t offset_in_compressed_file, size_t offset_in_decompressed_block)
 {
     if (owned_cell &&
@@ -91,9 +100,10 @@ void CachedCompressedReadBuffer::seek(size_t offset_in_compressed_file, size_t o
     }
     else
     {
-        file_pos = offset_in_compressed_file;
-
         bytes += offset();
+        file_pos = offset_in_compressed_file;
+        in->seek(offset_in_compressed_file, offset_in_decompressed_block);
+
         nextImpl();
 
         if (offset_in_decompressed_block > working_buffer.size())

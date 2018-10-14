@@ -241,7 +241,7 @@ MergedBlockOutputStream::MergedBlockOutputStream(
     for (const auto & it : columns_list)
     {
         const auto columns = storage.getColumns();
-        addStreams(part_path, it.name, *it.type, columns.getCodec(it.name), 0, false);
+        addStreams(part_path, it.name, *it.type, columns.getCodec(it.name, compression_settings), 0, false);
     }
 }
 
@@ -270,7 +270,7 @@ MergedBlockOutputStream::MergedBlockOutputStream(
         }
 
         const auto columns = storage.getColumns();
-        addStreams(part_path, it.name, *it.type, columns.getCodec(it.name), estimated_size, false);
+        addStreams(part_path, it.name, *it.type, columns.getCodec(it.name, compression_settings), estimated_size, false);
     }
 }
 
@@ -531,7 +531,7 @@ void MergedColumnOnlyOutputStream::write(const Block & block)
             const auto & col = block.safeGetByPosition(i);
 
             const auto columns = storage.getColumns();
-            addStreams(part_path, col.name, *col.type, columns.getCodec(col.name), 0, skip_offsets);
+            addStreams(part_path, col.name, *col.type, columns.getCodec(col.name, compression_settings), 0, skip_offsets);
             serialization_states.emplace_back(nullptr);
             settings.getter = createStreamGetter(col.name, tmp_offset_columns, false);
             col.type->serializeBinaryBulkStatePrefix(settings, serialization_states.back());

@@ -8,6 +8,7 @@
 #include <Common/PODArray.h>
 #include <DataTypes/IDataType.h>
 #include <boost/noncopyable.hpp>
+#include <IO/UncompressedCache.h>
 
 namespace DB
 {
@@ -17,12 +18,18 @@ class ICompressionCodec;
 using CompressionCodecPtr = std::shared_ptr<ICompressionCodec>;
 using Codecs = std::vector<CompressionCodecPtr>;
 
-class LiftedCompressedWriteBuffer : public BufferWithOwnMemory<WriteBuffer>
+class CompressionCodecReadBuffer;
+class CompressionCodecWriteBuffer;
+
+using CompressionCodecReadBufferPtr = std::shared_ptr<CompressionCodecReadBuffer>;
+using CompressionCodecWriteBufferPtr = std::shared_ptr<CompressionCodecWriteBuffer>;
+
+class CompressionCodecWriteBuffer : public BufferWithOwnMemory<WriteBuffer>
 {
 public:
-    LiftedCompressedWriteBuffer(ICompressionCodec & compression_codec, WriteBuffer & out, size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE);
+    CompressionCodecWriteBuffer(ICompressionCodec & compression_codec, WriteBuffer & out, size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE);
 
-    ~LiftedCompressedWriteBuffer() override;
+    ~CompressionCodecWriteBuffer() override;
 
 private:
     void nextImpl() override;
@@ -34,12 +41,27 @@ private:
     PODArray<char> compressed_buffer;
 };
 
-class LazyLiftCompressedReadBuffer : public BufferWithOwnMemory<ReadBuffer>
+class CompressionCodecReadBuffer : public BufferWithOwnMemory<ReadBuffer>
 {
-private:
-    bool nextImpl() override;
 public:
-    LazyLiftCompressedReadBuffer(ICompressionCodec & codec, ReadBuffer & origin);
+    UInt8 method;
+    size_t size_compressed = 0;
+    size_t size_decompressed = 0;
+    bool loaded_compressed = false;
+
+    CompressionCodecReadBuffer(ICompressionCodec & codec, ReadBuffer & origin);
+
+    void loadCompressedData();
+
+    void seek(size_t offset_in_compressed_file, size_t offset_in_decompressed_block);
+
+private:
+    ICompressionCodec & codec;
+    ReadBuffer & origin;
+    char * compressed_buffer;
+    PODArray<char> own_compressed_buffer;
+
+    bool nextImpl() override;
 };
 
 /**
@@ -50,15 +72,19 @@ class ICompressionCodec : private boost::noncopyable
 public:
     virtual ~ICompressionCodec() = default;
 
-    ReadBufferPtr liftCompressed(ReadBuffer & origin);
+    CompressionCodecReadBufferPtr liftCompressed(ReadBuffer & origin);
 
-    WriteBufferPtr liftCompressed(WriteBuffer & origin);
+    CompressionCodecWriteBufferPtr liftCompressed(WriteBuffer & origin);
 
     virtual char getMethodByte() = 0;
 
     virtual void getCodecDesc(String & codec_desc) = 0;
 
-    virtual void compress(char * uncompressed_buf, size_t uncompressed_size, PODArray<char> & compressed_buf, size_t & compressed_size) = 0;
+    virtual size_t compress(char * source, size_t source_size, char * dest) = 0;
+
+    virtual size_t decompress(char * source, size_t source_size, char * dest, size_t decompressed_size) = 0;
+
+    virtual size_t getCompressedReserveSize(size_t uncompressed_size) { return uncompressed_size; }
 };
 
 }

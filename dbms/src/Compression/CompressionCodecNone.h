@@ -15,7 +15,9 @@ public:
 
     void getCodecDesc(String & codec_desc) override;
 
-    void compress(char * uncompressed_buf, size_t uncompressed_size, PODArray<char> & compressed_buf, size_t & compressed_size) override;
+    size_t compress(char * source, size_t source_size, char * compressed_buf) override;
+
+    size_t decompress(char *source, size_t source_size, char *dest, size_t decompressed_size) override;
 };
 
 }

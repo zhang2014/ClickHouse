@@ -14,6 +14,7 @@ namespace DB
 namespace ErrorCodes
 {
     extern const int CANNOT_COMPRESS;
+    extern const int CANNOT_DECOMPRESS;
 }
 
 char CompressionCodecZSTD::getMethodByte()
@@ -26,29 +27,30 @@ void CompressionCodecZSTD::getCodecDesc(String & codec_desc)
     codec_desc = "ZSTD";
 }
 
-void CompressionCodecZSTD::compress(char * uncompressed_buf, size_t uncompressed_size, PODArray<char> & compressed_buf, size_t & compressed_size)
+size_t CompressionCodecZSTD::getCompressedReserveSize(size_t uncompressed_size)
 {
-    static constexpr size_t header_size = 1 + sizeof(UInt32) + sizeof(UInt32);
+    return ZSTD_compressBound(uncompressed_size);
+}
 
-    compressed_buf.resize(header_size + ZSTD_compressBound(uncompressed_size));
+size_t CompressionCodecZSTD::compress(char * source, size_t source_size, char * dest)
+{
+    size_t compressed_size = ZSTD_compress(dest, ZSTD_compressBound(source_size), source, source_size, level);
 
-    size_t res = ZSTD_compress(
-        &compressed_buf[header_size],
-        compressed_buf.size() - header_size,
-        uncompressed_buf,
-        uncompressed_size,
-        level);
+    if (ZSTD_isError(compressed_size))
+        throw Exception("Cannot compress block with ZSTD: " + std::string(ZSTD_getErrorName(compressed_size)), ErrorCodes::CANNOT_COMPRESS);
+
+    return compressed_size;
+}
+
+size_t CompressionCodecZSTD::decompress(char * source, size_t source_size, char * dest, size_t size_decompressed)
+{
+    size_t res = ZSTD_decompress(dest, size_decompressed, source, source_size);
+//        compressed_buffer + COMPRESSED_BLOCK_HEADER_SIZE, size_compressed_without_checksum - COMPRESSED_BLOCK_HEADER_SIZE);
 
     if (ZSTD_isError(res))
-        throw Exception("Cannot compress block with ZSTD: " + std::string(ZSTD_getErrorName(res)), ErrorCodes::CANNOT_COMPRESS);
+        throw Exception("Cannot ZSTD_decompress: " + std::string(ZSTD_getErrorName(res)), ErrorCodes::CANNOT_DECOMPRESS);
 
-    compressed_size = header_size + res;
-
-    UInt32 compressed_size_32 = compressed_size;
-    UInt32 uncompressed_size_32 = uncompressed_size;
-
-    unalignedStore(&compressed_buf[1], compressed_size_32);
-    unalignedStore(&compressed_buf[5], uncompressed_size_32);
+    return size_decompressed;
 }
 
 CompressionCodecZSTD::CompressionCodecZSTD(int level)

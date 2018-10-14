@@ -88,7 +88,7 @@ private:
         MarkCache::MappedPtr marks;
 
         std::unique_ptr<CachedCompressedReadBuffer> cached_buffer;
-        std::unique_ptr<CompressedReadBufferFromFile> non_cached_buffer;
+        std::unique_ptr<CompressionCodecReadBuffer> non_cached_buffer;
     };
 
     using FileStreams = std::map<std::string, std::unique_ptr<Stream>>;

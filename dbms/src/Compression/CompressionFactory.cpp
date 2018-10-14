@@ -11,15 +11,16 @@
 #include <Compression/CompressionCodecMultiple.h>
 #include <Compression/CompressionCodecLZ4.h>
 #include <Compression/CompressionCodecNone.h>
+#include <IO/WriteHelpers.h>
+
 
 namespace DB
 {
 namespace ErrorCodes
 {
-    extern const int LOGICAL_ERROR;
-    extern const int ILLEGAL_SYNTAX_FOR_CODEC_TYPE;
-    extern const int UNEXPECTED_AST_STRUCTURE;
     extern const int UNKNOWN_CODEC;
+    extern const int UNEXPECTED_AST_STRUCTURE;
+    extern const int ILLEGAL_SYNTAX_FOR_CODEC_TYPE;
     extern const int DATA_TYPE_CANNOT_HAVE_ARGUMENTS;
 }
 
@@ -56,7 +57,17 @@ CompressionCodecPtr CompressionCodecFactory::get(const ASTPtr & ast) const
             return std::make_shared<CompressionCodecMultiple>(codecs);
     }
 
-    throw Exception("Unknown codec expression : " + queryToString(ast), ErrorCodes::UNKNOWN_CODEC);
+    throw Exception("Unknown codec family: " + queryToString(ast), ErrorCodes::UNKNOWN_CODEC);
+}
+
+CompressionCodecPtr CompressionCodecFactory::get(const UInt8 byte_code) const
+{
+    const auto family_code_and_creator = family_code_with_codec.find(byte_code);
+
+    if (family_code_and_creator == family_code_with_codec.end())
+        throw Exception("Unknown codec family code : " + toString(byte_code), ErrorCodes::UNKNOWN_CODEC);
+
+    return family_code_and_creator->second({});
 }
 
 CompressionCodecPtr CompressionCodecFactory::getImpl(const String & family_name, const ASTPtr & arguments) const
@@ -88,7 +99,7 @@ void CompressionCodecFactory::registerSimpleCompressionCodec(const String & fami
     registerCompressionCodec(family_name, byte_code, [family_name, creator](const ASTPtr & ast)
     {
         if (ast)
-            throw Exception("Data type " + family_name + " cannot have arguments", ErrorCodes::DATA_TYPE_CANNOT_HAVE_ARGUMENTS);
+            throw Exception("Compression codec " + family_name + " cannot have arguments", ErrorCodes::DATA_TYPE_CANNOT_HAVE_ARGUMENTS);
         return creator();
     });
 }

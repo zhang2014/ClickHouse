@@ -3,6 +3,7 @@
 #include <lz4hc.h>
 #include <IO/CompressedStream.h>
 #include <Compression/CompressionFactory.h>
+#include <IO/LZ4_decompress_faster.h>
 #include "CompressionCodecLZ4.h"
 
 
@@ -19,25 +20,20 @@ void CompressionCodecLZ4::getCodecDesc(String & codec_desc)
     codec_desc = "LZ4";
 }
 
-void CompressionCodecLZ4::compress(char * uncompressed_buf, size_t uncompressed_size, PODArray<char> & compressed_buf, size_t & compressed_size)
+size_t CompressionCodecLZ4::getCompressedReserveSize(size_t uncompressed_size)
 {
-    static constexpr size_t header_size = 1 + sizeof(UInt32) + sizeof(UInt32);
+    return LZ4_COMPRESSBOUND(uncompressed_size);
+}
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
-    compressed_buf.resize(header_size + LZ4_COMPRESSBOUND(uncompressed_size));
-#pragma GCC diagnostic pop
+size_t CompressionCodecLZ4::compress(char * source, size_t source_size, char * dest)
+{
+    return LZ4_compress_default(source, dest, source_size, LZ4_COMPRESSBOUND(source_size));
+}
 
-    compressed_size = header_size + LZ4_compress_default(
-        uncompressed_buf,
-        &compressed_buf[header_size],
-        uncompressed_size,
-        LZ4_COMPRESSBOUND(uncompressed_size));
-
-    UInt32 compressed_size_32 = compressed_size;
-    UInt32 uncompressed_size_32 = uncompressed_size;
-    unalignedStore(&compressed_buf[1], compressed_size_32);
-    unalignedStore(&compressed_buf[5], uncompressed_size_32);
+size_t CompressionCodecLZ4::decompress(char * source, size_t source_size, char * dest, size_t size_decompressed)
+{
+    LZ4::decompress(source, dest, source_size, size_decompressed, lz4_stat);
+    return size_decompressed;
 }
 
 void registerCodecLZ4(CompressionCodecFactory & factory)
