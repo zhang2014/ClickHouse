@@ -41,18 +41,13 @@ static ASTPtr extractKeyExpressionList(IAST & node)
     }
 }
 
-static std::pair<String, UInt64> readVersionAndShardText(const String &prefix, const String &full_text)
+static std::pair<String, UInt64> readVersionAndShardText(const String &full_text)
 {
-    String version;
-    UInt64 shared_number;
-    ReadBufferFromString string_buf(full_text);
-    string_buf.ignore(prefix.size() + 1);
-
-    /// TODO 查找_
-
-    readIntText(version, string_buf);
-    readIntText(shared_number, string_buf);
-
+    const char *full_name = full_text.data();
+    const char *writing_version_end = strchr(full_name, '_');
+    const char *writing_shared_number_end = strchr(writing_version_end + 1, '_');
+    String version = parse<String>(full_name, writing_version_end - full_name);
+    UInt64 shared_number = parse<UInt64>(writing_version_end + 1, writing_shared_number_end - writing_version_end);
     return std::pair(version, shared_number);
 };
 
@@ -114,7 +109,7 @@ void StorageQingCloud::syncClusterConfig()
                 const auto shard_index = version_and_shard.second;
 
                 WriteBufferFromOwnString local_table_name;
-                local_table_name << table_name << "_" << version << "_" << shard_index;
+                local_table_name << version << "_" << shard_index << "_" << table_name;
                 new_local_storages[version_and_shard] = createLocalStorage(local_table_name.str(), true);
             }
         }
@@ -248,7 +243,7 @@ StorageQingCloud::StorageQingCloud(const String &data_path, const String &databa
         if (dir_it->isDirectory())
         {
             String local_table_name = unescapeForFileName(dir_it.path().getFileName());
-            const auto version_and_shared_number = readVersionAndShardText(table_name, local_table_name);
+            const auto version_and_shared_number = readVersionAndShardText(local_table_name);
 
             local_storages[version_and_shared_number] = createLocalStorage(local_table_name, true);
         }
