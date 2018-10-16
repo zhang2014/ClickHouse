@@ -31,7 +31,7 @@ BlockIO InterpreterMergeQuery::execute()
     if (!storage)
         throw Exception(database_name + "." + table_name + " is not QingCloud Engine Table.", ErrorCodes::BAD_ARGUMENTS);
 
-    std::vector<UInt64> source_versions;
+    std::vector<String> source_versions;
     for (const auto ast_version : merge.source_versions->children)
         source_versions.emplace_back(typeid_cast<ASTLiteral *>(ast_version.get())->value.safeGet<String>());
 
