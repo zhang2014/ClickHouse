@@ -50,7 +50,7 @@ BlockInputStreamPtr ClusterProxy::QingCloudSelectStreamFactory::makeOriginRemote
 }
 
 ClusterProxy::QingCloudRemoteBlockInputStream::QingCloudRemoteBlockInputStream(
-    const BlockInputStreamPtr & input, String & version_, UInt64 & shard_num_, Settings & settings_)
+    const BlockInputStreamPtr & input, const String & version_, UInt64 & shard_num_, Settings & settings_)
     : version(version_), shard_num(shard_num_), settings(settings_)
 {
     children.push_back(input);

@@ -39,7 +39,7 @@ private:
 class QingCloudRemoteBlockInputStream : public IProfilingBlockInputStream
 {
 public:
-    QingCloudRemoteBlockInputStream(const BlockInputStreamPtr & input, String & version_, UInt64 & shard_num_, Settings & settings_);
+    QingCloudRemoteBlockInputStream(const BlockInputStreamPtr & input, const String & version_, UInt64 & shard_num_, Settings & settings_);
 
 private:
     Block readImpl() override;
