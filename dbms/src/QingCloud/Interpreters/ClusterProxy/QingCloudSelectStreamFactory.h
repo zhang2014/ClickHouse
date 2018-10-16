@@ -16,7 +16,7 @@ class QingCloudSelectStreamFactory final : public IStreamFactory
 public:
     QingCloudSelectStreamFactory(
         QueryProcessingStage::Enum processed_stage_, QualifiedTableName main_table_,
-        const Tables & external_tables_, UInt64 query_version_, UInt64 query_shard_number_);
+        const Tables & external_tables_, String query_version_, UInt64 query_shard_number_);
 
     void createForShard(
         const Cluster::ShardInfo & shard_info,
@@ -32,14 +32,14 @@ private:
     QualifiedTableName main_table;
     ASTPtr table_func_ptr;
     Tables external_tables;
-    UInt64 query_version;
+    String query_version;
     UInt64 query_shard_number;
 };
 
 class QingCloudRemoteBlockInputStream : public IProfilingBlockInputStream
 {
 public:
-    QingCloudRemoteBlockInputStream(const BlockInputStreamPtr & input, UInt64 & version_, UInt64 shard_num_, Settings & settings_);
+    QingCloudRemoteBlockInputStream(const BlockInputStreamPtr & input, String & version_, UInt64 & shard_num_, Settings & settings_);
 
 private:
     Block readImpl() override;
@@ -54,7 +54,7 @@ private:
 
 
 private:
-    UInt64 & version;
+    String & version;
     UInt64 & shard_num;
     Settings & settings;
 };

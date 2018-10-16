@@ -39,7 +39,7 @@ public:
                                const ASTPtr &query_ast, const ClusterPtr &cluster_,
                                const Settings &settings_, bool insert_sync_, UInt64 insert_timeout_,
                                const String &sharding_column_name_, const ExpressionActionsPtr &sharding_key_expr,
-                               const Block &header, const UInt64 current_writing_version_);
+                               const Block &header, const String & current_writing_version_);
 
     Block getHeader() const override;
     void write(const Block & block) override;
@@ -82,7 +82,7 @@ private:
     QingCloudAsynchronism & asynchronism;
     ASTPtr query_ast;
     ClusterPtr cluster;
-    const UInt64 current_writing_version;
+    const String current_writing_version;
     const Block & header;
     const Settings & settings;
     const String sharding_column_name;

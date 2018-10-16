@@ -41,12 +41,14 @@ static ASTPtr extractKeyExpressionList(IAST & node)
     }
 }
 
-static std::pair<UInt64, UInt64> readVersionAndShardText(const String &prefix, const String &full_text)
+static std::pair<String, UInt64> readVersionAndShardText(const String &prefix, const String &full_text)
 {
-    UInt64 version;
+    String version;
     UInt64 shared_number;
     ReadBufferFromString string_buf(full_text);
     string_buf.ignore(prefix.size() + 1);
+
+    /// TODO 查找_
 
     readIntText(version, string_buf);
     readIntText(shared_number, string_buf);
@@ -160,11 +162,11 @@ BlockInputStreams StorageQingCloud::read(
 
     UInt64 query_shard_number = UInt64(settings.query_shard_index);
     auto all_versions_cluster = multiplexed_version_cluster->getAllVersionsCluster();
-    std::vector<UInt64> query_versions = {UInt64(settings.query_version)};
-    if (!settings.query_version)
+    std::vector<String> query_versions = {settings.query_version.toString()};
+    if (settings.query_version.toString().empty())
         query_versions = multiplexed_version_cluster->getReadableVersions();
 
-    for (UInt64 query_version : query_versions)
+    for (String query_version : query_versions)
     {
         BlockInputStreams current_version_res;
         const auto version_and_shard = std::pair(query_version, query_shard_number);
@@ -195,7 +197,7 @@ BlockInputStreams StorageQingCloud::readLocal(
 {
     Settings settings = context.getSettingsRef();
 
-    const auto version_and_shard_index = std::pair(UInt64(settings.query_version), UInt64(settings.query_shard_index));
+    const auto version_and_shard_index = std::pair(settings.query_version.toString(), UInt64(settings.query_shard_index));
 
     return local_storages.at(version_and_shard_index)->read(column_names, query_info, context, processed_stage, max_block_size, num_streams);
 }
@@ -207,10 +209,10 @@ BlockOutputStreamPtr StorageQingCloud::write(const ASTPtr & query, const Setting
     const auto lock = multiplexed_version->getConfigurationLock();
     const auto lock2 = local_storage_lock->getLock(RWLockFIFO::Read);
 
-    UInt64 writing_shard_number = UInt64(settings.writing_shard_index);
+    auto writing_shard_number = UInt64(settings.writing_shard_index);
     auto all_version_cluster = multiplexed_version->getAllVersionsCluster();
-    UInt64 writing_version = UInt64(settings.writing_version);
-    if (!writing_version)
+    String writing_version = settings.writing_version.toString();
+    if (writing_version.empty())
         writing_version = multiplexed_version->getCurrentWritingVersion();
 
     if (likely(writing_shard_number))
@@ -257,13 +259,13 @@ StorageQingCloud::StorageQingCloud(const String &data_path, const String &databa
     sharding_key_expr = distribution_expr_list ? ExpressionAnalyzer(distribution_expr_list, context, nullptr, getColumns().getAllPhysical()).getActions(false) : nullptr;
 }
 
-std::vector<std::pair<UInt64, UInt64>> StorageQingCloud::getLocalStoragesVersionAndShard(const MultiplexedClusterPtr & multiplexed_cluster)
+std::vector<std::pair<String, UInt64>> StorageQingCloud::getLocalStoragesVersionAndShard(const MultiplexedClusterPtr & multiplexed_cluster)
 {
-    std::vector<std::pair<UInt64, UInt64>> versions_and_shards;
+    std::vector<std::pair<String, UInt64>> versions_and_shards;
 
     for (const auto & version_and_cluster : multiplexed_cluster->getAllVersionsCluster())
     {
-        UInt64 version = version_and_cluster.first;
+        String version = version_and_cluster.first;
         ClusterPtr cluster = version_and_cluster.second;
 
         Cluster::AddressesWithFailover shards_addresses = cluster->getShardsAddresses();
@@ -280,7 +282,7 @@ std::vector<std::pair<UInt64, UInt64>> StorageQingCloud::getLocalStoragesVersion
     return versions_and_shards;
 }
 
-static std::vector<UInt64> getVersionShardsNumber(VersionAndShardsWithStorage storages, UInt64 version)
+static std::vector<UInt64> getVersionShardsNumber(VersionAndShardsWithStorage storages, const String & version)
 {
     std::vector<UInt64> shards_number;
 
@@ -294,7 +296,7 @@ static std::vector<UInt64> getVersionShardsNumber(VersionAndShardsWithStorage st
     return shards_number;
 }
 
-void StorageQingCloud::mergeVersions(std::vector<UInt64> from_versions, UInt64 to_version)
+void StorageQingCloud::mergeVersions(std::vector<String> from_versions, const String & to_version)
 {
     const auto multiplexed_version = context.getMultiplexedVersion();
     const auto lock = local_storage_lock->getLock(RWLockFIFO::Read);

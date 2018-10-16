@@ -13,9 +13,9 @@ class QingCloudAsynchronism
 public:
     QingCloudAsynchronism(const String &data_path, Context &context);
 
-    void writeToShard(const UInt64 version, const UInt64 shard_number, const String &file_name);
+    void writeToShard(const String & version, const UInt64 shard_number, const String &file_name);
 
-    void writeToReplica(const UInt64 version, const UInt64 shard_number, const Cluster::Address & address, const String &file_name);
+    void writeToReplica(const String & version, const UInt64 shard_number, const Cluster::Address & address, const String &file_name);
 
     void destroyDirectoryMonitor(String dir_name);
 
@@ -35,7 +35,7 @@ private:
     struct ReplicasDirectoryInfo
     {
         Cluster::Address address;
-        UInt64 current_writing_version;
+        String current_writing_version;
         UInt64 current_writing_shard_number;
 
         ReplicasDirectoryInfo(const String & dir_name);

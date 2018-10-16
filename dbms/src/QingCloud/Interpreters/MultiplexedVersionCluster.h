@@ -10,11 +10,11 @@ namespace DB
 class MultiplexedVersionCluster
 {
 public:
-    UInt64 getCurrentWritingVersion();
+    String getCurrentWritingVersion();
 
-    std::vector<UInt64> getReadableVersions();
+    std::vector<String> getReadableVersions();
 
-    std::map<UInt64, ClusterPtr> getAllVersionsCluster();
+    std::map<String, ClusterPtr> getAllVersionsCluster();
 
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> getAddressesAndConnections();
 
@@ -35,7 +35,7 @@ public:
 
     void updateMultiplexedVersionCluster(const Poco::Util::AbstractConfiguration & configuration, const Settings & settings, const std::string & config_prefix);
 private:
-    std::map<UInt64, ClusterPtr> all_version_and_cluster;
+    std::map<String, ClusterPtr> all_version_and_cluster;
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> address_and_connection_pool_cache;
     mutable RWLockFIFOPtr configuration_lock = RWLockFIFO::create();
 

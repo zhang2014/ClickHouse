@@ -26,16 +26,16 @@ BlockIO InterpreterMergeQuery::execute()
     String database_name = merge.database.empty() ? context.getCurrentDatabase() : merge.database;
     StoragePtr table = context.getTable(database_name, table_name);
 
-    StorageQingCloud * storage = dynamic_cast<StorageQingCloud *>(table.get());
+    auto * storage = dynamic_cast<StorageQingCloud *>(table.get());
 
     if (!storage)
         throw Exception(database_name + "." + table_name + " is not QingCloud Engine Table.", ErrorCodes::BAD_ARGUMENTS);
 
     std::vector<UInt64> source_versions;
     for (const auto ast_version : merge.source_versions->children)
-        source_versions.emplace_back(typeid_cast<ASTLiteral *>(ast_version.get())->value.safeGet<UInt64>());
+        source_versions.emplace_back(typeid_cast<ASTLiteral *>(ast_version.get())->value.safeGet<String>());
 
-    storage->mergeVersions(source_versions, static_cast<ASTLiteral *>(merge.dist_versions.get())->value.safeGet<UInt64>());
+    storage->mergeVersions(source_versions, static_cast<ASTLiteral *>(merge.dist_versions.get())->value.safeGet<String>());
 
     return {};
 }

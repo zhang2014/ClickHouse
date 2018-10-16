@@ -21,7 +21,7 @@ namespace DB
 class Context;
 class StorageDistributedDirectoryMonitor;
 
-using VersionWithReplica = std::pair<UInt64, UInt64>;
+using VersionWithReplica = std::pair<String, UInt64>;
 using VersionAndShardsWithStorage = std::map<VersionWithReplica, StoragePtr>;
 
 class StorageQingCloud : public ext::shared_ptr_helper<StorageQingCloud>, public IStorage
@@ -52,7 +52,7 @@ public:
 
     void syncClusterConfig();
 
-    void mergeVersions(std::vector<UInt64> from_versions, UInt64 to_version);
+    void mergeVersions(std::vector<String> from_versions, const String & to_version);
 
 private:
     const String full_path;
@@ -83,7 +83,7 @@ protected:
 
     StoragePtr createLocalStorage(const String & local_table_name, bool attach = false);
 
-    std::vector<std::pair<UInt64, UInt64>> getLocalStoragesVersionAndShard(const MultiplexedClusterPtr &multiplexed_cluster);
+    std::vector<std::pair<String, UInt64>> getLocalStoragesVersionAndShard(const MultiplexedClusterPtr &multiplexed_cluster);
 
     void destroyLocalStorages(VersionAndShardsWithStorage &old_storages, VersionAndShardsWithStorage &new_storages);
 

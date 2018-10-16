@@ -57,7 +57,7 @@ extern const int TYPE_MISMATCH;
 QingCloudBlockOutputStream::QingCloudBlockOutputStream(
     const Context & context, QingCloudAsynchronism & asynchronism, const ASTPtr & query_ast, const ClusterPtr & cluster_,
     const Settings & settings_, bool insert_sync_, UInt64 insert_timeout_, const String &sharding_column_name_,
-    const ExpressionActionsPtr &sharding_key_expr, const Block &header, const UInt64 current_writing_version_)
+    const ExpressionActionsPtr &sharding_key_expr, const Block &header, const String & current_writing_version_)
     : context(context), asynchronism(asynchronism), query_ast(query_ast), cluster(cluster_),
       current_writing_version(current_writing_version_), header(header), settings(settings_), sharding_column_name(sharding_column_name_),
       sharding_key_expr(sharding_key_expr), insert_sync(insert_sync_), insert_timeout(insert_timeout_),
@@ -458,7 +458,7 @@ void QingCloudBlockOutputStream::writeAsyncImpl(const Block & block, const size_
     if (has_remote_replica)
     {
         String file_name = asynchronism.writeTempBlock(query_string, block);
-        asynchronism.writeToShard(0, shard_info.shard_num, file_name);
+        asynchronism.writeToShard(current_writing_version, shard_info.shard_num, file_name);
 //        asynchronism.destroyTempBlock(file_name);
     }
 }

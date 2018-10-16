@@ -30,9 +30,9 @@ static inline bool addressEquals(Cluster::Address expect, Cluster::Address actua
     return expect.compression == actual.compression;
 }
 
-std::vector<UInt64> MultiplexedVersionCluster::getReadableVersions()
+std::vector<String> MultiplexedVersionCluster::getReadableVersions()
 {
-    std::vector<UInt64> readable_versions;
+    std::vector<String> readable_versions;
 
     for (const auto version_and_cluster : all_version_and_cluster)
     {
@@ -44,12 +44,12 @@ std::vector<UInt64> MultiplexedVersionCluster::getReadableVersions()
     return readable_versions;
 }
 
-std::map<UInt64, ClusterPtr> MultiplexedVersionCluster::getAllVersionsCluster()
+std::map<String, ClusterPtr> MultiplexedVersionCluster::getAllVersionsCluster()
 {
     return all_version_and_cluster;
 }
 
-UInt64 MultiplexedVersionCluster::getCurrentWritingVersion()
+String MultiplexedVersionCluster::getCurrentWritingVersion()
 {
     for (const auto version_and_cluster : all_version_and_cluster)
     {
@@ -82,11 +82,11 @@ void MultiplexedVersionCluster::updateMultiplexedVersionCluster(
         throw Exception("No cluster elements (version) specified in config at path " + config_prefix, ErrorCodes::SHARD_HAS_NO_CONNECTIONS);
 
     /// TODO: clear unuse connection
-    std::map<UInt64, ClusterPtr> new_all_version_and_cluster;
+    std::map<String, ClusterPtr> new_all_version_and_cluster;
 
     for (const auto & version_key : versions_key)
     {
-        UInt64 version_id = getPropertyOrChildValue<UInt64>(configuration, config_prefix + "." + version_key, "id");
+        String version_id = getPropertyOrChildValue<String>(configuration, config_prefix + "." + version_key, "id");
         bool readable = getPropertyOrChildValue<bool>(configuration, config_prefix + "." + version_key, "readable");
         bool writeable = getPropertyOrChildValue<bool>(configuration, config_prefix + "." + version_key, "writeable");
 
