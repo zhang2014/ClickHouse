@@ -96,7 +96,7 @@ void MultiplexedVersionCluster::updateMultiplexedVersionCluster(
                                                                                  settings, readable, writeable);
     }
     all_version_and_cluster = new_all_version_and_cluster;
-    getDDLSynchronism()->updateAddressesAndConnections(getAddressesAndConnections());
+//    getDDLSynchronism()->updateAddressesAndConnections(getAddressesAndConnections());
 }
 
 void MultiplexedVersionCluster::setAddressAndConnections(
