@@ -98,6 +98,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
     registerTableFunctions();
     registerStorages();
 
+
     CurrentMetrics::set(CurrentMetrics::Revision, ClickHouseRevision::get());
 
     /** Context contains all that query execution is dependent:

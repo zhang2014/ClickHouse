@@ -1,0 +1,15 @@
+//
+// Created by coswde on 2018/10/18.
+//
+
+#ifndef CLICKHOUSE_QINGCLOUDBUILDALLTABLES_H
+#define CLICKHOUSE_QINGCLOUDBUILDALLTABLES_H
+
+
+class QingCloudBuildAllTables
+{
+
+};
+
+
+#endif //CLICKHOUSE_QINGCLOUDBUILDALLTABLES_H

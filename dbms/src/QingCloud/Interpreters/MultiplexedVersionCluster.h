@@ -3,7 +3,7 @@
 #include <Interpreters/Cluster.h>
 #include <Poco/Util/AbstractConfiguration.h>
 #include <Common/RWLockFIFO.h>
-#include <QingCloud/Interpreters/QingCloudDDLSynchronism.h>
+//#include <QingCloud/Interpreters/QingCloudDDLSynchronism.h>
 
 namespace DB
 {
@@ -42,7 +42,7 @@ private:
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> address_and_connection_pool_cache;
     mutable RWLockFIFOPtr configuration_lock = RWLockFIFO::create();
     std::mutex synchronism_mutex;
-    QingCloudDDLSynchronismPtr synchronism;
+//    QingCloudDDLSynchronismPtr synchronism;
 
     Cluster::Address createAddress(const Poco::Util::AbstractConfiguration & configuration, const std::string & replica_config_prefix);
 
