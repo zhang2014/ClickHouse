@@ -35,7 +35,11 @@ BlockIO InterpreterQingCloudDDLQuery::execute()
 
     BlockInputStreams streams;
     for (const auto & connection : connections)
-        streams.emplace_back(std::make_shared<RemoteBlockInputStream>(*connection, query_string, header, context, &settings));
+    {
+        auto stream = std::make_shared<RemoteBlockInputStream>(*connection, query_string, header, context, &settings)
+        streams.emplace_back(stream);
+    }
+
 
     /// TODO make ddl block input stream
     /// header  :
