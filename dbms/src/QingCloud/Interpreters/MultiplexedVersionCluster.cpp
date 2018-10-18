@@ -4,6 +4,7 @@
 #include <Common/isLocalAddress.h>
 #include <Storages/IStorage.h>
 #include <QingCloud/Storages/StorageQingCloud.h>
+#include "MultiplexedVersionCluster.h"
 
 
 namespace DB
@@ -65,6 +66,7 @@ std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> MultiplexedVersionCl
     return address_and_connection_pool_cache;
 }
 
+
 MultiplexedVersionCluster::MultiplexedVersionCluster(const Poco::Util::AbstractConfiguration &configuration, const Settings &settings,
                                                      const std::string &config_prefix)
 {
@@ -94,6 +96,7 @@ void MultiplexedVersionCluster::updateMultiplexedVersionCluster(
                                                                                  settings, readable, writeable);
     }
     all_version_and_cluster = new_all_version_and_cluster;
+    getDDLSynchronism()->updateAddressesAndConnections(getAddressesAndConnections());
 }
 
 void MultiplexedVersionCluster::setAddressAndConnections(
@@ -169,6 +172,15 @@ RWLockFIFO::LockHandler MultiplexedVersionCluster::getConfigurationLock()
 {
     return configuration_lock->getLock(RWLockFIFO::Read, "getConfigurationLock");
 }
+
+//QingCloudDDLSynchronismPtr MultiplexedVersionCluster::getDDLSynchronism()
+//{
+//    std::lock_guard<std::mutex> lock(synchronism_mutex);
+//    if (!synchronism)
+//        synchronism = std::make_shared<QingCloudDDLSynchronism>(getAddressesAndConnections());
+//
+//    return synchronism;
+//}
 
 DummyCluster::DummyCluster(const Poco::Util::AbstractConfiguration & configuration, const std::string & configuration_prefix,
                            MultiplexedVersionCluster *multiplexed_version_cluster, const Settings &settings, bool is_readable,

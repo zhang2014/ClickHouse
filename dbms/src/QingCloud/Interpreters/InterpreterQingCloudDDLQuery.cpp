@@ -1,7 +1,10 @@
 #include <DataStreams/RemoteBlockInputStream.h>
 #include <DataStreams/UnionBlockInputStream.h>
 #include <Parsers/queryToString.h>
+#include <Client/ConnectionPool.h>
+#include <QingCloud/Interpreters/MultiplexedVersionCluster.h>
 #include <QingCloud/Interpreters/InterpreterQingCloudDDLQuery.h>
+#include <DataStreams/OneBlockInputStream.h>
 
 namespace DB
 {
@@ -15,29 +18,31 @@ BlockIO InterpreterQingCloudDDLQuery::execute()
     Block header;
     String query_string = queryToString(query);
 
-    BlockIO res = local_interpreter->execute();
-
-    if (res.in)
-        header = res.in->getHeader();
-
-    BlockInputStreams streams;
+    std::vector<IConnectionPool::Entry> connections;
     for (const auto & address_and_connections : address_and_connection_pools)
     {
         if (!address_and_connections.first.is_local)
         {
             settings.internal_query = true;
-            const auto connections = address_and_connections.second;
-            ConnectionPool::Entry connection = connections->get(&settings);
-            auto stream = std::make_shared<RemoteBlockInputStream>(*connection, query_string, header, context, &settings);
-            streams.emplace_back(std::move(stream));
+            connections.emplace_back(address_and_connections.second->get(&settings))
         }
     }
+
+    BlockIO res = local_interpreter->execute();
+
+    if (res.in)
+    header = res.in->getHeader();
+
+    BlockInputStreams streams;
+    for (const auto & connection : connections)
+        streams.emplace_back(std::move(std::make_shared<RemoteBlockInputStream>(*connection, query_string, header, context, &settings)));
+
     /// TODO make ddl block input stream
     /// header  :
     /// host          result          message
     /// other         success
     /// 192.168.1.1   failure         table already exists.
-//    res.in = std::make_shared<UnionBlockInputStream<>>(streams, nullptr, 1);
+    res.in = std::make_shared<UnionBlockInputStream<>>(streams, nullptr, 1);
 
     return res;
 }
