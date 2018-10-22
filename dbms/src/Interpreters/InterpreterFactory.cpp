@@ -13,6 +13,7 @@
 #include <Parsers/ASTShowTablesQuery.h>
 #include <Parsers/ASTUseQuery.h>
 #include <Parsers/TablePropertiesQueriesASTs.h>
+#include <QingCloud/Parsers/ASTPaxosQuery.h>
 
 #include <Interpreters/InterpreterAlterQuery.h>
 #include <Interpreters/InterpreterCheckQuery.h>
@@ -33,6 +34,7 @@
 #include <Interpreters/InterpreterShowTablesQuery.h>
 #include <Interpreters/InterpreterSystemQuery.h>
 #include <Interpreters/InterpreterUseQuery.h>
+#include <QingCloud/Interpreters/InterpreterPaxosQuery.h>
 
 #include <Parsers/ASTSystemQuery.h>
 
@@ -164,6 +166,10 @@ std::unique_ptr<IInterpreter> InterpreterFactory::get(ASTPtr & query, Context & 
     else if (typeid_cast<ASTMergeQuery *>(query.get()))
     {
         return std::make_unique<InterpreterMergeQuery>(query, context);
+    }
+    else if (typeid_cast<ASTPaxosQuery *>(query.get()))
+    {
+        return std::make_unique<InterpreterPaxosQuery>(query, context);
     }
     else if (typeid_cast<ASTSystemQuery *>(query.get()))
     {

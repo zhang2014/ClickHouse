@@ -14,7 +14,7 @@ BlockIO InterpreterQingCloudDDLQuery::execute()
     String query_string = queryToString(query);
 
     const auto ddl_synchronism = context.getDDLSynchronism();
-    ddl_synchronism->enqueue(query_string);
+    ddl_synchronism->enqueue(query_string, context);
 //    std::vector<IConnectionPool::Entry> connections;
 //    for (const auto & address_and_connections : address_and_connection_pools)
 //    {

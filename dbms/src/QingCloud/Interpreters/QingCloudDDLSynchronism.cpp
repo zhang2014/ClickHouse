@@ -13,6 +13,7 @@
 #include <Parsers/ParserInsertQuery.h>
 #include <Interpreters/executeQuery.h>
 #include <Interpreters/InterpreterInsertQuery.h>
+#include <Interpreters/Context.h>
 
 
 namespace DB

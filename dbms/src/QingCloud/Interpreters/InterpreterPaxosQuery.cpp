@@ -4,6 +4,7 @@
 #include <Parsers/ASTLiteral.h>
 #include <DataStreams/OneBlockInputStream.h>
 #include "QingCloudDDLSynchronism.h"
+#include "InterpreterPaxosQuery.h"
 
 
 namespace DB
@@ -40,5 +41,11 @@ BlockIO InterpreterPaxosQuery::execute()
         res.in = std::make_shared<OneBlockInputStream>(paxos->acceptedProposal(from, proposal_number, std::pair(proposal_value_id, proposal_value_query)));
     }
     return res;
+}
+
+InterpreterPaxosQuery::InterpreterPaxosQuery(const ASTPtr &query_ptr_, const Context &context_)
+    :query_ptr(query_ptr_), context(context_)
+{
+
 }
 }
