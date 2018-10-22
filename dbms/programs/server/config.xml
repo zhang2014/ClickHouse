@@ -170,21 +170,8 @@
     </remote_servers>
 
     <QingCloudServers>
-        <Version id="1" readable="true" writeable="false">
+        <Version id="1" readable="true" writeable="true">
             <Shard host="127.0.0.1" port="9000" />
-        </Version>
-        <Version id="2" readable="true" writeable="true">
-            <Shard>
-                <Replica host="127.0.0.1" port="9000" />
-            </Shard>
-        </Version>
-        <Version id="3" readable="true" writeable="false">
-            <Shard>
-                <Replica>
-                    <host>127.0.0.1</host>
-                    <port>9000</port>
-                </Replica>
-            </Shard>
         </Version>
     </QingCloudServers>
     <!-- If element has 'incl' attribute, then for it's value will be used corresponding substitution from another file.

@@ -125,7 +125,7 @@ void QingCloudDirectoryMonitor::run()
         }
 
         if (do_sleep)
-            cond.wait_for(lock, sleep_time, quit_requested);
+
 
         const auto now = std::chrono::system_clock::now();
         if (now - last_decrease_time > decrease_error_count_period)

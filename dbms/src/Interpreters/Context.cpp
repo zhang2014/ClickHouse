@@ -180,6 +180,8 @@ struct ContextShared
     std::shared_ptr<MultiplexedVersionCluster> qingcloud_cluster;
     ConfigurationPtr qingcloud_clusters_config;
     mutable std::mutex qing_clusters_mutex;
+    std::shared_ptr<QingCloudDDLSynchronism> ddl_synchronism;
+    mutable std::mutex ddl_synchronism_mutex;
 
     bool shutdown_called = false;
 
@@ -1442,6 +1444,15 @@ std::shared_ptr<Cluster> Context::getCluster(const std::string & cluster_name) c
         throw Exception("Requested cluster '" + cluster_name + "' not found", ErrorCodes::BAD_GET);
 
     return res;
+}
+
+std::shared_ptr<QingCloudDDLSynchronism> Context::getDDLSynchronism() const
+{
+    std::lock_guard<std::mutex> lock(shared->ddl_synchronism_mutex);
+    if (!shared->ddl_synchronism)
+        shared->ddl_synchronism = std::make_shared<QingCloudDDLSynchronism>(*this);
+
+    return shared->ddl_synchronism;
 }
 
 std::shared_ptr<MultiplexedVersionCluster> Context::getMultiplexedVersion() const

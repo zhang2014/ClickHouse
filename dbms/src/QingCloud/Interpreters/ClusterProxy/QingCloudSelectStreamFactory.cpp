@@ -40,13 +40,14 @@ void ClusterProxy::QingCloudSelectStreamFactory::createForShard(
 }
 
 BlockInputStreamPtr ClusterProxy::QingCloudSelectStreamFactory::makeOriginRemoteBlockInputStream(
-    Block &header, const Cluster::ShardInfo &shard_info, const String &query, const Context &context, const ThrottlerPtr &throttler)
+    Block &header, const Cluster::ShardInfo & shard_info, const String & query, const Context & context, const ThrottlerPtr & throttler)
 {
-    auto stream = std::make_shared<RemoteBlockInputStream>(shard_info.pool, query, header, context, nullptr, throttler, external_tables, processed_stage);
+    auto remote_stream = std::make_shared<RemoteBlockInputStream>(shard_info.pool, query, header,
+                                                           context, nullptr, throttler, external_tables, processed_stage);
 
-    stream->setPoolMode(DB::PoolMode::GET_MANY);
-    stream->setMainTable(main_table);
-    return std::move(stream);
+    remote_stream->setPoolMode(DB::PoolMode::GET_MANY);
+    remote_stream->setMainTable(main_table);
+    return remote_stream;
 }
 
 ClusterProxy::QingCloudRemoteBlockInputStream::QingCloudRemoteBlockInputStream(
