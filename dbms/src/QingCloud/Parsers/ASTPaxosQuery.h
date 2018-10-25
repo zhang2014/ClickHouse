@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Core/Field.h>
+#include <Common/FieldVisitors.h>
 #include <Parsers/ASTQueryWithOutput.h>
 
 namespace DB
@@ -40,7 +41,7 @@ protected:
                 settings.ostr << (settings.hilite ? hilite_keyword : "") << " , " << (settings.hilite ? hilite_none : "");
             settings.ostr << (settings.hilite ? hilite_keyword : "") << name_and_value.first << (settings.hilite ? hilite_none : "");
             settings.ostr << (settings.hilite ? hilite_keyword : "") << " = " << (settings.hilite ? hilite_none : "");
-            settings.ostr << (settings.hilite ? hilite_keyword : "") << toString(name_and_value.second.get()) << (settings.hilite ? hilite_none : "");
+            settings.ostr << (settings.hilite ? hilite_keyword : "") << applyVisitor(FieldVisitorToString(), name_and_value.second) << (settings.hilite ? hilite_none : "");
             ++index;
         }
     }

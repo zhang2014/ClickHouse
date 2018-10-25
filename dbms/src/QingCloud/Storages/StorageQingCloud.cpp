@@ -267,7 +267,7 @@ std::vector<std::pair<String, UInt64>> StorageQingCloud::getLocalStoragesVersion
 
         for (size_t shard_index : ext::range(0, shards_addresses.size()))
         {
-            for (Cluster::Address replica_address : shards_addresses[shard_index])
+            for (Cluster::Address & replica_address : shards_addresses[shard_index])
             {
                 if (replica_address.is_local)
                     versions_and_shards.emplace_back(version, shard_index + 1);

@@ -5,6 +5,7 @@
 #include <DataStreams/OneBlockInputStream.h>
 #include "QingCloudDDLSynchronism.h"
 #include "InterpreterPaxosQuery.h"
+#include <iostream>
 
 
 namespace DB
@@ -14,10 +15,8 @@ BlockIO InterpreterPaxosQuery::execute()
 {
     ASTPaxosQuery * paxos_query = typeid_cast<ASTPaxosQuery *>(query_ptr.get());
 
-    const auto multiplexed_context = context.getMultiplexedVersion();
-
     BlockIO res;
-    QingCloudPaxosPtr paxos;
+    QingCloudPaxosPtr paxos = context.getDDLSynchronism()->paxos;
 
     if (paxos_query->kind == "PREPARE")
     {
@@ -39,7 +38,8 @@ BlockIO InterpreterPaxosQuery::execute()
         UInt64 proposal_value_id = paxos_query->names_and_values["proposal_value_id"].safeGet<UInt64>();
         String proposal_value_query = paxos_query->names_and_values["proposal_value_query"].safeGet<String>();
         res.in = std::make_shared<OneBlockInputStream>(paxos->acceptedProposal(from, proposal_number, std::pair(proposal_value_id, proposal_value_query)));
-    }
+    } else
+        throw Exception("Unknow kind for paxos.", ErrorCodes::LOGICAL_ERROR);
     return res;
 }
 

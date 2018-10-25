@@ -2,11 +2,12 @@
 
 #include <Core/Types.h>
 #include <Client/ConnectionPool.h>
-#include <Interpreters/Context.h>
 #include <Interpreters/Settings.h>
 
 namespace DB
 {
+
+class Context;
 
 using LogEntity = std::pair<UInt64, String>;
 
@@ -34,8 +35,7 @@ private:
     ConnectionPoolPtrs connections;
 
 
-    Context context;
-    Settings settings;
+    const Context & context;
     Block accept_header;
     Block prepare_header;
     UInt64 higher_numbered;
