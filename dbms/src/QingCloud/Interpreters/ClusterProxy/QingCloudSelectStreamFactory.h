@@ -54,9 +54,9 @@ private:
 
 
 private:
-    const String & version;
-    const UInt64 & shard_num;
-    Settings & settings;
+    const String version;
+    const UInt64 shard_num;
+    Settings settings;
 };
 
 }

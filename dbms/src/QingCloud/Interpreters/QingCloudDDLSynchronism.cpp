@@ -39,7 +39,7 @@ static BlockIO executeQuery(const String &query_string, const Context &context)
     return interpreter->execute();
 }
 
-QingCloudDDLSynchronism::QingCloudDDLSynchronism(const Context &context)
+QingCloudDDLSynchronism::QingCloudDDLSynchronism(const Context & context)
     : context(context)
 {
     /// TODO sleep_time
@@ -76,7 +76,10 @@ void QingCloudDDLSynchronism::updateAddressesAndConnections(const AddressesWithC
         if (addresses_with_connection.first.is_local)
             node_id = addresses_with_connection.first.toString();
         connections.emplace_back(addresses_with_connection.second);
-        remotes_addresses += addresses_with_connection.first.toString();
+        Cluster::Address address = addresses_with_connection.first;
+        if (!remotes_addresses.empty())
+            remotes_addresses += ",";
+        remotes_addresses += address.host_name + ":" + toString(address.port);;
     }
 
     auto resolution_function = [this](UInt64 proposer, LogEntity entity, String from)
@@ -104,43 +107,6 @@ void QingCloudDDLSynchronism::enqueue(const String & query_string, const Context
     }
 }
 
-void QingCloudDDLSynchronism::work()
-{
-    setThreadName("QingCloudDDLSynchronism");
-
-    std::unique_lock<std::mutex> lock{mutex};
-
-    const auto quit_requested = [this] { return quit.load(std::memory_order_relaxed); };
-
-    while (!quit_requested())
-    {
-        try
-        {
-            auto last_query = getLastQuery(context);
-            BlockIO res = executeQuery("SELECT id, max(proposer_id) AS proposer_id, query_string FROM remote('" + remotes_addresses +
-                                       "', system, ddl_queue) WHERE proposer_id > " + toString(last_query.first) + " GROUP BY id, query_string", context);
-
-            Block sync_ddl_queue = getBlockWithAllStreamData(res.in);
-
-            for (size_t row = 0; row < sync_ddl_queue.rows(); ++ row)
-            {
-                UInt64 id = typeid_cast<const ColumnUInt64 &>(*sync_ddl_queue.safeGetByPosition(0).column).getUInt(row);
-                UInt64 proposer_id = typeid_cast<const ColumnUInt64 &>(*sync_ddl_queue.safeGetByPosition(1).column).getUInt(row);
-                String query_string = typeid_cast<const ColumnString &>(*sync_ddl_queue.safeGetByPosition(2).column).getDataAt(row).toString();
-
-                processQuery(id, proposer_id, query_string);
-            }
-        }
-        catch (...)
-        {
-            tryLogCurrentException(&Logger::get("QingCloudDDLSynchronism"), "QingCloudDDLSynchronism exception :");
-        }
-
-        std::cout << "wait for \n";
-        cond.wait_for(lock, sleep_time, quit_requested);
-    }
-}
-
 void QingCloudDDLSynchronism::processQuery(const UInt64 &id, const UInt64 & proposer_id, const String & query_string)
 {
     /// TODO: exception for execute need callback
@@ -159,10 +125,45 @@ void QingCloudDDLSynchronism::processQuery(const UInt64 &id, const UInt64 & prop
     res_for_insert.out->writeSuffix();
 }
 
-std::pair<UInt64, LogEntity> QingCloudDDLSynchronism::getLastQuery(const Context &context)
+void QingCloudDDLSynchronism::work()
 {
-    BlockIO res = executeQuery(
-        "SELECT id, proposer_id, query_string FROM system.ddl_queue WHERE id = (SELECT MAX(id) FROM system.ddl_queue);", context);
+    setThreadName("QingCloudDDLSynchronism");
+
+    std::unique_lock<std::mutex> lock{mutex};
+
+    const auto quit_requested = [this] { return quit.load(std::memory_order_relaxed); };
+
+    while (!quit_requested())
+    {
+        try
+        {
+            auto last_query = getLastQuery(context);
+            BlockIO res = executeQuery("SELECT DISTINCT id, proposer_id, query_string FROM remote('" + remotes_addresses +
+                                       "', system, ddl_queue) WHERE proposer_id > " + toString(last_query.first) + " ORDER BY id;", context);
+
+            Block sync_ddl_queue = getBlockWithAllStreamData(res.in);
+
+            for (size_t row = 0; row < sync_ddl_queue.rows(); ++ row)
+            {
+                UInt64 id = typeid_cast<const ColumnUInt64 &>(*sync_ddl_queue.safeGetByPosition(0).column).getUInt(row);
+                UInt64 proposer_id = typeid_cast<const ColumnUInt64 &>(*sync_ddl_queue.safeGetByPosition(1).column).getUInt(row);
+                String query_string = typeid_cast<const ColumnString &>(*sync_ddl_queue.safeGetByPosition(2).column).getDataAt(row).toString();
+
+                processQuery(id, proposer_id, query_string);
+            }
+        }
+        catch (...)
+        {
+            tryLogCurrentException(&Logger::get("QingCloudDDLSynchronism"), "QingCloudDDLSynchronism exception :");
+        }
+
+        cond.wait_for(lock, sleep_time, quit_requested);
+    }
+}
+
+std::pair<UInt64, LogEntity> QingCloudDDLSynchronism::getLastQuery(const Context & context)
+{
+    BlockIO res = executeQuery("SELECT id, proposer_id, query_string FROM system.ddl_queue WHERE id = (SELECT MAX(id) FROM system.ddl_queue);", context);
 
     Block query_block = getBlockWithAllStreamData(res.in);
 

@@ -85,7 +85,8 @@ Block QingCloudPaxos::acceptProposal(const String & /*from*/, const UInt64 & pro
         promised_id = proposal_id;
         state &= validateQueryIsQuorum(
             sendQuery("PAXOS ACCEPTED proposal_number=" + toString(proposer_id) + ",proposal_value_id=" + toString(value.first) +
-                      ",proposal_value_query='" + value.second + "',from='" + node_id+"'", accept_header), connections.size() / 2 + 1);
+                              ",proposal_value_query='" + value.second + "',from='" + node_id + "'", accept_header),
+            connections.size() / 2 + 1);
     }
 
     MutableColumns columns = accept_header.cloneEmptyColumns();
@@ -131,43 +132,51 @@ Block QingCloudPaxos::sendQuery(const String & query_string, const Block & heade
     Block block;
     BlockInputStreams res;
     Settings settings = context.getSettingsRef();
-    for (size_t index = 0; index < connections.size(); ++index)
+
+    try
     {
-        //// TODO: 启动多个线程同时处理后聚合结果
-        try
+        /// TODO: 全部成功或多数的结果返回即可
+        for (size_t index = 0; index < connections.size(); ++index)
         {
+            try
+            {
+                auto connection = connections[index]->get(&settings);
+                Block current_connection_block = std::make_shared<SquashingBlockInputStream>(
+                    std::make_shared<RemoteBlockInputStream>(*connection, query_string, header, context, &settings),
+                    std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max())->read();
 
-            auto connection = connections[index]->get(&settings);
-            Block current_connection_block = std::make_shared<SquashingBlockInputStream>(
-                std::make_shared<RemoteBlockInputStream>(*connection, query_string, header, context, &settings),
-                std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max())->read();
-
+                //// TODO: 启动多个线程同时处理后聚合结果
+                res.emplace_back(std::make_shared<OneBlockInputStream>(current_connection_block));
+            }
+            catch(...)
+            {
+                tryLogCurrentException(&Logger::get("QingCloudPaxos"), "QingCloud Paxos broadcast exception");
+                res.emplace_back(std::make_shared<OneBlockInputStream>(header.cloneEmpty()));
+            }
 
         }
-        catch (...)
-        {
-            tryLogCurrentException(&Logger::get("QingCloudPaxos"), "QingCloud Paxos broadcast exception :");
-        }
-    }
-    try {
-        return std::make_shared<SquashingBlockInputStream>(std::make_shared<UnionBlockInputStream<>>(res, nullptr, settings.max_threads),
+        return std::make_shared<SquashingBlockInputStream>(std::make_shared<UnionBlockInputStream<>>(res, nullptr, res.size()),
                                                            std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max())->read();
     }
     catch (...)
     {
-        tryLogCurrentException(&Logger::get("QingCloudPaxos"), "QingCloud Paxos broadcast exception :");
+        tryLogCurrentException(&Logger::get("QingCloudPaxos"), "QingCloud Paxos broadcast exception");
         return {};
     }
-
 }
 
-bool QingCloudPaxos::validateQueryIsQuorum(const Block & block, size_t quorum_size)
+bool QingCloudPaxos::validateQueryIsQuorum(const Block &block, size_t quorum_size)
 {
+    bool all_successfully = true;
     for (size_t index = 0; index < block.rows(); ++index)
+    {
         if (typeid_cast<const ColumnUInt64 &>(*block.safeGetByPosition(0).column).getBool(index))
             --quorum_size;
+        else
+            all_successfully = false;
+    }
 
-    return quorum_size > 0;
+    return all_successfully || quorum_size <= 0;
 }
 
 }
