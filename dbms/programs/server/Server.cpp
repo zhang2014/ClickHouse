@@ -495,22 +495,6 @@ int Server::main(const std::vector<std::string> & /*args*/)
                     LOG_INFO(log, "Listening tcp: " + address.toString());
                 }
 
-//                /// QingCloud TCP
-//                if (config().has("qing_cloud_tcp_port"))
-//                {
-//                    Poco::Net::ServerSocket socket;
-//                    auto address = socket_bind_listen(socket, listen_host, config().getInt("qing_cloud_tcp_port"));
-//                    socket.setReceiveTimeout(settings.receive_timeout);
-//                    socket.setSendTimeout(settings.send_timeout);
-//                    servers.emplace_back(new Poco::Net::TCPServer(
-//                        new TCPHandlerFactory(*this, true),
-//                        server_pool,
-//                        socket,
-//                        new Poco::Net::TCPServerParams));
-//
-//                    LOG_INFO(log, "Listening tcp: " + address.toString());
-//                }
-
                 /// TCP with SSL
                 if (config().has("tcp_port_secure"))
                 {

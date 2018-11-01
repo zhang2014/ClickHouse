@@ -44,6 +44,7 @@ bool QingCloudPaxos::sendPrepare(const LogEntity &value)
 
         if (accepted_id_ > higher_numbered)
         {
+            /// TODO: 需要学习
             higher_numbered = accepted_id_;
             return false;
         }

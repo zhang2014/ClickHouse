@@ -93,10 +93,12 @@ void QingCloudDDLSynchronism::updateAddressesAndConnections(const AddressesWithC
 
 void QingCloudDDLSynchronism::enqueue(const String & query_string, const Context & context)
 {
-    std::unique_lock<std::mutex> lock{mutex};
+
 
     while (true)
     {
+        cond.notify_one();
+        std::unique_lock<std::mutex> lock{mutex};
         auto last_query_id = getLastQuery(context);
         if (paxos->sendPrepare(std::pair(last_query_id.first + 1, query_string)))
         {
