@@ -195,7 +195,7 @@ Block QingCloudPaxos::validateQueryIsQuorum(const Block & block, size_t total_si
             ColumnWithTypeAndName message_column = block.getByName("_exception_message");
             for (size_t exception_row = 0; exception_row < row; ++exception_row)
             {
-                String current_exception_message = typeid_cast<const ColumnString&>(*message_column.column).getDataAt(exception_row);
+                String current_exception_message = typeid_cast<const ColumnString&>(*message_column.column).getDataAt(exception_row).toString();
                 /// TODO: exception number or node_id prefix
                 exception_message += current_exception_message + "\n";
             }

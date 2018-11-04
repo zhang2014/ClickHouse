@@ -7,6 +7,7 @@
 #include <DataStreams/materializeBlock.h>
 #include <Columns/ColumnConst.h>
 #include "QingCloudErroneousBlockInputStream.h"
+#include <Core/Block.h>
 
 
 namespace DB
@@ -40,17 +41,16 @@ Block QingCloudErroneousBlockInputStream::readImpl()
 {
     try
     {
+        Block origin_res = children[0]->read();
+
         auto exception_message = ColumnString::create();
         exception_message->insertDefault();
 
-        Block origin_res = children[0]->read();
-        if (!origin_res)
-        {
-            origin_res.insert({ColumnConst::create(ColumnUInt64::create(1, 0), 1), std::make_shared<DataTypeUInt64>(), "_res_code"});
-            origin_res.insert({ColumnConst::create(exception_message, 1), std::make_shared<DataTypeUInt64>(), "_exception_message"});
-            return materializeBlock(origin_res);
-        }
-        return origin_res;
+        MutableColumns columns = origin_res.mutateColumns();
+        columns.emplace_back(ColumnConst::create(ColumnUInt64::create(1, 0), 1));
+        columns.emplace_back(ColumnConst::create(exception_message, 1));
+
+        return getHeader().cloneWithColumns(columns);
     }
     catch (...)
     {
