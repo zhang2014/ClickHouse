@@ -17,22 +17,32 @@ class QingCloudDDLSynchronism
     friend class InterpreterPaxosQuery;
 private:
     using AddressesWithConnections = std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>>;
+
+    struct DDLEntity
+    {
+        UInt64 paxos_id = 0;
+        UInt64 entity_id = 0;
+
+        UInt64 local_paxos_id = 0;
+        UInt64 local_entity_id = 0;
+        String local_ddl_query_string = "";
+    };
+
 public:
-    QingCloudDDLSynchronism(const Context & context);
+    QingCloudDDLSynchronism(const Context & context, const String & node_id);
 
     ~QingCloudDDLSynchronism();
 
-    void updateAddressesAndConnections(const AddressesWithConnections & addresses_with_connections);
+    void updateAddressesAndConnections(const String & node_id, const AddressesWithConnections & addresses_with_connections);
 
-    void enqueue(const String & query_string, const Context & context);
+    bool enqueue(const String & query_string, std::function<bool()> quit_state);
 
-    std::pair<UInt64, LogEntity> getLastQuery(const Context &context);
+    DDLEntity loadCommitted();
 private:
     std::mutex mutex;
     StoragePtr storage;
     QingCloudPaxosPtr paxos;
     std::vector<ConnectionPoolPtr> connections;
-    String remotes_addresses;
 
     std::thread thread;
     const Context & context;
@@ -41,11 +51,15 @@ private:
     std::condition_variable cond;
     std::chrono::milliseconds sleep_time;
 
+    String data_path;
+
     void work();
 
-    StoragePtr createDDLQueue(const Context & context) const;
+    size_t fetchOtherDDL(UInt64 last_committed_id);
 
-    void processQuery(const UInt64 &id, const UInt64 &proposer_id, const String &query_string);
+    StoragePtr createDDLQueue(const Context & context);
+
+    void storeCommitted(const DDLEntity &entity);
 };
 
 }

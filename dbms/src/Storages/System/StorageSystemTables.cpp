@@ -194,7 +194,8 @@ BlockInputStreams StorageSystemTables::read(
             size_t res_index = 0;
 
             if (columns_mask[src_index++])
-                res_columns[res_index++]->insertDefault();
+                res_columns[res_index++]->
+                ();
 
             if (columns_mask[src_index++])
                 res_columns[res_index++]->insert(table.first);

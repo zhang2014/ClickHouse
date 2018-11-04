@@ -141,6 +141,7 @@ void StorageDistributedDirectoryMonitor::run()
 
     const auto quit_requested = [this] { return quit.load(std::memory_order_relaxed); };
 
+
     while (!quit_requested())
     {
         auto do_sleep = true;

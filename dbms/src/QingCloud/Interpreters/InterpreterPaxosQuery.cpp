@@ -3,7 +3,7 @@
 #include <Common/typeid_cast.h>
 #include <Parsers/ASTLiteral.h>
 #include <DataStreams/OneBlockInputStream.h>
-#include "QingCloudDDLSynchronism.h"
+#include "QingCloud/Interpreters/Paxos/QingCloudDDLSynchronism.h"
 #include "InterpreterPaxosQuery.h"
 #include <iostream>
 

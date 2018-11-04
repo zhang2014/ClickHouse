@@ -16,7 +16,7 @@
 #include <Interpreters/ClientInfo.h>
 #include <IO/CompressionSettings.h>
 #include <QingCloud/Interpreters/MultiplexedVersionCluster.h>
-#include <QingCloud/Interpreters/QingCloudDDLSynchronism.h>
+#include <QingCloud/Interpreters/Paxos/QingCloudDDLSynchronism.h>
 
 
 namespace Poco

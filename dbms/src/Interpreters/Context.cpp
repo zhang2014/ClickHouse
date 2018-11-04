@@ -51,6 +51,7 @@
 #include <Common/Config/ConfigProcessor.h>
 #include <Common/ZooKeeper/ZooKeeper.h>
 #include <common/logger_useful.h>
+#include <Common/getMultipleKeysFromConfig.h>
 #include <QingCloud/Interpreters/MultiplexedVersionCluster.h>
 #include <QingCloud/Common/notifyAllQingCloudStorage.h>
 
@@ -1450,7 +1451,11 @@ std::shared_ptr<QingCloudDDLSynchronism> Context::getDDLSynchronism() const
 {
     std::lock_guard<std::mutex> lock(shared->ddl_synchronism_mutex);
     if (!shared->ddl_synchronism)
-        shared->ddl_synchronism = std::make_shared<QingCloudDDLSynchronism>(*this);
+    {
+        std::vector<std::string> listen_hosts = DB::getMultipleValuesFromConfig(getConfigRef(), "", "listen_host");
+        shared->ddl_synchronism = std::make_shared<QingCloudDDLSynchronism>(*this, listen_hosts.empty() ? "localhost" : listen_hosts[0]);
+    }
+
 
     return shared->ddl_synchronism;
 }
