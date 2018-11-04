@@ -49,12 +49,10 @@ static BlockIO executeQuery(const String &query_string, const Context &context)
 
 QingCloudDDLSynchronism::QingCloudDDLSynchronism(const Context &context, const String &node_id) : context(context)
 {
-
-//    context.getConfigRef().getString("");
     /// TODO sleep_time
     storage = createDDLQueue(context);
     sleep_time = std::chrono::milliseconds(5000);
-    data_path = context.getConfigRef().getString("");
+    data_path = context.getConfigRef().getString("path") + "/" + "paxos.info";
     const auto multiplexed_version = context.getMultiplexedVersion();
     updateAddressesAndConnections(node_id, multiplexed_version->getAddressesAndConnections());
     thread = std::thread{&QingCloudDDLSynchronism::work, this};
