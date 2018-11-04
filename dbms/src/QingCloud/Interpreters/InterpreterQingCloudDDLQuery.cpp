@@ -13,15 +13,15 @@
 namespace DB
 {
 
-QingCloudDDLBlockInputStream::QingCloudDDLBlockInputStream(const String & ddl_query, Context & context, QingCloudDDLSynchronismPtr & synchronism)
-    : ddl_query(ddl_query), context(context), synchronism(synchronism)
+QingCloudDDLBlockInputStream::QingCloudDDLBlockInputStream(const String & ddl_query, Context & context)
+    : ddl_query(ddl_query), context(context), synchronism(context.getDDLSynchronism())
 {
 }
 
 BlockIO InterpreterQingCloudDDLQuery::execute()
 {
     BlockIO res;
-    res.in = std::make_shared<QingCloudDDLBlockInputStream>(queryToString(query), context, context.getDDLSynchronism());
+    res.in = std::make_shared<QingCloudDDLBlockInputStream>(queryToString(query), context);
     return res;
 }
 

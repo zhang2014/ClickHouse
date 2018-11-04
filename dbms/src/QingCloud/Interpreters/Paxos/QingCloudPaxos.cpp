@@ -163,7 +163,7 @@ Block QingCloudPaxos::sendQuery(const String & query_string, const Block & heade
 
 bool QingCloudPaxos::validateQuorumState(const Block & block, size_t total_size)
 {
-    const ColumnUInt64 & column_state = typeid_cast<const ColumnUInt64 &>(*block.getByName("state"));
+    const ColumnUInt64 & column_state = typeid_cast<const ColumnUInt64 &>(*block.getByName("state").column);
 
     for (size_t row_index = 0, validated_size = 0; row_index < block.rows(); ++row_index)
     {
@@ -195,7 +195,7 @@ Block QingCloudPaxos::validateQueryIsQuorum(const Block & block, size_t total_si
             ColumnWithTypeAndName message_column = block.getByName("_exception_message");
             for (size_t exception_row = 0; exception_row < row; ++exception_row)
             {
-                String current_exception_message = typeid_cast<const ColumnString&>(*message_column.column).getDataAt(exception_message);
+                String current_exception_message = typeid_cast<const ColumnString&>(*message_column.column).getDataAt(exception_row);
                 /// TODO: exception number or node_id prefix
                 exception_message += current_exception_message + "\n";
             }

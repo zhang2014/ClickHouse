@@ -6,6 +6,8 @@
 #include <DataTypes/DataTypeString.h>
 #include <DataStreams/materializeBlock.h>
 #include <Columns/ColumnConst.h>
+#include "QingCloudErroneousBlockInputStream.h"
+
 
 namespace DB
 {
@@ -71,6 +73,11 @@ Block QingCloudErroneousBlockInputStream::readImpl()
         exception_block.setColumns(std::move(new_columns));
         return exception_block;
     }
+}
+
+QingCloudErroneousBlockInputStream::QingCloudErroneousBlockInputStream(const BlockInputStreamPtr & input)
+{
+    children.emplace_back(input);
 }
 
 }

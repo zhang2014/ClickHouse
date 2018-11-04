@@ -197,7 +197,7 @@ size_t QingCloudDDLSynchronism::fetchOtherDDL(UInt64 last_committed_id)
     String agg_select = "SELECT DISTINCT id, proposer_id, query_string FROM system.ddl_queue WHERE _res_code = 0 ORDER BY proposer_id";
     ASTPtr agg_query_ast = parseQuery(select_parser, agg_select.data(), agg_select.data() + agg_select.size(), "", 0);
 
-    InterpreterSelectQuery interpreter(agg_query_ast, context, std::make_shared<UnionBlockInputStream<>>(streams, streams.size()));
+    InterpreterSelectQuery interpreter(agg_query_ast, context, std::make_shared<UnionBlockInputStream<>>(streams, nullptr, streams.size()));
     Block unique_paxos_block = std::make_shared<SquashingBlockInputStream>(interpreter.execute().in, std::numeric_limits<size_t>::max(),
                                                                            std::numeric_limits<size_t>::max())->read();
 

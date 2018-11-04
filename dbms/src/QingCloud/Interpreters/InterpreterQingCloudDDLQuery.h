@@ -11,7 +11,7 @@ namespace DB
 class QingCloudDDLBlockInputStream : public IProfilingBlockInputStream
 {
 public:
-    QingCloudDDLBlockInputStream(const String & ddl_query, Context & context, QingCloudDDLSynchronismPtr & synchronism);
+    QingCloudDDLBlockInputStream(const String & ddl_query, Context & context);
 
     String getName() const override;
 
