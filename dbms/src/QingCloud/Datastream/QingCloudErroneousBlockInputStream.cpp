@@ -8,6 +8,8 @@
 #include <Columns/ColumnConst.h>
 #include "QingCloudErroneousBlockInputStream.h"
 #include <Core/Block.h>
+#include <Poco/Logger.h>
+#include <common/logger_useful.h>
 
 
 namespace DB
@@ -39,21 +41,29 @@ Block QingCloudErroneousBlockInputStream::getHeader() const
 
 Block QingCloudErroneousBlockInputStream::readImpl()
 {
+    if (over)
+        return {};
+
     try
     {
         Block origin_res = children[0]->read();
 
-        auto exception_message = ColumnString::create();
-        exception_message->insertDefault();
+        if (origin_res)
+        {
+            DataTypePtr code_type = std::make_shared<DataTypeUInt64>();
+            DataTypePtr exception_message_type = std::make_shared<DataTypeString>();
+            origin_res.insert({ code_type->createColumnConstWithDefaultValue(origin_res.rows()), code_type, "_res_code" });
+            origin_res.insert({ exception_message_type->createColumnConstWithDefaultValue(origin_res.rows()), exception_message_type, "_exception_message" });
 
-        MutableColumns columns = origin_res.mutateColumns();
-        columns.emplace_back(ColumnConst::create(ColumnUInt64::create(1, 0), 1));
-        columns.emplace_back(ColumnConst::create(exception_message, 1));
+            return materializeBlock(origin_res);
+        }
 
-        return getHeader().cloneWithColumns(columns);
+        return origin_res;
     }
     catch (...)
     {
+        over = true;
+        tryLogCurrentException(&Logger::get("QingCloudErroneousBlockInputStream"));
         Block exception_block = getHeader().cloneEmpty();
         MutableColumns new_columns = exception_block.cloneEmptyColumns();
 

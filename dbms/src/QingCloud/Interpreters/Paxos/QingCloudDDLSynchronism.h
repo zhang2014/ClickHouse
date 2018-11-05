@@ -29,15 +29,14 @@ private:
     };
 
 public:
-    QingCloudDDLSynchronism(const Context & context, const String & node_id);
-
     ~QingCloudDDLSynchronism();
 
-    void updateAddressesAndConnections(const String & node_id, const AddressesWithConnections & addresses_with_connections);
+    QingCloudDDLSynchronism(const Context & context, const String & node_id);
 
     bool enqueue(const String & query_string, std::function<bool()> quit_state);
 
-    DDLEntity loadCommitted();
+    void updateAddressesAndConnections(const String & node_id, const AddressesWithConnections & addresses_with_connections);
+
 private:
     std::mutex mutex;
     StoragePtr storage;
@@ -55,11 +54,16 @@ private:
 
     void work();
 
-    size_t fetchOtherDDL(UInt64 last_committed_id);
+    DDLEntity loadCommitted();
+
+    void storeCommitted(const DDLEntity &entity);
+
+    void learningDDLEntities();
 
     StoragePtr createDDLQueue(const Context & context);
 
-    void storeCommitted(const DDLEntity &entity);
+    Block executeQueryWithConnections(const String & query_string, UInt64 offset = 0, UInt64 limit = 10);
+
 };
 
 }

@@ -51,6 +51,7 @@ QingCloudPaxos::State QingCloudPaxos::sendPrepare(const LogEntity & value)
 
     for (size_t row = 0, promised = 0; row < res.rows(); ++row)
     {
+        /// TODO : 可能存在多节点并发问题
         if (column_accepted_id.getUInt(row) > higher_numbered)
             return State::NEED_LEARN; /// has different paxos, we reach agreement through study.
 
@@ -58,6 +59,7 @@ QingCloudPaxos::State QingCloudPaxos::sendPrepare(const LogEntity & value)
 
         if (promised == connections.size() || promised >= connections.size() / 2 + 1)
         {
+
             Block block = validateQueryIsQuorum(sendQuery("PAXOS ACCEPT proposal_number=" + toString(proposer_id) + ",proposal_value_id=" +
                                                           toString(value.first) + ",proposal_value_query='" + value.second + "',from='" +
                                                           node_id + "'", accept_header), connections.size());
@@ -209,6 +211,7 @@ Block QingCloudPaxos::validateQueryIsQuorum(const Block & block, size_t total_si
 void QingCloudPaxos::setLastProposer(size_t proposer_id_, LogEntity proposer_value_)
 {
     /// 在这里整个集群的状态将被收敛
+    higher_numbered = proposer_id_;
     proposer_id = proposer_id_;
     promised_id = proposer_id_;
     accepted_id = proposer_id_;

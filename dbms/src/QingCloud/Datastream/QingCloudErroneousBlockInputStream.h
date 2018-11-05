@@ -15,6 +15,8 @@ public:
     Block getHeader() const override;
 
 private:
+    bool over{false};
+
     Block readImpl() override;
 
 

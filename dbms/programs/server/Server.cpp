@@ -590,6 +590,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
 
         LOG_INFO(log, "Ready for connections.");
 
+        global_context->getDDLSynchronism();
         SCOPE_EXIT({
             LOG_DEBUG(log, "Received termination signal.");
             LOG_DEBUG(log, "Waiting for current connections to close.");
