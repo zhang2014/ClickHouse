@@ -302,7 +302,6 @@ void QingCloudBlockOutputStream::writeSync(const Block & block)
 
     if (num_shards > 1)
     {
-        size_t rows = block.rows();
         auto current_selector = createSelector(block);
 
         /// Prepare row numbers for each shard
@@ -407,7 +406,6 @@ IColumn::Selector QingCloudBlockOutputStream::createSelector(const Block & sourc
 
 Blocks QingCloudBlockOutputStream::splitBlock(const Block & block)
 {
-    size_t columns = block.columns();
     auto selector = createSelector(block);
 
     /// Split block to num_shard smaller block, using 'selector'.
