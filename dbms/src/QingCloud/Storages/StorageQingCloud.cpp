@@ -234,13 +234,14 @@ StorageQingCloud::StorageQingCloud(const String &data_path, const String &databa
       primary_expr_list(primary_expr_list), partition_expr_list(partition_expr_list), settings(settings), columns(columns),
       asynchronism(full_path + escapeForFileName(table_name) +"/" + "transmission/", context)
 {
+    std::cout << "AA \n";
     String table_data_path = data_path + escapeForFileName(table_name) + '/';
     Poco::File(table_data_path).createDirectory();
 
     Poco::DirectoryIterator dir_end;
     for (Poco::DirectoryIterator dir_it(table_data_path); dir_it != dir_end; ++dir_it)
     {
-        if (dir_it->isDirectory())
+        if (dir_it->isDirectory() && dir_it.name() != "transmission")
         {
             String local_table_name = unescapeForFileName(dir_it.path().getFileName());
             const auto version_and_shared_number = readVersionAndShardText(local_table_name);
