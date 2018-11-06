@@ -52,7 +52,7 @@ void QingCloudAsynchronism::writeToShard(const String & version, const UInt64 sh
     auto all_version_cluster = multiplexed_context->getAllVersionsCluster();
     const auto shards_addresses = all_version_cluster.at(version)->getShardsAddresses();
 
-    for (const auto replica_address : shards_addresses[shard_number])
+    for (const auto & replica_address : shards_addresses[shard_number - 1])
         if (!replica_address.is_local)
             writeToReplica(version, shard_number, replica_address, file_name);
 }
@@ -186,7 +186,7 @@ QingCloudAsynchronism::QingCloudAsynchronism(const String &data_path, Context &c
 
 String QingCloudAsynchronism::writeTempBlock(String &query_string, const Block &block)
 {
-    const auto &tmp_path = path + "tmp/";
+    const auto & tmp_path = path + "tmp/";
     Poco::File(tmp_path).createDirectory();
     String file_name = toString(increment.get()) + ".bin";
     const auto &block_file_tmp_path = tmp_path + file_name;

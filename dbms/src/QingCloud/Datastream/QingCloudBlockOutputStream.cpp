@@ -280,7 +280,6 @@ void QingCloudBlockOutputStream::writeSync(const Block & block)
 {
     const auto & shards_info = cluster->getShardsInfo();
     size_t num_shards = shards_info.size();
-
     if (!pool)
     {
         /// Deferred initialization. Only for sync insertion.
@@ -300,8 +299,10 @@ void QingCloudBlockOutputStream::writeSync(const Block & block)
 
     watch_current_block.restart();
 
+
     if (num_shards > 1)
     {
+        size_t rows = block.rows();
         auto current_selector = createSelector(block);
 
         /// Prepare row numbers for each shard
@@ -309,8 +310,12 @@ void QingCloudBlockOutputStream::writeSync(const Block & block)
             per_shard_jobs[shard_index].shard_current_block_permuation.resize(0);
 
         for (size_t i = 0; i < block.rows(); ++i)
+        {
             per_shard_jobs[current_selector[i]].shard_current_block_permuation.push_back(i);
+        }
+
     }
+
 
     /// Run jobs in parallel for each block and wait them
     finished_jobs_count = 0;
@@ -402,11 +407,12 @@ IColumn::Selector QingCloudBlockOutputStream::createSelector(const Block & sourc
 
 Blocks QingCloudBlockOutputStream::splitBlock(const Block & block)
 {
+    size_t columns = block.columns();
     auto selector = createSelector(block);
 
     /// Split block to num_shard smaller block, using 'selector'.
 
-    const size_t num_shards = cluster->getShardsInfo().size();
+    const size_t num_shards = cluster->getShardsInfo().size();      /// 2
     Blocks splitted_blocks(num_shards);
 
     for (size_t shard_idx = 0; shard_idx < num_shards; ++shard_idx)

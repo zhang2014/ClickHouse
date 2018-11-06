@@ -232,7 +232,7 @@ StorageQingCloud::StorageQingCloud(const String &data_path, const String &databa
                                    ASTPtr &distribution_expr_list)
     : IStorage{columns}, full_path(data_path), database_name(database_name), table_name(table_name), context(context),
       primary_expr_list(primary_expr_list), partition_expr_list(partition_expr_list), settings(settings), columns(columns),
-      asynchronism(full_path + "transmission", context)
+      asynchronism(full_path + escapeForFileName(table_name) +"/" + "transmission/", context)
 {
     String table_data_path = data_path + escapeForFileName(table_name) + '/';
     Poco::File(table_data_path).createDirectory();

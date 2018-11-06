@@ -226,7 +226,7 @@ DummyCluster::DummyCluster(const Poco::Util::AbstractConfiguration & configurati
         shards_info.emplace_back(info);
 
         if (info.weight)
-            slot_to_shard.insert(std::end(slot_to_shard), info.weight, shards_info.size());
+            slot_to_shard.insert(std::end(slot_to_shard), info.weight, shards_info.size() - 1);
     }
 
 }

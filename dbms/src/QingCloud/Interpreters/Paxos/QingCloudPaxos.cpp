@@ -93,7 +93,7 @@ Block QingCloudPaxos::acceptProposal(const String & /*from*/, const UInt64 & pro
         accepted_id = proposal_id;
         promised_id = proposal_id;
         Block current = validateQueryIsQuorum(
-            sendQuery("PAXOS ACCEPTED proposal_number=" + toString(proposer_id) + ",proposal_value_id=" + toString(value.first) +
+            sendQuery("PAXOS ACCEPTED proposal_number=" + toString(proposal_id) + ",proposal_value_id=" + toString(value.first) +
                       ",proposal_value_query='" + value.second + "',from='" + node_id + "'", accept_header), connections.size());
 
         if (validateQuorumState(current, connections.size()))
