@@ -59,7 +59,7 @@ private:
     void writeAsyncImpl(const Block & block, const size_t shard_id = 0);
 
     /// Increments finished_writings_count after each repeat.
-    void writeToLocal(const Block & block, const size_t repeats);
+    void writeToLocal(const Block & block, const size_t repeats, size_t shard_number);
 
     void writeToShard(const Block & block, const std::vector<std::string> & dir_names);
 

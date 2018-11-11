@@ -475,7 +475,7 @@ void DistributedBlockOutputStream::writeAsyncImpl(const Block & block, const siz
         if (shard_info.getLocalNodeCount() > 0)
         {
             /// Prefer insert into current instance directly
-            writeToLocal(block, shard_info.getLocalNodeCount());
+            writeToLocal(block, shard_info.getLocalNodeCount(), shard_info.shard_num);
         }
         else
         {
@@ -488,7 +488,7 @@ void DistributedBlockOutputStream::writeAsyncImpl(const Block & block, const siz
     else
     {
         if (shard_info.getLocalNodeCount() > 0)
-            writeToLocal(block, shard_info.getLocalNodeCount());
+            writeToLocal(block, shard_info.getLocalNodeCount(), shard_info.shard_num);
 
         std::vector<std::string> dir_names;
         for (const auto & address : cluster->getShardsAddresses()[shard_id])
@@ -501,10 +501,13 @@ void DistributedBlockOutputStream::writeAsyncImpl(const Block & block, const siz
 }
 
 
-void DistributedBlockOutputStream::writeToLocal(const Block & block, const size_t repeats)
+void DistributedBlockOutputStream::writeToLocal(const Block & block, const size_t repeats, size_t shard_number)
 {
     /// Async insert does not support settings forwarding yet whereas sync one supports
-    InterpreterInsertQuery interp(query_ast, storage.context);
+    std::unique_ptr<Context> query_context = std::make_unique<Context>(storage.context);
+    query_context->getSettingsRef().writing_shard_index = shard_number;
+
+    InterpreterInsertQuery interp(query_ast, *query_context);
 
     auto block_io = interp.execute();
     block_io.out->writePrefix();

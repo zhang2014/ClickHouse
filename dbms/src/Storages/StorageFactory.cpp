@@ -50,8 +50,11 @@ StoragePtr StorageFactory::get(
     bool attach,
     bool has_force_restore_data_flag) const
 {
-    return QingCloudStorageFactory::instance().get(query, data_path, table_name, database_name, local_context, context, columns, attach,
-                                                   has_force_restore_data_flag);
+    if (database_name != "system")
+        return QingCloudStorageFactory::instance().get(query, data_path, table_name, database_name, local_context, context, columns, attach,
+                                                       has_force_restore_data_flag);
+    else
+        return get(true, query, data_path, table_name, database_name, local_context, context, columns, attach, has_force_restore_data_flag);
 }
 
 StoragePtr StorageFactory::get(

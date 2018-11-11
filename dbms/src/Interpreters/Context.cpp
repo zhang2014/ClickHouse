@@ -1537,17 +1537,13 @@ void Context::setClustersConfig(const ConfigurationPtr & config, const String & 
 
 void Context::setQingCloudConfig(const ConfigurationPtr & config, const String & config_name)
 {
-    bool is_create = false;
     {
         std::lock_guard<std::mutex> lock(shared->qing_clusters_mutex);
 
         shared->qingcloud_clusters_config = config;
 
         if (!shared->qingcloud_cluster)
-        {
-            is_create = true;
             shared->qingcloud_cluster = std::make_shared<MultiplexedVersionCluster>(*shared->qingcloud_clusters_config, settings, config_name);
-        }
         else
             shared->qingcloud_cluster->updateMultiplexedVersionCluster(*shared->qingcloud_clusters_config, settings, config_name);
     }

@@ -45,7 +45,7 @@ public:
 
     BlockOutputStreamPtr write(const ASTPtr & query, const Settings & settings) override;
 
-//    std::string getTableName() const override;
+    std::string getTableName() const override {return table_name;}
 
     void drop() override;
 

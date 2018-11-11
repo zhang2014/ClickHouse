@@ -39,7 +39,7 @@ StorageQingCloud::StorageQingCloud(
     ASTCreateQuery & query, const String & data_path, const String & table_name, const String & database_name,
     Context &local_context, Context &context, const ColumnsDescription &columns, bool attach,
     bool has_force_restore_data_flag)
-        : context(context), data_path(data_path), table_name(table_name), database_name(database_name),
+        : IStorage{columns}, context(context), data_path(data_path), table_name(table_name), database_name(database_name),
         local_context(local_context), columns(columns), create_query(query)
 {
     if (!create_query.storage)
@@ -48,7 +48,9 @@ StorageQingCloud::StorageQingCloud(
     String table_data_path = data_path + escapeForFileName(table_name) + '/';
 
     Poco::File(table_data_path).createDirectory();
-    ASTPtr sharding_key = create_query.storage->distributed_by->ptr();
+    ASTPtr sharding_key;
+    if (create_query.storage->distributed_by)
+        sharding_key = create_query.storage->distributed_by->ptr();
     MultiplexedClusterPtr multiplexed_cluster = context.getMultiplexedVersion();
 
     for (const auto & version_and_cluster : multiplexed_cluster->getAllVersionsCluster())
@@ -70,9 +72,8 @@ StorageQingCloud::StorageQingCloud(
             for (Cluster::Address & replica_address : shards_addresses[shard_number])
             {
                 if (replica_address.is_local)
-                    local_data_storage[std::pair(version, shard_number)] = StorageFactory::instance().get(
-                        true,
-                        query, version_table_data_path, table_name, database_name, local_context, context, columns, attach,
+                    local_data_storage[std::pair(version, shard_number + 1)] = StorageFactory::instance().get(
+                        true, query, version_table_data_path, table_name, database_name, local_context, context, columns, attach,
                         has_force_restore_data_flag);
             }
         }
@@ -98,7 +99,9 @@ BlockInputStreams StorageQingCloud::read(const Names &column_names, const Select
 
         for (const auto & readable_version : multiplexed_cluster->getReadableVersions())
         {
-            BlockInputStreams res = version_distributed[readable_version]->read(column_names, query_info, context, processed_stage,
+            Context query_context = context;
+            query_context.getSettingsRef().query_version = readable_version;
+            BlockInputStreams res = version_distributed[readable_version]->read(column_names, query_info, query_context, processed_stage,
                                                                                 max_block_size, num_streams);
             streams.insert(streams.end(), res.begin(), res.end());
         }
@@ -109,17 +112,18 @@ BlockInputStreams StorageQingCloud::read(const Names &column_names, const Select
 
 BlockOutputStreamPtr StorageQingCloud::write(const ASTPtr &query, const Settings &settings)
 {
-    MultiplexedClusterPtr multiplexed_version = context.getMultiplexedVersion();
-
     std::pair<String, UInt64> version_and_shard_number = getWritingInfo(settings, context);
 
+    std::cout << "Query : " << version_and_shard_number.first << "\t Shard" << version_and_shard_number.second << "\n";
     if (local_data_storage.count(version_and_shard_number))
         return local_data_storage[version_and_shard_number]->write(query, settings);
 
     if (!version_distributed.count(version_and_shard_number.first))
         throw Exception("Cannot find " + version_and_shard_number.first + " Storage.", ErrorCodes::LOGICAL_ERROR);
 
-    return version_distributed[version_and_shard_number.first]->write(query, settings);
+    Settings query_settings = settings;
+    query_settings.writing_version = version_and_shard_number.first;
+    return version_distributed[version_and_shard_number.first]->write(query, query_settings);
 }
 
 void StorageQingCloud::drop()
