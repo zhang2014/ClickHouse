@@ -3,7 +3,7 @@
 #include <QingCloud/Parsers/ASTMergeQuery.h>
 #include <Storages/IStorage.h>
 #include <Interpreters/Context.h>
-#include <QingCloud/Storages/StorageQingCloudbak.h>
+#include <QingCloud/Storages/StorageQingCloud.h>
 #include <Parsers/ASTLiteral.h>
 
 namespace DB

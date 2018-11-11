@@ -1442,7 +1442,11 @@ std::shared_ptr<Cluster> Context::getCluster(const std::string & cluster_name) c
     auto res = getClusters().getCluster(cluster_name);
 
     if (!res)
-        throw Exception("Requested cluster '" + cluster_name + "' not found", ErrorCodes::BAD_GET);
+    {
+        res = getMultiplexedVersion()->getCluster(cluster_name);
+        if (!res)
+            throw Exception("Requested cluster '" + cluster_name + "' not found", ErrorCodes::BAD_GET);
+    }
 
     return res;
 }
@@ -1547,8 +1551,6 @@ void Context::setQingCloudConfig(const ConfigurationPtr & config, const String &
         else
             shared->qingcloud_cluster->updateMultiplexedVersionCluster(*shared->qingcloud_clusters_config, settings, config_name);
     }
-
-    notifyAllQingCloudStorage(*this, is_create);
 }
 
 void Context::setCluster(const String & cluster_name, const std::shared_ptr<Cluster> & cluster)

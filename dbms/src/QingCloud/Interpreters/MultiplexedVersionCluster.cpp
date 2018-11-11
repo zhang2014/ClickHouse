@@ -3,7 +3,7 @@
 #include <Common/DNSResolver.h>
 #include <Common/isLocalAddress.h>
 #include <Storages/IStorage.h>
-#include <QingCloud/Storages/StorageQingCloudbak.h>
+#include <IO/ReadHelpers.h>
 #include "MultiplexedVersionCluster.h"
 
 
@@ -173,14 +173,17 @@ RWLockFIFO::LockHandler MultiplexedVersionCluster::getConfigurationLock()
     return configuration_lock->getLock(RWLockFIFO::Read, "getConfigurationLock");
 }
 
-//QingCloudDDLSynchronismPtr MultiplexedVersionCluster::getDDLSynchronism()
-//{
-//    std::lock_guard<std::mutex> lock(synchronism_mutex);
-//    if (!synchronism)
-//        synchronism = std::make_shared<QingCloudDDLSynchronism>(getAddressesAndConnections());
-//
-//    return synchronism;
-//}
+ClusterPtr MultiplexedVersionCluster::getCluster(const DB::String &cluster_name)
+{
+    if (startsWith(cluster_name, "Cluster_"))
+    {
+        String version = String(cluster_name.data() + 8);
+        if (all_version_and_cluster.count(version))
+            return all_version_and_cluster[version];
+    }
+    
+    return {};
+}
 
 DummyCluster::DummyCluster(const Poco::Util::AbstractConfiguration & configuration, const std::string & configuration_prefix,
                            MultiplexedVersionCluster *multiplexed_version_cluster, const Settings &settings, bool is_readable,

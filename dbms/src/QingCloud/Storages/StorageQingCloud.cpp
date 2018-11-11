@@ -5,6 +5,7 @@
 #include <Storages/StorageDistributed.h>
 #include <ext/range.h>
 #include <QingCloud/Common/evaluateQueryInfo.h>
+#include "StorageQingCloud.h"
 
 
 namespace DB
@@ -92,9 +93,12 @@ BlockInputStreams StorageQingCloud::read(const Names &column_names, const Select
     {
         BlockInputStreams streams;
 
-        for (const auto & storage : version_distributed)
+        MultiplexedClusterPtr multiplexed_cluster = context.getMultiplexedVersion();
+
+        for (const auto & readable_version : multiplexed_cluster->getReadableVersions())
         {
-            BlockInputStreams res = storage.second->read(column_names, query_info, context, processed_stage, max_block_size, num_streams);
+            BlockInputStreams res = version_distributed[readable_version]->read(column_names, query_info, context, processed_stage,
+                                                                                max_block_size, num_streams);
             streams.insert(streams.end(), res.begin(), res.end());
         }
 
@@ -125,5 +129,7 @@ void StorageQingCloud::drop()
     for (const auto & storage : local_data_storage)
         storage.second->drop();
 }
+
+StorageQingCloud::~StorageQingCloud() = default;
 
 }

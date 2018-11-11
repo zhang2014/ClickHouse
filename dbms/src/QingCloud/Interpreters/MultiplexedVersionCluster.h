@@ -3,7 +3,6 @@
 #include <Interpreters/Cluster.h>
 #include <Poco/Util/AbstractConfiguration.h>
 #include <Common/RWLockFIFO.h>
-//#include <QingCloud/Interpreters/QingCloudDDLSynchronism.h>
 
 namespace DB
 {
@@ -19,7 +18,7 @@ public:
 
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> getAddressesAndConnections();
 
-//    QingCloudDDLSynchronismPtr getDDLSynchronism();
+    ClusterPtr getCluster(const String & cluster_name);
 
     MultiplexedVersionCluster(const Poco::Util::AbstractConfiguration & configuration, const Settings & settings, const std::string & config_prefix);
 

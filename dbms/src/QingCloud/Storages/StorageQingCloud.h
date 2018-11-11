@@ -29,7 +29,7 @@ using VersionAndShardNumberWithStorage = std::map<VersionAndShardNumber, Storage
 class StorageQingCloud : public ext::shared_ptr_helper<StorageQingCloud>, public IStorage
 {
 public:
-//    ~StorageQingCloud() override;
+    ~StorageQingCloud() override;
 
     std::string getName() const override { return "QingCloud"; }
 
@@ -49,7 +49,8 @@ public:
 
     void drop() override;
 
-//    void mergeVersions(std::vector<String> from_versions, const String & to_version);
+    void mergeVersions(std::vector<String> /*from_versions*/, const String & /*to_version*/)
+    {}
 
 private:
     Context & context;
@@ -62,9 +63,5 @@ private:
 
     VersionAndStorage version_distributed;
     VersionAndShardNumberWithStorage local_data_storage;
-//    mutable RWLockFIFOPtr local_storage_lock = RWLockFIFO::create();
-
-protected:
-//    void mergeStorage(StoragePtr &source_storage, StoragePtr &dist_storage);
 };
 }
