@@ -48,7 +48,7 @@ namespace
 
         for (auto it = boost::make_split_iterator(name, boost::first_finder(",")); it != decltype(it){}; ++it)
         {
-            const auto address = boost::copy_range<std::string>(*it);
+            const auto address = std::string(strchr(boost::copy_range<std::string>(*it).data(), '_') + 1);
             const char * address_begin = static_cast<const char*>(address.data());
             const char * address_end = address_begin + address.size();
 
@@ -96,10 +96,13 @@ StorageDistributedDirectoryMonitor::StorageDistributedDirectoryMonitor(StorageDi
     , sleep_time{default_sleep_time}
     , log{&Logger::get(getLoggerName())}
 {
-    const Settings & settings = storage.context.getSettingsRef();
+    settings = storage.context.getSettingsRef();
     should_batch_inserts = settings.distributed_directory_monitor_batch_inserts;
     min_batched_block_size_rows = settings.min_insert_block_size_rows;
     min_batched_block_size_bytes = settings.min_insert_block_size_bytes;
+    const char * begin = name.data();
+    const char * end = strchr(begin, '_');
+    settings.query_shard_index = parse<UInt64>(begin, end - begin);;
 }
 
 
@@ -244,7 +247,7 @@ void StorageDistributedDirectoryMonitor::processFile(const std::string & file_pa
         std::string insert_query;
         readStringBinary(insert_query, in);
 
-        RemoteBlockOutputStream remote{*connection, insert_query};
+        RemoteBlockOutputStream remote{*connection, insert_query, &settings};
 
         remote.writePrefix();
         remote.writePrepared(in);
@@ -361,7 +364,7 @@ struct StorageDistributedDirectoryMonitor::Batch
                 if (first)
                 {
                     first = false;
-                    remote = std::make_unique<RemoteBlockOutputStream>(*connection, insert_query);
+                    remote = std::make_unique<RemoteBlockOutputStream>(*connection, insert_query, &parent.settings);
                     remote->writePrefix();
                 }
 

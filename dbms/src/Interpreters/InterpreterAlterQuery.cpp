@@ -4,7 +4,7 @@
 #include <Common/typeid_cast.h>
 
 #include <algorithm>
-#include <QingCloud/Storages/StorageQingCloud.h>
+#include <QingCloud/Storages/StorageQingCloudbak.h>
 #include <Parsers/ASTLiteral.h>
 
 

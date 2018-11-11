@@ -409,7 +409,9 @@ void StorageDistributed::ClusterNodeData::requireDirectoryMonitor(const std::str
 {
     requireConnectionPool(name, storage);
     if (!directory_monitor)
+    {
         directory_monitor = std::make_unique<StorageDistributedDirectoryMonitor>(storage, name, conneciton_pool);
+    }
 }
 
 void StorageDistributed::ClusterNodeData::shutdownAndDropAllData()

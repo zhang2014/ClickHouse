@@ -269,7 +269,10 @@ ThreadPool::Job DistributedBlockOutputStream::runWritingJob(DistributedBlockOutp
                 if (throttler)
                     job.connection_entry->setThrottler(throttler);
 
-                job.stream = std::make_shared<RemoteBlockOutputStream>(*job.connection_entry, query_string, &settings);
+                Settings query_settings = settings;
+                query_settings.query_shard_index = shard_info.shard_num;
+
+                job.stream = std::make_shared<RemoteBlockOutputStream>(*job.connection_entry, query_string, &query_settings);
                 job.stream->writePrefix();
             }
 
@@ -281,8 +284,10 @@ ThreadPool::Job DistributedBlockOutputStream::runWritingJob(DistributedBlockOutp
             if (!job.stream)
             {
                 /// Forward user settings
+                Settings query_settings = settings;
+                query_settings.query_shard_index = shard_info.shard_num;
                 job.local_context = std::make_unique<Context>(storage.context);
-                job.local_context->setSettings(settings);
+                job.local_context->setSettings(query_settings);
 
                 InterpreterInsertQuery interp(query_ast, *job.local_context);
                 job.stream = interp.execute().out;
@@ -477,7 +482,7 @@ void DistributedBlockOutputStream::writeAsyncImpl(const Block & block, const siz
             if (shard_info.dir_name_for_internal_replication.empty())
                 throw Exception("Directory name for async inserts is empty, table " + storage.getTableName(), ErrorCodes::LOGICAL_ERROR);
 
-            writeToShard(block, {shard_info.dir_name_for_internal_replication});
+            writeToShard(block, {toString(shard_info.shard_num) + "_" +shard_info.dir_name_for_internal_replication});
         }
     }
     else
@@ -488,7 +493,7 @@ void DistributedBlockOutputStream::writeAsyncImpl(const Block & block, const siz
         std::vector<std::string> dir_names;
         for (const auto & address : cluster->getShardsAddresses()[shard_id])
             if (!address.is_local)
-                dir_names.push_back(address.toStringFull());
+                dir_names.push_back(toString(shard_info.shard_num) + "_" + address.toStringFull());
 
         if (!dir_names.empty())
             writeToShard(block, dir_names);

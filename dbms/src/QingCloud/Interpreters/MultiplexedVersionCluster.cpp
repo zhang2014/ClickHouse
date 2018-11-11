@@ -3,7 +3,7 @@
 #include <Common/DNSResolver.h>
 #include <Common/isLocalAddress.h>
 #include <Storages/IStorage.h>
-#include <QingCloud/Storages/StorageQingCloud.h>
+#include <QingCloud/Storages/StorageQingCloudbak.h>
 #include "MultiplexedVersionCluster.h"
 
 

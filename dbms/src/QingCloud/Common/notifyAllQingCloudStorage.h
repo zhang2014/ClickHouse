@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QingCloud/Storages/StorageQingCloud.h>
+#include <QingCloud/Storages/StorageQingCloudbak.h>
 
 namespace DB
 {
