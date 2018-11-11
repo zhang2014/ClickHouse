@@ -58,7 +58,7 @@ void QingCloudAsynchronism::writeToShard(const String & version, const UInt64 sh
 }
 
 void QingCloudAsynchronism::writeToReplica(const String & version, const UInt64 shard_number,
-                                           const Cluster::Address &address, const String &file_name)
+                                           const Cluster::Address &address, const String & file_name)
 {
     String source_file_path = path + "tmp/" + file_name;
     String dir_name = writeVersionAndShardText(version, shard_number, address.toStringFull());
@@ -72,9 +72,11 @@ void QingCloudAsynchronism::writeToReplica(const String & version, const UInt64 
 
 void QingCloudAsynchronism::destroyDirectoryMonitor(String dir_name)
 {
-    std::lock_guard lock(cluster_nodes_mutex);
-    if (cluster_nodes_data.count(dir_name))
-        cluster_nodes_data.erase(dir_name);
+    {
+        std::unique_lock lock(cluster_nodes_mutex);
+        if (cluster_nodes_data.count(dir_name))
+            cluster_nodes_data.erase(dir_name);
+    }
 }
 
 void QingCloudAsynchronism::requireDirectoryMonitor(const Cluster::Address & address, const String & dir_name)
@@ -91,7 +93,8 @@ void QingCloudAsynchronism::requireDirectoryMonitor(const Cluster::Address & add
         Cluster::Address add = address_and_connections.first;
         if (addressEquals(address, add))
         {
-            std::lock_guard lock(cluster_nodes_mutex);
+            std::unique_lock lock(cluster_nodes_mutex);
+
             if (!cluster_nodes_data.count(dir_name))
             {
                 ReplicasDirectoryInfo info(dir_name);
@@ -141,14 +144,13 @@ UInt64 getMaximumFileNumber(const std::string & data_path)
     return res;
 }
 
-QingCloudAsynchronism::QingCloudAsynchronism(const String &data_path, Context &context)
+QingCloudAsynchronism::QingCloudAsynchronism(const String & data_path, Context &context)
     : path(data_path), context(context), cluster(context.getMultiplexedVersion())
 {
     if (path.empty())
         return;
 
     Poco::File{path}.createDirectories();
-//    Poco::File{path}.createDirectory();
     increment.set(getMaximumFileNumber(data_path));
 
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> addresses_and_connections;
@@ -162,26 +164,12 @@ QingCloudAsynchronism::QingCloudAsynchronism(const String &data_path, Context &c
     boost::filesystem::directory_iterator end;
     for (auto it = begin; it != end; ++it)
     {
-        if (it->status().type() == boost::filesystem::directory_file
-            && it->path().filename().string() != "tmp")
+        if (it->status().type() == boost::filesystem::directory_file && it->path().filename().string() != "tmp")
         {
             String dir_name = it->path().filename().string();
             ReplicasDirectoryInfo info(it->path().filename().string());
 
-            for (const auto & address_and_connections : addresses_and_connections)
-            {
-                Cluster::Address add = address_and_connections.first;
-                if (addressEquals(info.address, add))
-                {
-                    std::lock_guard lock(cluster_nodes_mutex);
-                    Context current_context = context;
-                    current_context.getSettingsRef().writing_version = info.current_writing_version;
-                    current_context.getSettingsRef().writing_shard_index = info.current_writing_shard_number;
-                    cluster_nodes_data.insert(std::pair(dir_name, std::make_unique<QingCloudDirectoryMonitor>(
-                        address_and_connections.second, path, dir_name, this, current_context)));
-                    break;
-                }
-            }
+            requireDirectoryMonitor(info.address, dir_name);
         }
     }
 }
@@ -217,21 +205,18 @@ QingCloudAsynchronism::ReplicasDirectoryInfo::ReplicasDirectoryInfo(const String
         address.secure = Protocol::Secure::Enable;
     }
 
-    std::cout << "AAA\n";
     const char *writing_version_end = strchr(dir_name.data(), '_');
     const char *writing_shared_number_end = strchr(writing_version_end + 1, '_');
-    std::cout << "AAA - 2\n";
     current_writing_version = std::string(address_begin, writing_version_end);
     current_writing_shard_number = parse<UInt64>(writing_version_end + 1, writing_shared_number_end - writing_version_end);
 
     const char *user_pw_end = strchr(writing_shared_number_end + 1, '@');
     const char *colon = strchr(writing_shared_number_end + 1, ':');
     if (!user_pw_end || !colon)
-        throw Exception{
+        throw Exception(
             "Shard address '" + dir_name + "' does not match to 'version_shard_user[:password]@host:port#default_database' pattern",
-            ErrorCodes::INCORRECT_FILE_NAME};
+            ErrorCodes::INCORRECT_FILE_NAME);
 
-    std::cout << "AAA - 3\n";
     const bool has_pw = colon < user_pw_end;
     const char *host_end = has_pw ? strchr(user_pw_end + 1, ':') : colon;
     if (!host_end)
@@ -239,7 +224,6 @@ QingCloudAsynchronism::ReplicasDirectoryInfo::ReplicasDirectoryInfo(const String
     const char *has_db = strchr(address_begin, '#');
     const char *port_end = has_db ? has_db : address_end;
 
-    std::cout << "AAA - 4\n";
     address.user = unescapeForFileName(std::string(writing_shared_number_end + 1, has_pw ? colon : user_pw_end));
     address.password = has_pw ? unescapeForFileName(std::string(colon + 1, user_pw_end)) : std::string();
     address.host_name = unescapeForFileName(std::string(user_pw_end + 1, host_end));

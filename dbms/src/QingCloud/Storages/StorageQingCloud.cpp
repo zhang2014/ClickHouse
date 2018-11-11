@@ -234,7 +234,6 @@ StorageQingCloud::StorageQingCloud(const String &data_path, const String &databa
       primary_expr_list(primary_expr_list), partition_expr_list(partition_expr_list), settings(settings), columns(columns),
       asynchronism(full_path + escapeForFileName(table_name) +"/" + "transmission/", context)
 {
-    std::cout << "AA \n";
     String table_data_path = data_path + escapeForFileName(table_name) + '/';
     Poco::File(table_data_path).createDirectory();
 

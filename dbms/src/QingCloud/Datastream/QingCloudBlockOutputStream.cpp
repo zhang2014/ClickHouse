@@ -63,6 +63,7 @@ QingCloudBlockOutputStream::QingCloudBlockOutputStream(
       sharding_key_expr(sharding_key_expr), insert_sync(insert_sync_), insert_timeout(insert_timeout_),
       log(&Logger::get("QingCloudBlockOutputStream"))
 {
+    query_string = queryToString(query_ast);
 }
 
 Block QingCloudBlockOutputStream::getHeader() const
@@ -78,6 +79,7 @@ void QingCloudBlockOutputStream::writePrefix()
 
 void QingCloudBlockOutputStream::write(const Block & block)
 {
+
     if (insert_sync)
         writeSync(block);
     else
@@ -286,7 +288,6 @@ void QingCloudBlockOutputStream::writeSync(const Block & block)
         initWritingJobs(block);
 
         pool.emplace(remote_jobs_count + local_jobs_count);
-        query_string = queryToString(query_ast);
 
         if (!throttler && (settings.max_network_bandwidth || settings.max_network_bytes))
         {
@@ -468,7 +469,7 @@ void QingCloudBlockOutputStream::writeAsyncImpl(const Block & block, const size_
 }
 
 
-void QingCloudBlockOutputStream::writeToLocal(const Block &block, const size_t repeats, const Context &context)
+void QingCloudBlockOutputStream::writeToLocal(const Block & block, const size_t repeats, const Context & context)
 {
     /// Async insert does not support settings forwarding yet whereas sync one supports
     InterpreterInsertQuery interp(query_ast, context);

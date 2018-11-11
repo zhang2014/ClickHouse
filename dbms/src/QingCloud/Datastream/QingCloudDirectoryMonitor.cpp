@@ -93,42 +93,47 @@ void QingCloudDirectoryMonitor::run()
 {
     setThreadName("QingCloudDirectoryMonitor");
 
-    std::unique_lock<std::mutex> lock{mutex};
-
-    const auto quit_requested = [this] { return quit.load(std::memory_order_relaxed); };
-
-    size_t loop_size = 0;
-    while (!quit_requested())
     {
-        auto do_sleep = true;
+        std::unique_lock<std::mutex> lock{mutex};
 
-        try
-        {
-            do_sleep = !findFiles();
-        }
-        catch (...)
-        {
-            do_sleep = true;
-            ++error_count;
-            sleep_time = std::min(
-                std::chrono::milliseconds{Int64(default_sleep_time.count() * std::exp2(error_count))},
-                std::chrono::milliseconds{max_sleep_time});
-            tryLogCurrentException(log);
-        };
+        const auto quit_requested = [this] { return quit.load(std::memory_order_relaxed); };
 
-        loop_size = do_sleep ? loop_size + 1 : 0;
-        if (loop_size > 3)
+        size_t loop_size = 0;
+        size_t retries = 30 * 60;
+        while (!quit_requested())
         {
-            asynchronism->destroyDirectoryMonitor(dir_name);
-            LOG_INFO(log, "Destory directory monitor when retries greater than 3.");
-            break;
-        }
+            auto do_sleep = true;
 
-        const auto now = std::chrono::system_clock::now();
-        if (now - last_decrease_time > decrease_error_count_period)
-        {
-            error_count /= 2;
-            last_decrease_time = now;
+            try
+            {
+                do_sleep = !findFiles();
+            }
+            catch (...)
+            {
+                do_sleep = true;
+                ++error_count;
+                sleep_time = std::min(
+                    std::chrono::milliseconds{Int64(default_sleep_time.count() * std::exp2(error_count))},
+                    std::chrono::milliseconds{max_sleep_time});
+                tryLogCurrentException(log);
+            };
+
+            if (do_sleep)
+                cond.wait_for(lock, sleep_time, quit_requested);
+
+            const auto now = std::chrono::system_clock::now();
+            if (now - last_decrease_time > decrease_error_count_period)
+            {
+                error_count /= 2;
+                last_decrease_time = now;
+            }
+
+            if (do_sleep && ++loop_size > retries)
+            {
+                LOG_INFO(log, "Destory directory monitor when retries greater than 3.");
+                pool = {};
+                quit = true;
+            }
         }
     }
 }
