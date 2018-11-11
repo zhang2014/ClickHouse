@@ -5,6 +5,7 @@
 #include <Parsers/ASTCreateQuery.h>
 #include <Common/Exception.h>
 #include <Common/StringUtils/StringUtils.h>
+#include <QingCloud/Storages/QingCloudStorageFactory.h>
 
 
 namespace DB
@@ -38,8 +39,23 @@ void StorageFactory::registerStorage(const std::string & name, Creator creator)
             ErrorCodes::LOGICAL_ERROR);
 }
 
+StoragePtr StorageFactory::get(
+    ASTCreateQuery & query,
+    const String & data_path,
+    const String & table_name,
+    const String & database_name,
+    Context & local_context,
+    Context & context,
+    const ColumnsDescription & columns,
+    bool attach,
+    bool has_force_restore_data_flag) const
+{
+    return QingCloudStorageFactory::instance().get(query, data_path, table_name, database_name, local_context, context, columns, attach,
+                                                   has_force_restore_data_flag);
+}
 
 StoragePtr StorageFactory::get(
+    bool /*internal*/,
     ASTCreateQuery & query,
     const String & data_path,
     const String & table_name,

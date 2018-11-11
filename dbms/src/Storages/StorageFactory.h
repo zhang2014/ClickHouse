@@ -49,6 +49,18 @@ public:
         bool attach,
         bool has_force_restore_data_flag) const;
 
+    StoragePtr get(
+        bool internal,
+        ASTCreateQuery & query,
+        const String & data_path,
+        const String & table_name,
+        const String & database_name,
+        Context & local_context,
+        Context & context,
+        const ColumnsDescription & columns,
+        bool attach,
+        bool has_force_restore_data_flag) const;
+
     /// Register a table engine by its name.
     /// No locking, you must register all engines before usage of get.
     void registerStorage(const std::string & name, Creator creator);

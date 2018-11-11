@@ -181,7 +181,7 @@ ClusterPtr MultiplexedVersionCluster::getCluster(const DB::String &cluster_name)
         if (all_version_and_cluster.count(version))
             return all_version_and_cluster[version];
     }
-    
+
     return {};
 }
 

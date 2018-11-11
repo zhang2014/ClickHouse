@@ -71,6 +71,7 @@ StorageQingCloud::StorageQingCloud(
             {
                 if (replica_address.is_local)
                     local_data_storage[std::pair(version, shard_number)] = StorageFactory::instance().get(
+                        true,
                         query, version_table_data_path, table_name, database_name, local_context, context, columns, attach,
                         has_force_restore_data_flag);
             }
