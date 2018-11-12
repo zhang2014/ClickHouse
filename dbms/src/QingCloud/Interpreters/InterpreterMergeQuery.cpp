@@ -35,7 +35,7 @@ BlockIO InterpreterMergeQuery::execute()
     for (const auto ast_version : merge.source_versions->children)
         source_versions.emplace_back(typeid_cast<ASTLiteral *>(ast_version.get())->value.safeGet<String>());
 
-    storage->mergeVersions(source_versions, static_cast<ASTLiteral *>(merge.dist_versions.get())->value.safeGet<String>());
+    storage->mergeVersions(source_versions, static_cast<ASTLiteral *>(merge.dist_versions.get())->value.safeGet<String>(), {});
 
     return {};
 }

@@ -163,14 +163,6 @@ std::unique_ptr<IInterpreter> InterpreterFactory::get(ASTPtr & query, Context & 
     {
         return std::make_unique<InterpreterKillQueryQuery>(query, context);
     }
-    else if (typeid_cast<ASTMergeQuery *>(query.get()))
-    {
-        return std::make_unique<InterpreterMergeQuery>(query, context);
-    }
-    else if (typeid_cast<ASTPaxosQuery *>(query.get()))
-    {
-        return std::make_unique<InterpreterPaxosQuery>(query, context);
-    }
     else if (typeid_cast<ASTSystemQuery *>(query.get()))
     {
         throwIfReadOnly(context);

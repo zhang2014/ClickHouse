@@ -102,7 +102,7 @@ StorageDistributedDirectoryMonitor::StorageDistributedDirectoryMonitor(StorageDi
     min_batched_block_size_bytes = settings.min_insert_block_size_bytes;
     const char * begin = name.data();
     const char * end = strchr(begin, '_');
-    settings.query_shard_index = parse<UInt64>(begin, end - begin);;
+    settings.writing_shard_index = parse<UInt64>(begin, end - begin);;
 }
 
 
@@ -236,7 +236,7 @@ bool StorageDistributedDirectoryMonitor::findFiles()
 void StorageDistributedDirectoryMonitor::processFile(const std::string & file_path)
 {
     LOG_TRACE(log, "Started processing `" << file_path << '`');
-    auto connection = pool->get();
+    auto connection = pool->get(&settings);
 
     try
     {
@@ -339,7 +339,7 @@ struct StorageDistributedDirectoryMonitor::Batch
             writeText(out);
         }
 
-        auto connection = parent.pool->get();
+        auto connection = parent.pool->get(&parent.settings);
 
         bool batch_broken = false;
         try

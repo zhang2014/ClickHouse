@@ -1,17 +1,8 @@
-//#pragma once
 //
+// Created by coswde on 2018/11/12.
 //
-//#include <Parsers/IParserBase.h>
-//
-//namespace DB
-//{
-///** Query of form
-// * SYNC [TABLE] [database.]table REPLICAS
-// */
-//class ParserSyncQuery : public IParserBase
-//{
-//protected:
-//    const char * getName() const { return "ALTER query"; }
-//    bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected);
-//};
-//}
+
+#ifndef CLICKHOUSE_PARSERSYNCQUERY_H
+#define CLICKHOUSE_PARSERSYNCQUERY_H
+
+#endif //CLICKHOUSE_PARSERSYNCQUERY_H

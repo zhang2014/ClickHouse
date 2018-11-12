@@ -8,12 +8,21 @@
 #include <Common/typeid_cast.h>
 #include <Interpreters/Settings.h>
 #include <Interpreters/Context.h>
+#include <QingCloud/Parsers/ASTMergeQuery.h>
+#include <QingCloud/Interpreters/InterpreterMergeQuery.h>
+#include <QingCloud/Parsers/ASTPaxosQuery.h>
+#include <QingCloud/Interpreters/InterpreterPaxosQuery.h>
 
 
 namespace DB
 {
 std::unique_ptr<IInterpreter> QingCloudInterpreterFactory::get(ASTPtr & query, Context & context, QueryProcessingStage::Enum stage)
 {
+    if (typeid_cast<ASTMergeQuery *>(query.get()))
+        return std::make_unique<InterpreterMergeQuery>(query, context);
+    else if (typeid_cast<ASTPaxosQuery *>(query.get()))
+        return std::make_unique<InterpreterPaxosQuery>(query, context);
+
     std::unique_ptr<IInterpreter> local_interpreter = InterpreterFactory::get(query, context, stage);
 
     if (!context.getSettingsRef().internal_query)
