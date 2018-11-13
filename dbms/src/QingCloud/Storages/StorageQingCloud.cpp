@@ -162,8 +162,10 @@ void StorageQingCloud::drop()
 
 bool StorageQingCloud::checkData() const
 {
+    bool res = true;
     for (const auto & storage : local_data_storage)
-        storage.second->checkData();
+        res &= storage.second->checkData();
+    return res;
 }
 
 void StorageQingCloud::truncate(const ASTPtr & truncate_query)
@@ -213,8 +215,10 @@ void StorageQingCloud::clearColumnInPartition(const ASTPtr & partition, const Fi
 
 bool StorageQingCloud::optimize(const ASTPtr & query, const ASTPtr & partition, bool final, bool deduplicate, const Context & context)
 {
+    bool res = true;
     for (const auto & storage : local_data_storage)
-        storage.second->optimize(query, partition, final, deduplicate, context);
+        res &= storage.second->optimize(query, partition, final, deduplicate, context);
+    return res;
 }
 
 void StorageQingCloud::replacePartitionFrom(const StoragePtr & source_table, const ASTPtr & partition, bool replace, const Context & context)
