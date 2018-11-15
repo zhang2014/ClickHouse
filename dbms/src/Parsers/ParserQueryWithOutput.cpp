@@ -4,6 +4,7 @@
 #include <Parsers/ParserTablePropertiesQuery.h>
 #include <Parsers/ParserDescribeTableQuery.h>
 #include <Parsers/ParserShowProcesslistQuery.h>
+#include <QingCloud/Parsers/ParserQingCloudQuery.h>
 #include <Parsers/ParserCheckQuery.h>
 #include <Parsers/ParserCreateQuery.h>
 #include <Parsers/ParserRenameQuery.h>
@@ -11,8 +12,6 @@
 #include <Parsers/ParserDropQuery.h>
 #include <Parsers/ParserKillQueryQuery.h>
 #include <Parsers/ParserOptimizeQuery.h>
-#include <QingCloud/Parsers/ParserMergeQuery.h>
-#include <QingCloud/Parsers/ParserPaxosQuery.h>
 
 
 namespace DB
@@ -20,7 +19,7 @@ namespace DB
 
 bool ParserQueryWithOutput::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
 {
-    ParserMergeQuery merge_table_p;
+    ParserQingCloudQuery qing_cloud_p;
     ParserShowTablesQuery show_tables_p;
     ParserSelectWithUnionQuery select_p;
     ParserTablePropertiesQuery table_p;
@@ -31,7 +30,6 @@ bool ParserQueryWithOutput::parseImpl(Pos & pos, ASTPtr & node, Expected & expec
     ParserRenameQuery rename_p;
     ParserDropQuery drop_p;
     ParserCheckQuery check_p;
-    ParserPaxos paxos_p;
     ParserOptimizeQuery optimize_p;
     ParserKillQueryQuery kill_query_p;
 
@@ -47,8 +45,7 @@ bool ParserQueryWithOutput::parseImpl(Pos & pos, ASTPtr & node, Expected & expec
         || rename_p.parse(pos, query, expected)
         || drop_p.parse(pos, query, expected)
         || check_p.parse(pos, query, expected)
-        || paxos_p.parse(pos, query, expected)
-        || merge_table_p.parse(pos, query, expected)
+        || qing_cloud_p.parse(pos, query, expected)
         || kill_query_p.parse(pos, query, expected)
         || optimize_p.parse(pos, query, expected);
 

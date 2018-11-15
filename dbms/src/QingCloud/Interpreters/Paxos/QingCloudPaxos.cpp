@@ -41,6 +41,7 @@ QingCloudPaxos::QingCloudPaxos(const String &node_id, const UInt64 &last_accepte
 
 QingCloudPaxos::State QingCloudPaxos::sendPrepare(const LogEntity & value)
 {
+    /// TODO: 需要先验证是否多个节点存活
     ++proposer_id;
     const String & prepare_sql = "PAXOS PREPARE proposal_number = " + toString(proposer_id);
     Block res = validateQueryIsQuorum(sendQuery(prepare_sql, prepare_header), connections.size());
@@ -51,7 +52,6 @@ QingCloudPaxos::State QingCloudPaxos::sendPrepare(const LogEntity & value)
 
     for (size_t row = 0, promised = 0; row < res.rows(); ++row)
     {
-        /// TODO : 可能存在多节点并发问题
         if (column_accepted_id.getUInt(row) > higher_numbered)
             return State::NEED_LEARN; /// has different paxos, we reach agreement through study.
 

@@ -12,6 +12,8 @@
 #include <QingCloud/Interpreters/InterpreterMergeQuery.h>
 #include <QingCloud/Parsers/ASTPaxosQuery.h>
 #include <QingCloud/Interpreters/InterpreterPaxosQuery.h>
+#include <QingCloud/Parsers/ASTUpgradeQuery.h>
+#include "InterpreterUpgradeQuery.h"
 
 
 namespace DB
@@ -22,6 +24,8 @@ std::unique_ptr<IInterpreter> QingCloudInterpreterFactory::get(ASTPtr & query, C
         return std::make_unique<InterpreterMergeQuery>(query, context);
     else if (typeid_cast<ASTPaxosQuery *>(query.get()))
         return std::make_unique<InterpreterPaxosQuery>(query, context);
+    else if (typeid_cast<ASTUpgradeQuery *>(query.get()))
+        return std::make_unique<InterpreterUpgradeQuery>(query.get(), context);
 
     std::unique_ptr<IInterpreter> local_interpreter = InterpreterFactory::get(query, context, stage);
 

@@ -35,7 +35,7 @@ std::vector<String> MultiplexedVersionCluster::getReadableVersions()
 {
     std::vector<String> readable_versions;
 
-    for (const auto version_and_cluster : all_version_and_cluster)
+    for (const auto & version_and_cluster : all_version_and_cluster)
     {
         ClusterPtr cluster = version_and_cluster.second;
         if (static_cast<DummyCluster *>(cluster.get())->is_readable)
@@ -52,7 +52,7 @@ std::map<String, ClusterPtr> MultiplexedVersionCluster::getAllVersionsCluster()
 
 String MultiplexedVersionCluster::getCurrentWritingVersion()
 {
-    for (const auto version_and_cluster : all_version_and_cluster)
+    for (const auto & version_and_cluster : all_version_and_cluster)
     {
         ClusterPtr cluster = version_and_cluster.second;
         if (static_cast<DummyCluster *>(cluster.get())->is_writeable)
@@ -96,7 +96,6 @@ void MultiplexedVersionCluster::updateMultiplexedVersionCluster(
                                                                                  settings, readable, writeable);
     }
     all_version_and_cluster = new_all_version_and_cluster;
-//    getDDLSynchronism()->updateAddressesAndConnections(getAddressesAndConnections());
 }
 
 void MultiplexedVersionCluster::setAddressAndConnections(

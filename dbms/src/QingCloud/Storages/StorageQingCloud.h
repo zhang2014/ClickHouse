@@ -15,35 +15,23 @@
 #include <QingCloud/Interpreters/MultiplexedVersionCluster.h>
 #include <QingCloud/Datastream/QingCloudAsynchronism.h>
 #include <Parsers/ASTCreateQuery.h>
+#include "StorageQingCloudBase.h"
 
 namespace DB
 {
 
 class Context;
-class StorageDistributedDirectoryMonitor;
 
-using VersionAndStorage = std::map<String, StoragePtr>;
-using VersionAndShardNumber = std::pair<String, UInt64>;
-using VersionAndShardNumberWithStorage = std::map<VersionAndShardNumber, StoragePtr>;
-
-class StorageQingCloud : public ext::shared_ptr_helper<StorageQingCloud>, public IStorage
+class StorageQingCloud : public ext::shared_ptr_helper<StorageQingCloud>, public StorageQingCloudBase
 {
 public:
+    StorageQingCloud(ASTCreateQuery &query, const String &data_path, const String &table_name, const String &database_name,
+                     Context &local_context, Context &context, const ColumnsDescription &columns, bool attach,
+                     bool has_force_restore_data_flag);
+
     ~StorageQingCloud() override;
 
     std::string getName() const override { return "QingCloud"; }
-
-    bool isRemote() const override { return true; }
-    bool supportsFinal() const override { return true; }
-    bool supportsSampling() const override { return true; }
-    bool supportsPrewhere() const override { return true; }
-
-    StorageQingCloud(ASTCreateQuery & query, const String & data_path, const String & table_name, const String & database_name,
-                     Context & local_context, Context & context, const ColumnsDescription & columns, bool attach, bool has_force_restore_data_flag);
-
-    void startup() override;
-
-    void shutdown() override;
 
     std::string getTableName() const override {return table_name;}
 
@@ -52,37 +40,10 @@ public:
     BlockInputStreams read(const Names & column_names, const SelectQueryInfo & query_info, const Context & context,
                            QueryProcessingStage::Enum & processed_stage, size_t max_block_size, unsigned num_streams) override;
 
-    void attachVersion(const String & attach_version, const Context & context);
-
-    void detachVersion(const String & detach_version, const Context & context);
-
     void mergeVersions(std::vector<String> /*from_versions*/, const String & /*to_version*/, std::vector<UInt64> /*shard_numbers*/){}
 
-    void drop() override;
+    void upgradeVersion(const String & from_version, const String & upgrade_version);
 
-    bool checkData() const override;
-
-    void truncate(const ASTPtr &truncate_query) override;
-
-    bool hasColumn(const String &column_name) const override;
-
-    void mutate(const MutationCommands &commands, const Context &context) override;
-
-    void attachPartition(const ASTPtr & partition, bool part, const Context & context) override;
-
-    void fetchPartition(const ASTPtr & partition, const String & from, const Context & context) override;
-
-    void freezePartition(const ASTPtr & partition, const String & with_name, const Context & context) override;
-
-    void dropPartition(const ASTPtr & query, const ASTPtr & partition, bool detach, const Context & context) override;
-
-    void clearColumnInPartition(const ASTPtr & partition, const Field & column_name, const Context & context) override;
-
-    bool optimize(const ASTPtr & query, const ASTPtr & partition, bool final, bool deduplicate, const Context & context) override;
-
-    void alter(const AlterCommands & params, const String & database_name, const String & table_name, const Context & context) override;
-
-    void replacePartitionFrom(const StoragePtr & source_table, const ASTPtr & partition, bool replace, const Context & context) override;
 
 private:
     Context & context;
@@ -93,9 +54,35 @@ private:
     const ColumnsDescription columns;
     ASTCreateQuery create_query;
 
-    VersionAndStorage version_distributed;
-    VersionAndShardNumberWithStorage local_data_storage;
+    struct VersionInfo
+    {
+        String data_path;
+        String version_path;
+        String writeable_version;
+        std::vector<String> readable_versions;
+        std::vector<String> local_store_versions;
+
+        void loadVersionInfo();
+
+        void storeVersionInfo();
+
+        VersionInfo(const String &data_path, MultiplexedClusterPtr multiplexed_version_cluster);
+    };
+
+    String table_data_path;
+    VersionInfo version_info;
 
     ASTPtr sharding_key;
+
+    std::map<String, String> expect_addresses;
+    std::map<String, String> complete_addresses;
+
+    template <typename... Args>
+    void waitActionInClusters(const String & action_in_version, const String & action_name, Args &&... args);
+
+    void createTablesWithCluster(const String & version, const ClusterPtr & cluster, bool attach = false, bool has_force_restore_data_flag = false);
+
+    void migrateDataForFromVersion(const String &from_version, const ClusterPtr &from_cluster, const String &upgrade_version, const ClusterPtr &upgrade_cluster);
 };
+
 }
