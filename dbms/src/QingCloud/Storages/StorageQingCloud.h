@@ -97,8 +97,7 @@ private:
     std::mutex notify_nodes_mutex;
     std::map<String, ActionNotifyer> receive_action_notify;
 
-    template <typename... Args>
-    void waitActionInClusters(const String & action_in_version, const String & action_name, Args &&... args);
+    void waitActionInClusters(const String &action_version, const String &action_name);
 
     void createTablesWithCluster(const String & version, const ClusterPtr & cluster, bool attach = false, bool has_force_restore_data_flag = false);
 

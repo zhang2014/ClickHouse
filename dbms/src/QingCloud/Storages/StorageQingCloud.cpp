@@ -124,7 +124,7 @@ BlockInputStreams StorageQingCloud::read(const Names & column_names, const Selec
 void StorageQingCloud::flushVersionData(const String & version)
 {
     dynamic_cast<StorageDistributed *>(version_distributed[version].get())->waitForFlushedOtherServer();
-    waitActionInClusters(version, "FLUSHED_DISTRIBUTED_DATA", context.getCluster(wrapVersionName(version)));
+    waitActionInClusters(version, "FLUSHED_DISTRIBUTED_DATA");
 }
 
 void StorageQingCloud::initializeVersions(std::initializer_list<String> versions)
@@ -133,7 +133,7 @@ void StorageQingCloud::initializeVersions(std::initializer_list<String> versions
     {
         ClusterPtr cluster = context.getCluster(wrapVersionName(*iterator));
         createTablesWithCluster(*iterator, cluster);
-        waitActionInClusters(*iterator, "INITIALIZE_VERSION" + *iterator, cluster);
+        waitActionInClusters(*iterator, "INITIALIZE_VERSION");
     }
 }
 
@@ -155,8 +155,10 @@ void StorageQingCloud::initializeVersionInfo(std::initializer_list<String> reada
             version_info.local_store_versions.emplace_back(*iterator);
     }
 
-    /// TODO: wait all version cluster
-    waitActionInClusters(writable_version, "INITIALIZE_VERSION_INFO", context.getCluster(wrapVersionName(writable_version)));
+    for (auto iterator = readable_versions.begin(); iterator != readable_versions.end(); ++iterator)
+        waitActionInClusters(*iterator, "INITIALIZE_VERSION_INFO");
+
+    waitActionInClusters(writable_version, "INITIALIZE_VERSION_INFO");
 }
 
 void StorageQingCloud::migrateDataBetweenVersions(const String & origin_version, const String & upgrade_version, bool drop, bool drop_data)
@@ -183,6 +185,15 @@ void StorageQingCloud::migrateDataBetweenVersions(const String & origin_version,
     }
 }
 
+void StorageQingCloud::cleanupBeforeMigrate(const String &cleanup_version)
+{
+    for (const auto &local_storage : local_data_storage)
+        if (local_storage.first.first == cleanup_version)
+            local_storage.second->truncate({});     /// TODO: materialize view need query param
+
+    waitActionInClusters(cleanup_version, "CLEANUP_VERSION_DATA" + cleanup_version);
+}
+
 void StorageQingCloud::replaceDataWithLocal(bool drop, const StoragePtr &origin, const StoragePtr &upgrade_storage)
 {
     upgrade_storage->replacePartitionFrom(origin, {}, false, this->context);
@@ -202,23 +213,33 @@ void StorageQingCloud::rebalanceDataWithCluster(const String &origin_version, co
         query_context).execute();
 }
 
-template <typename... Args>
-void StorageQingCloud::waitActionInClusters(const String & action_in_version, const String & action_name, Args &&... args)
+void StorageQingCloud::waitActionInClusters(const String &action_version, const String &action_name)
 {
-    std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> addresses_with_connections = getConnectionPoolsFromClusters(args...);
-    sendQueryWithAddresses(addresses_with_connections, "ACTION NOTIFY '" + action_name + "' TABLE " + database_name + "." + table_name +
-                                                       " VERSION '" + action_in_version + "'");
+    String version = wrapVersionName(action_version);
+    ClusterPtr cluster = context.getCluster(version);
 
-    String key = action_name + "_" + action_in_version;
-    std::unique_lock lock(receive_action_notify[key].mutex);
+    const auto addresses_with_connections = getConnectionPoolsFromClusters(cluster);
 
-    for (const auto & addresses : addresses_with_connections)
-        if (!addresses.first.is_local)
-            receive_action_notify[key].expected_addresses.emplace_back(addresses.first);
+    for (const auto &it : addresses_with_connections)
+    {
+        if (it.first.is_local)
+        {
+            sendQueryWithAddresses(addresses_with_connections, "ACTION NOTIFY '" + action_name + "' TABLE " + database_name + "." +
+                                                               table_name + " VERSION '" + action_version + "'");
 
+            String key = action_name + "_" + action_version;
+            std::unique_lock lock(receive_action_notify[key].mutex);
 
-    if (!receive_action_notify[key].checkNotifyIsCompleted())
-        receive_action_notify[key].cond.wait_for(lock, std::chrono::milliseconds(180000));
+            for (const auto & addresses : addresses_with_connections)
+            {
+                if (!addresses.first.is_local)
+                    receive_action_notify[key].expected_addresses.emplace_back(addresses.first.toString());
+            }
+
+            if (!receive_action_notify[key].checkNotifyIsCompleted())
+                receive_action_notify[key].cond.wait_for(lock, std::chrono::milliseconds(180000));
+        }
+    }
 }
 
 void StorageQingCloud::sendQueryWithAddresses(const std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> &addresses_with_connections,
@@ -228,17 +249,24 @@ void StorageQingCloud::sendQueryWithAddresses(const std::vector<std::pair<Cluste
     const Settings settings = context.getSettingsRef();
     for (const auto & address_with_connections : addresses_with_connections)
     {
-        ConnectionPoolPtrs failover_connections;
-        failover_connections.emplace_back(address_with_connections.second);
+        if (!address_with_connections.first.is_local)
+        {
+            ConnectionPoolPtrs failover_connections;
+            failover_connections.emplace_back(address_with_connections.second);
 
-        ConnectionPoolWithFailoverPtr shard_pool = std::make_shared<ConnectionPoolWithFailover>(
-            failover_connections, SettingLoadBalancing(LoadBalancing::RANDOM), settings.connections_with_failover_max_tries);
+            ConnectionPoolWithFailoverPtr shard_pool = std::make_shared<ConnectionPoolWithFailover>(
+                failover_connections, SettingLoadBalancing(LoadBalancing::RANDOM), settings.connections_with_failover_max_tries);
 
-        streams.emplace_back(std::make_shared<RemoteBlockInputStream>(shard_pool, query_string, Block{}, context));
+            streams.emplace_back(std::make_shared<RemoteBlockInputStream>(shard_pool, query_string, Block{}, context));
+        }
     }
 
-    BlockInputStreamPtr union_stream = std::make_shared<UnionBlockInputStream<>>(streams, nullptr, streams.size());
-    std::make_shared<SquashingBlockInputStream>(union_stream, std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max())->read();
+    if (!streams.empty())
+    {
+        BlockInputStreamPtr union_stream = std::make_shared<UnionBlockInputStream<>>(streams, nullptr, streams.size());
+        std::make_shared<SquashingBlockInputStream>(union_stream, std::numeric_limits<size_t>::max(),
+                                                    std::numeric_limits<size_t>::max())->read();
+    }
 }
 
 void StorageQingCloud::receiveActionNotify(const String & action_name, const String & version)
@@ -252,15 +280,6 @@ void StorageQingCloud::receiveActionNotify(const String & action_name, const Str
         receive_action_notify[action_name + "_" + version].cond.notify_one();
     }
 
-}
-
-void StorageQingCloud::cleanupBeforeMigrate(const String & cleanup_version)
-{
-    for (const auto & local_storage : local_data_storage)
-        if (local_storage.first.first == cleanup_version)
-            local_storage.second->truncate({});     /// TODO: materialize view need query param
-
-    waitActionInClusters(cleanup_version, "CLEANUP_VERSION_DATA" + cleanup_version, context.getCluster(wrapVersionName(cleanup_version)));
 }
 
 void StorageQingCloud::createTablesWithCluster(const String & version, const ClusterPtr & cluster, bool attach, bool has_force_restore_data_flag)
@@ -325,6 +344,7 @@ void StorageQingCloud::VersionInfo::storeVersionInfo()
 
 bool StorageQingCloud::ActionNotifyer::checkNotifyIsCompleted()
 {
+    std::cout << "AAA : " << toString(addresses.size()) << "\t BBB : " << toString(expected_addresses.size()) << "\n";
     return addresses.size() == expected_addresses.size();
 }
 }
