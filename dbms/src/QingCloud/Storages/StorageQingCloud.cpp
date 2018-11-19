@@ -188,7 +188,7 @@ void StorageQingCloud::replaceDataWithLocal(bool drop, const StoragePtr &origin,
         origin->dropPartition({}, {}, true, this->context);
 }
 
-void StorageQingCloud::rebalanceDataWithCluster(const String &origin_version, const String &upgrade_version, size_t shard_number) const
+void StorageQingCloud::rebalanceDataWithCluster(const String &origin_version, const String &upgrade_version, size_t shard_number)
 {
     Context query_context = context;
     query_context.getSettingsRef().query_version = origin_version;
@@ -208,7 +208,7 @@ void StorageQingCloud::waitActionInClusters(const String & action_in_version, co
                                                        " VERSION '" + action_in_version + "'");
 
     String key = action_name + "_" + action_in_version;
-    std::lock_guard lock(receive_action_notify[key].mutex);
+    std::unique_lock lock(receive_action_notify[key].mutex);
 
     for (const auto & addresses : addresses_with_connections)
         receive_action_notify[key].expected_addresses.emplace_back(addresses.first);

@@ -39,7 +39,7 @@ protected:
         if (!string_p.parse(pos, action_name, expected))
             return false;
 
-        if (!s_table.parse(pos, expected))
+        if (!s_table.ignore(pos, expected))
             return false;
 
         if (!name_p.parse(pos, table, expected))

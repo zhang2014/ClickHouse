@@ -21,6 +21,9 @@ PredicateExpressionsOptimizer::PredicateExpressionsOptimizer(
 
 bool PredicateExpressionsOptimizer::optimize()
 {
+    if (!settings.enable_optimize_predicate_expression || !ast_select || !ast_select->tables)
+        return false;
+
     SubQueriesProjectionColumns all_subquery_projection_columns;
     getAllSubqueryProjectionColumns(ast_select->tables.get(), all_subquery_projection_columns);
 

@@ -106,7 +106,7 @@ private:
 
     void replaceDataWithLocal(bool drop, const StoragePtr &origin, const StoragePtr &upgrade_storage);
 
-    void rebalanceDataWithCluster(const String &origin_version, const String &upgrade_version, size_t shard_number) const;
+    void rebalanceDataWithCluster(const String &origin_version, const String &upgrade_version, size_t shard_number);
 
     void sendQueryWithAddresses(const std::map<String, ConnectionPoolPtr> &addresses_with_connections, const String &query_string) const;
 };

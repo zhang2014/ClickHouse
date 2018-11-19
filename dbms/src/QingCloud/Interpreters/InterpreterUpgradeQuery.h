@@ -14,6 +14,7 @@ class UpgradeQueryBlockInputStream : public IProfilingBlockInputStream
 public:
     UpgradeQueryBlockInputStream(const StoragePtr & storage);
 
+    String getName() const override;
 
     Block getHeader() const override;
 

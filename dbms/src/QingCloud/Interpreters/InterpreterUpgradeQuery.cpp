@@ -52,6 +52,7 @@ Block UpgradeQueryBlockInputStream::readImpl()
         case REDIRECT_VERSIONS_BEFORE_MIGRATE:         return redirectVersionBeforeMigrate(upgrade_storage);
         case REDIRECT_VERSION_AFTER_ALL_MIGRATE:       return redirectVersionAfterAllMigrate(upgrade_storage);
 
+        default:
         case FAILURE:
         case SUCCESSFULLY: return {};
     }
@@ -159,6 +160,11 @@ Block UpgradeQueryBlockInputStream::getHeader() const
     return Block{{
         ColumnString::create(), std::make_shared<DataTypeString>(), "stage_name",
     }};
+}
+
+String UpgradeQueryBlockInputStream::getName() const
+{
+    return "UpgradeVersion";
 }
 
 }
