@@ -31,7 +31,7 @@ protected:
         ParserStringLiteral p_to_version;
         ParserStringLiteral p_from_version;
 
-        auto query = std::make_shared<ASTUpgradeQuery>(origin_version, upgrade_version);
+        auto query = std::make_shared<ASTUpgradeQuery>();
 
         if (!s_upgrade.ignore(pos, expected))
             return false;

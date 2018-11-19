@@ -22,6 +22,11 @@ namespace DB
 
 class Context;
 
+class ActionSynchronism
+{
+
+};
+
 class StorageQingCloud : public ext::shared_ptr_helper<StorageQingCloud>, public StorageQingCloudBase
 {
 public:
@@ -40,10 +45,15 @@ public:
     BlockInputStreams read(const Names & column_names, const SelectQueryInfo & query_info, const Context & context,
                            QueryProcessingStage::Enum & processed_stage, size_t max_block_size, unsigned num_streams) override;
 
-    void mergeVersions(std::vector<String> /*from_versions*/, const String & /*to_version*/, std::vector<UInt64> /*shard_numbers*/){}
+    void flushVersionData(const String & version);
 
-    void upgradeVersion(const String & from_version, const String & upgrade_version);
+    void initializeVersions(std::initializer_list<String> versions);
 
+    void initializeVersionInfo(std::initializer_list<String> readable_versions, const String & writable_version);
+
+    void migrateDataBetweenVersions(const String &origin_version, const String &upgrade_version, bool rebalance, bool drop_data);
+
+    void receiveActionNotify(const String & action_name, const String & version);
 
 private:
     Context & context;
@@ -69,20 +79,36 @@ private:
         VersionInfo(const String &data_path, MultiplexedClusterPtr multiplexed_version_cluster);
     };
 
+    struct ActionNotifyer
+    {
+        std::mutex mutex;
+        std::condition_variable cond;
+        std::vector<String> addresses;
+        std::vector<String> expected_addresses;
+
+        bool checkNotifyIsCompleted();
+    };
+
     String table_data_path;
     VersionInfo version_info;
 
     ASTPtr sharding_key;
 
-    std::map<String, String> expect_addresses;
-    std::map<String, String> complete_addresses;
+    std::mutex notify_nodes_mutex;
+    std::map<String, ActionNotifyer> receive_action_notify;
 
     template <typename... Args>
     void waitActionInClusters(const String & action_in_version, const String & action_name, Args &&... args);
 
     void createTablesWithCluster(const String & version, const ClusterPtr & cluster, bool attach = false, bool has_force_restore_data_flag = false);
 
-    void migrateDataForFromVersion(const String &from_version, const ClusterPtr &from_cluster, const String &upgrade_version, const ClusterPtr &upgrade_cluster);
+    void cleanupBeforeMigrate(const String &cleanup_version);
+
+    void replaceDataWithLocal(bool drop, const StoragePtr &origin, const StoragePtr &upgrade_storage);
+
+    void rebalanceDataWithCluster(const String &origin_version, const String &upgrade_version, size_t shard_number) const;
+
+    void sendQueryWithAddresses(const std::map<String, ConnectionPoolPtr> &addresses_with_connections, const String &query_string) const;
 };
 
 }

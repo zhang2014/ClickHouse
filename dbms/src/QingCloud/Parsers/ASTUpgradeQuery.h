@@ -16,7 +16,7 @@ struct ASTUpgradeQuery : public ASTQueryWithOutput
 
     ASTPtr clone() const override
     {
-        auto res = std::make_shared<ASTUpgradeQuery>(*this);
+        auto res = std::make_shared<ASTUpgradeQuery>();
         res->table = table;
         res->database = database;
         res->origin_version = origin_version;
@@ -25,7 +25,7 @@ struct ASTUpgradeQuery : public ASTQueryWithOutput
     }
 
 protected:
-    void formatQueryImpl(const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override
+    void formatQueryImpl(const FormatSettings & settings, FormatState & /*state*/, FormatStateStacked frame) const override
     {
         std::string nl_or_nothing = settings.one_line ? "" : "\n";
 
@@ -48,8 +48,6 @@ protected:
         settings.ostr << (settings.hilite ? hilite_keyword : "") << indent_str << " TO " << (settings.hilite ? hilite_none : "");
         settings.ostr << upgrade_version;
     }
-};
-
 };
 
 }

@@ -8,7 +8,6 @@
 #include <Storages/AlterCommands.h>
 #include <Databases/IDatabase.h>
 #include <IO/ReadBufferFromFile.h>
-#include "StorageQingCloud.h"
 #include <IO/ReadHelpers.h>
 #include <Poco/DirectoryIterator.h>
 #include <IO/WriteBufferFromFile.h>
@@ -20,6 +19,9 @@
 #include <Parsers/ASTInsertQuery.h>
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTIdentifier.h>
+#include <mutex>
+#include <condition_variable>
+#include "StorageQingCloud.h"
 
 
 namespace DB
@@ -31,6 +33,15 @@ namespace ErrorCodes
     extern const int ENGINE_REQUIRED;
     extern const int ILLEGAL_TYPE_OF_ARGUMENT;
 }
+
+
+static String wrapVersionName(const String & version)
+{
+    if (!startsWith(version, "tmp_"))
+        return "Cluster_" + version;
+    return "Cluster_" + String(version.data() + 4);
+}
+
 
 StorageQingCloud::StorageQingCloud(
     ASTCreateQuery &query, const String &data_path, const String &table_name, const String &database_name,
@@ -47,7 +58,7 @@ StorageQingCloud::StorageQingCloud(
         sharding_key = create_query.storage->distributed_by->ptr();
 
     for (const auto & version : version_info.local_store_versions)
-        createTablesWithCluster(version, context.getCluster("Cluster_" + version), attach, has_force_restore_data_flag);
+        createTablesWithCluster(version, context.getCluster(wrapVersionName(version)), attach, has_force_restore_data_flag);
 
     /// clear up
     for (Poco::DirectoryIterator it(table_data_path), end; it != end; ++it)
@@ -63,16 +74,11 @@ BlockOutputStreamPtr StorageQingCloud::write(const ASTPtr & query, const Setting
     const String writing_version = settings.writing_version;
     const UInt64 writing_shard_number = settings.writing_shard_index;
 
-    if (unlikely(writing_version.empty() && writing_shard_number))
-        throw Exception("Missing Version settings.", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
-    else if (unlikely(!writing_version.empty() && !version_distributed.count(writing_version)))
-        throw Exception("Illegal Version " + writing_version + ", because not found version.", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
-
-    if (!writing_version.empty() && !writing_shard_number)
-        return version_distributed[writing_version]->write(query, settings);
-    else if (!writing_version.empty() && writing_shard_number)
+    if (!writing_version.empty() && writing_shard_number)
         return local_data_storage[std::pair(writing_version, writing_shard_number)]->write(query, settings);
-    else if (writing_version.empty() && !writing_shard_number)
+    else if (!writing_version.empty())
+        return version_distributed[writing_version]->write(query, settings);
+    else
     {
         /// TODO Read and write lock
         Settings query_settings = settings;
@@ -88,18 +94,11 @@ BlockInputStreams StorageQingCloud::read(const Names & column_names, const Selec
     const String query_version = settings.query_version;
     const UInt64 query_shard_number = settings.query_shard_index;
 
-    if (query_version.empty() && query_shard_number)
-        throw Exception("Missing Version settings.", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
-    else if (!query_version.empty() && !version_distributed.count(query_version))
-        throw Exception("Illegal Version " + query_version + ", because not found version.", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
-
-
-    if (!query_version.empty() && !query_shard_number)
+    if (!query_version.empty() && query_shard_number)
+        return local_data_storage[std::pair(query_version, query_shard_number)]->read(column_names, query_info, context, processed_stage, max_block_size, num_streams);
+    else if (!query_version.empty())
         return version_distributed[query_version]->read(column_names, query_info, context, processed_stage, max_block_size, num_streams);
-    else if (!query_version.empty() && query_shard_number)
-        return local_data_storage[std::pair(query_version, query_shard_number)]->read(column_names, query_info, context, processed_stage,
-                                                                                      max_block_size, num_streams);
-    else if (query_version.empty() && !query_shard_number)
+    else
     {
         BlockInputStreams streams;
 
@@ -120,39 +119,108 @@ BlockInputStreams StorageQingCloud::read(const Names & column_names, const Selec
     }
 }
 
-void StorageQingCloud::upgradeVersion(const String & from_version, const String & upgrade_version)
+void StorageQingCloud::flushVersionData(const String & version)
 {
-    ClusterPtr from_cluster = context.getCluster("Cluster_" + from_version);
-    ClusterPtr upgrade_cluster = context.getCluster("Cluster_" + upgrade_version);
+    dynamic_cast<StorageDistributed *>(version_distributed[version].get())->waitForFlushedOtherServer();
+    waitActionInClusters(version, "FLUSHED_DISTRIBUTED_DATA", context.getCluster(wrapVersionName(version)));
+}
 
-    /// CREATE tmp_version and upgrade_version
-    const String tmp_version = "tmp_" + upgrade_version;
-    createTablesWithCluster(tmp_version, upgrade_cluster);
-    createTablesWithCluster(upgrade_version, upgrade_cluster);
-    waitActionInClusters(upgrade_version, "CREATE_UPGRADE_VERSION", from_cluster, upgrade_cluster);
-
+void StorageQingCloud::initializeVersions(std::initializer_list<String> versions)
+{
+    for (auto iterator = versions.begin(); iterator != versions.end(); ++iterator)
     {
-        /// TODO: LOCK
-        version_info.writeable_version = tmp_version;
-        version_info.readable_versions.emplace_back(tmp_version);
-        version_info.local_store_versions.emplace_back(tmp_version);
-        version_info.local_store_versions.emplace_back(upgrade_version);
-        version_info.storeVersionInfo();
+        ClusterPtr cluster = context.getCluster(wrapVersionName(*iterator));
+        createTablesWithCluster(*iterator, cluster);
+        waitActionInClusters(*iterator, "INITIALIZE_VERSION" + *iterator, cluster);
+    }
+}
+
+void StorageQingCloud::initializeVersionInfo(std::initializer_list<String> readable_versions, const String &writable_version)
+{
+    /// TODO: LOCK
+    version_info.writeable_version = writable_version;
+
+    for (auto iterator = readable_versions.begin(); iterator != readable_versions.end(); ++iterator)
+    {
+        /// TODO: check exists
+        std::vector<String> current_r_versions = version_info.readable_versions;
+        std::vector<String> current_l_versions = version_info.local_store_versions;
+
+        if (std::find(current_r_versions.begin(), current_r_versions.end(), *iterator) == current_r_versions.end())
+            version_info.readable_versions.emplace_back(*iterator);
+
+        if (std::find(current_l_versions.begin(), current_l_versions.end(), *iterator) == current_l_versions.end())
+            version_info.local_store_versions.emplace_back(*iterator);
     }
 
-    migrateDataForFromVersion(from_version, from_cluster, upgrade_version, upgrade_cluster);
+    /// TODO: wait all version cluster
+    waitActionInClusters(writable_version, "INITIALIZE_VERSION_INFO", context.getCluster(wrapVersionName(writable_version)));
+}
+
+void StorageQingCloud::migrateDataBetweenVersions(const String & origin_version, const String & upgrade_version, bool drop, bool drop_data)
+{
+    const ClusterPtr origin_cluster = context.getCluster(wrapVersionName(origin_version));
+    const ClusterPtr upgrade_cluster = context.getCluster(wrapVersionName(upgrade_version));
+
+    if (drop_data)
+        cleanupBeforeMigrate(upgrade_version);
+
+    const auto diff_shards = differentClusters(origin_cluster, upgrade_cluster);
+
+    for (const auto & local_storage : local_data_storage)
+    {
+        if (local_storage.first.first == origin_version)
+        {
+            size_t shard_number = local_storage.first.second;
+
+            if (diff_shards.count(shard_number) && diff_shards.at(shard_number).is_local)
+                rebalanceDataWithCluster(origin_version, upgrade_version, shard_number);
+            else
+                replaceDataWithLocal(drop, local_storage.second, local_data_storage[std::pair(upgrade_version, shard_number)]);
+        }
+    }
+}
+
+void StorageQingCloud::replaceDataWithLocal(bool drop, const StoragePtr &origin, const StoragePtr &upgrade_storage)
+{
+    upgrade_storage->replacePartitionFrom(origin, {}, false, this->context);
+    if (drop)
+        origin->dropPartition({}, {}, true, this->context);
+}
+
+void StorageQingCloud::rebalanceDataWithCluster(const String &origin_version, const String &upgrade_version, size_t shard_number) const
+{
+    Context query_context = context;
+    query_context.getSettingsRef().query_version = origin_version;
+    query_context.getSettingsRef().writing_version = upgrade_version;
+    query_context.getSettingsRef().query_shard_index = shard_number;
+
+    InterpreterSelectQuery(
+        makeInsertQueryForSelf(database_name, table_name, version_distributed[origin_version]->getColumns().ordinary),
+        query_context).execute();
 }
 
 template <typename... Args>
 void StorageQingCloud::waitActionInClusters(const String & action_in_version, const String & action_name, Args &&... args)
 {
     std::map<String, ConnectionPoolPtr> addresses_with_connections = getConnectionPoolsFromClusters(args...);
+    sendQueryWithAddresses(addresses_with_connections, "ACTION NOTIFY '" + action_name + "' TABLE " + database_name + "." + table_name +
+                                                       " VERSION '" + action_in_version + "'");
 
-    const Settings settings = context.getSettingsRef();
-    const String query_string = "QINGCLOUD ACTION NOTIFY " + action_name + " FROM VERSION  "+ action_in_version;
+    String key = action_name + "_" + action_in_version;
+    std::lock_guard lock(receive_action_notify[key].mutex);
 
-    /// TODO: 告诉其他节点我完成了这个Action
+    for (const auto & addresses : addresses_with_connections)
+        receive_action_notify[key].expected_addresses.emplace_back(addresses.first);
+
+    if (!receive_action_notify[key].checkNotifyIsCompleted())
+        receive_action_notify[key].cond.wait_for(lock, std::chrono::milliseconds(180000));
+}
+
+void StorageQingCloud::sendQueryWithAddresses(const std::map<String, ConnectionPoolPtr> &addresses_with_connections, const String &query_string) const
+{
     BlockInputStreams streams;
+    const Settings settings = context.getSettingsRef();
     for (const auto & address_with_connections : addresses_with_connections)
     {
         ConnectionPoolPtrs failover_connections;
@@ -166,9 +234,28 @@ void StorageQingCloud::waitActionInClusters(const String & action_in_version, co
 
     BlockInputStreamPtr union_stream = std::make_shared<UnionBlockInputStream<>>(streams, nullptr, streams.size());
     std::make_shared<SquashingBlockInputStream>(union_stream, std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max())->read();
+}
 
-    /// TODO: 先查看其他节点是否已经全部完成了
-    /// TODO: 等待其他节点告诉我完成了这个Action, 如果超时报错 人工介入解决?
+void StorageQingCloud::receiveActionNotify(const String & action_name, const String & version)
+{
+    String key = action_name + "_" + version;
+    receive_action_notify[key].mutex.lock();
+    receive_action_notify[action_name + "_" + version].addresses.emplace_back(context.getClientInfo().client_hostname);
+    if (receive_action_notify[key].checkNotifyIsCompleted())
+    {
+        receive_action_notify[key].mutex.unlock();
+        receive_action_notify[action_name + "_" + version].cond.notify_one();
+    }
+
+}
+
+void StorageQingCloud::cleanupBeforeMigrate(const String & cleanup_version)
+{
+    for (const auto & local_storage : local_data_storage)
+        if (local_storage.first.first == cleanup_version)
+            local_storage.second->truncate({});     /// TODO: materialize view need query param
+
+    waitActionInClusters(cleanup_version, "CLEANUP_VERSION_DATA" + cleanup_version, context.getCluster(wrapVersionName(cleanup_version)));
 }
 
 void StorageQingCloud::createTablesWithCluster(const String & version, const ClusterPtr & cluster, bool attach, bool has_force_restore_data_flag)
@@ -177,7 +264,7 @@ void StorageQingCloud::createTablesWithCluster(const String & version, const Clu
 
     Poco::File(version_table_data_path).createDirectory();
     version_distributed[version] = StorageDistributed::create(database_name, "Distributed_" + table_name, columns, database_name,
-                                                              table_name, "Cluster_" + version, context, sharding_key,
+                                                              table_name, wrapVersionName(version), context, sharding_key,
                                                               version_table_data_path, attach);
 
     /// TODO: 有些存储是不存储数据的 所以我们可以只创建一个
@@ -193,78 +280,6 @@ void StorageQingCloud::createTablesWithCluster(const String & version, const Clu
                     local_context, context, columns, attach, has_force_restore_data_flag);
         }
     }
-}
-
-void StorageQingCloud::migrateDataForFromVersion(
-    const String &from_version, const ClusterPtr & from_cluster, const String & upgrade_version, const ClusterPtr & upgrade_cluster)
-{
-    /// TODO: 等待from_version的数据下刷完毕
-    waitActionInClusters(from_version, "FLUSHED_DISTRIBUTED_DATA", from_cluster);
-    std::map<String, Cluster::Address> diff_addresses = differentClusters(from_cluster, upgrade_cluster);
-
-    auto rebalancing_data = [&, from_version, from_cluster](const Cluster::Address & address)
-    {
-        Cluster::ShardsInfo shards_info = from_cluster->getShardsInfo();
-        Cluster::AddressesWithFailover shards_addresses = from_cluster->getShardsAddresses();
-
-        for (size_t shard_index = 0; shard_index < shards_info.size(); ++shard_index)
-        {
-            Cluster::Address leader_address = shards_addresses[shard_index][0];
-            if (leader_address.host_name == address.host_name && leader_address.port == address.port)
-            {
-                Context query_context = context;
-
-                query_context.getSettingsRef().query_version = from_version;
-                query_context.getSettingsRef().writing_version = upgrade_version;
-                query_context.getSettingsRef().query_shard_index = shards_info[shard_index].shard_num;
-
-                const auto insert_query = std::make_shared<ASTInsertQuery>();
-                const auto select_query = std::make_shared<ASTSelectQuery>();
-                const auto select_expression_list = std::make_shared<ASTExpressionList>();
-                const auto select_with_union_query = std::make_shared<ASTSelectWithUnionQuery>();
-
-                insert_query->table = table_name;
-                insert_query->database = database_name;
-                insert_query->select = select_with_union_query;
-
-                select_with_union_query->list_of_selects = std::make_shared<ASTExpressionList>();
-                select_with_union_query->list_of_selects->children.push_back(select_query);
-
-                select_query->select_expression_list = select_expression_list;
-                select_query->replaceDatabaseAndTable(database_name, table_name);
-                select_query->children.emplace_back(select_query->select_expression_list);
-
-                /// manually substitute column names in place of asterisk
-                for (const auto & column : version_distributed[from_version]->getColumns().ordinary)
-                    select_expression_list->children.emplace_back(std::make_shared<ASTIdentifier>(column.name));
-
-                InterpreterSelectQuery interpreter_insert(insert_query, query_context);
-                interpreter_insert.execute();
-            }
-        }
-    };
-
-    for (const auto & str_addresses_with_address : diff_addresses)
-        if (str_addresses_with_address.second.is_local)
-            rebalancing_data(str_addresses_with_address.second);
-
-    /// TODO: 等待upgrade_version的数据下刷完毕
-    waitActionInClusters(upgrade_version, "FLUSHED_DISTRIBUTED_DATA", upgrade_cluster);
-
-    {
-        /// TODO: LOCK
-        version_info.writeable_version = upgrade_version;
-        version_info.readable_versions.clear();
-        version_info.readable_versions.emplace_back(upgrade_version);
-        version_info.readable_versions.emplace_back("tmp_" + upgrade_version);
-//        version_info.local_store_versions.emplace_back(tmp_version);
-//        version_info.local_store_versions.emplace_back(upgrade_version);
-        version_info.storeVersionInfo();
-    }
-    /// TODO: 合并 from_version、tmp_upgrade_version、upgrade_version
-    /// TODO: 等待集群的合并版本完毕
-    /// TODO: 删除 from_version、tmp_upgrade_version
-    /// TODO: 完成本次扩容工作
 }
 
 StorageQingCloud::~StorageQingCloud() = default;
@@ -300,4 +315,8 @@ void StorageQingCloud::VersionInfo::storeVersionInfo()
     writeStringBinary(writeable_version, version_buffer);
 }
 
+bool StorageQingCloud::ActionNotifyer::checkNotifyIsCompleted()
+{
+    return addresses.size() == expected_addresses.size();
+}
 }

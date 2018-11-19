@@ -17,6 +17,7 @@
 #include <boost/algorithm/string/finder.hpp>
 
 #include <Poco/DirectoryIterator.h>
+#include "DirectoryMonitor.h"
 
 
 namespace CurrentMetrics
@@ -549,6 +550,12 @@ bool StorageDistributedDirectoryMonitor::maybeMarkAsBroken(const std::string & f
 std::string StorageDistributedDirectoryMonitor::getLoggerName() const
 {
     return storage.table_name + '.' + storage.getName() + ".DirectoryMonitor";
+}
+
+void StorageDistributedDirectoryMonitor::waitForFlushedOtherServer()
+{
+    if (!quit)
+        std::lock_guard<std::mutex> lock{mutex};
 }
 
 }

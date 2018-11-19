@@ -34,14 +34,11 @@
 #include <Interpreters/InterpreterShowTablesQuery.h>
 #include <Interpreters/InterpreterSystemQuery.h>
 #include <Interpreters/InterpreterUseQuery.h>
-#include <QingCloud/Interpreters/InterpreterPaxosQuery.h>
 
 #include <Parsers/ASTSystemQuery.h>
 
 #include <Common/typeid_cast.h>
 #include <Common/ProfileEvents.h>
-#include <QingCloud/Parsers/ASTMergeQuery.h>
-#include <QingCloud/Interpreters/InterpreterMergeQuery.h>
 
 
 namespace ProfileEvents

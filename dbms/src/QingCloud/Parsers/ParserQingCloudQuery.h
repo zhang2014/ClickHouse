@@ -3,9 +3,9 @@
 #include <Parsers/IParserBase.h>
 #include <Parsers/CommonParsers.h>
 #include <Parsers/ASTQueryWithOutput.h>
-#include <QingCloud/Parsers/ParserMergeQuery.h>
 #include <QingCloud/Parsers/ParserPaxosQuery.h>
 #include <QingCloud/Parsers/ParserUpgradeQuery.h>
+#include "ParserActionQuery.h"
 
 namespace DB
 {
@@ -18,10 +18,10 @@ protected:
     bool parseImpl(Pos &pos, ASTPtr &node, Expected &expected) override
     {
         ParserPaxos paxos_p;
-        ParserMergeQuery merge_table_p;
+        ParserActionQuery action_query_p;
         ParserUpgradeQuery upgrade_query_p;
 
-        return paxos_p.parse(pos, node, expected) || upgrade_query_p.parse(pos, node, expected) || merge_table_p.parse(pos, node, expected);
+        return paxos_p.parse(pos, node, expected) || upgrade_query_p.parse(pos, node, expected) || action_query_p.parse(pos, node, expected);
     }
 };
 
