@@ -205,7 +205,7 @@ void StorageQingCloud::rebalanceDataWithCluster(const String &origin_version, co
 template <typename... Args>
 void StorageQingCloud::waitActionInClusters(const String & action_in_version, const String & action_name, Args &&... args)
 {
-    std::map<String, ConnectionPoolPtr> addresses_with_connections = getConnectionPoolsFromClusters(args...);
+    std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> addresses_with_connections = getConnectionPoolsFromClusters(args...);
     sendQueryWithAddresses(addresses_with_connections, "ACTION NOTIFY '" + action_name + "' TABLE " + database_name + "." + table_name +
                                                        " VERSION '" + action_in_version + "'");
 
@@ -213,13 +213,16 @@ void StorageQingCloud::waitActionInClusters(const String & action_in_version, co
     std::unique_lock lock(receive_action_notify[key].mutex);
 
     for (const auto & addresses : addresses_with_connections)
-        receive_action_notify[key].expected_addresses.emplace_back(addresses.first);
+        if (!addresses.first.is_local)
+            receive_action_notify[key].expected_addresses.emplace_back(addresses.first);
+
 
     if (!receive_action_notify[key].checkNotifyIsCompleted())
         receive_action_notify[key].cond.wait_for(lock, std::chrono::milliseconds(180000));
 }
 
-void StorageQingCloud::sendQueryWithAddresses(const std::map<String, ConnectionPoolPtr> &addresses_with_connections, const String &query_string) const
+void StorageQingCloud::sendQueryWithAddresses(const std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> &addresses_with_connections,
+                                              const String &query_string) const
 {
     BlockInputStreams streams;
     const Settings settings = context.getSettingsRef();
@@ -264,10 +267,13 @@ void StorageQingCloud::createTablesWithCluster(const String & version, const Clu
 {
     String version_table_data_path = table_data_path + version + "/";
 
-    Poco::File(version_table_data_path).createDirectory();
-    version_distributed[version] = StorageDistributed::create(database_name, "Distributed_" + table_name, columns, database_name,
-                                                              table_name, wrapVersionName(version), context, sharding_key,
-                                                              version_table_data_path, attach);
+    if (!version_distributed.count(version))
+    {
+        Poco::File(version_table_data_path).createDirectory();
+        version_distributed[version] = StorageDistributed::create(database_name, "Distributed_" + table_name, columns, database_name,
+                                                                  table_name, wrapVersionName(version), context, sharding_key,
+                                                                  version_table_data_path, attach);
+    }
 
     /// TODO: 有些存储是不存储数据的 所以我们可以只创建一个
     Cluster::AddressesWithFailover shards_addresses = cluster->getShardsAddresses();
@@ -276,7 +282,7 @@ void StorageQingCloud::createTablesWithCluster(const String & version, const Clu
     {
         for (Cluster::Address & replica_address : shards_addresses[shard_number])
         {
-            if (replica_address.is_local)
+            if (replica_address.is_local && !local_data_storage.count(std::pair(version, shard_number + 1)))
                 local_data_storage[std::pair(version, shard_number + 1)] = StorageFactory::instance().get(
                     true, create_query, version_table_data_path, "Shard_" + toString(shard_number + 1) + "_" + table_name, database_name,
                     local_context, context, columns, attach, has_force_restore_data_flag);

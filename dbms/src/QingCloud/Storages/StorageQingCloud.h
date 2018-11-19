@@ -108,7 +108,7 @@ private:
 
     void rebalanceDataWithCluster(const String &origin_version, const String &upgrade_version, size_t shard_number);
 
-    void sendQueryWithAddresses(const std::map<String, ConnectionPoolPtr> &addresses_with_connections, const String &query_string) const;
+    void sendQueryWithAddresses(const std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> &addresses_with_connections, const String &query_string) const;
 };
 
 }

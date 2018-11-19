@@ -61,7 +61,7 @@ Block UpgradeQueryBlockInputStream::readImpl()
     }
 }
 
-Block UpgradeQueryBlockInputStream::initializeUpgradeVersion(StorageQingCloud *upgrade_storage)
+Block UpgradeQueryBlockInputStream::initializeUpgradeVersion(StorageQingCloud * upgrade_storage)
 {
     upgrade_storage->initializeVersions({origin_version, "tmp_" + upgrade_version, upgrade_version});
     state = REDIRECT_VERSIONS_BEFORE_MIGRATE;

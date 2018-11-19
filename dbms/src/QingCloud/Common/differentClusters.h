@@ -45,9 +45,10 @@ std::map<size_t, Cluster::Address> differentClusters(const ClusterPtr & c1, cons
 
 
 template <typename... Args>
-std::map<String, ConnectionPoolPtr> getConnectionPoolsFromClusters(Args &&... args)
+std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> getConnectionPoolsFromClusters(Args &&... args)
 {
-    std::map<String, ConnectionPoolPtr> connections;
+    std::map<String, size_t> exists;
+    std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> connections;
     std::vector<ClusterPtr> clusters = { std::forward<Args>(args)... };
 
     for (const auto & cluster : clusters)
@@ -62,8 +63,8 @@ std::map<String, ConnectionPoolPtr> getConnectionPoolsFromClusters(Args &&... ar
             for (size_t replica_index : ext::range(0, shard_addresses.size()))
             {
                 Cluster::Address replica_address = shard_addresses[replica_index];
-                if (!connections.count(replica_address.toString()))
-                    connections[replica_address.toString()] = replicas_connection[replica_index];
+                if (!exists.count(replica_address.toString()))
+                    connections.emplace_back(std::pair(replica_address, replicas_connection[replica_index]));
             }
         }
     }
