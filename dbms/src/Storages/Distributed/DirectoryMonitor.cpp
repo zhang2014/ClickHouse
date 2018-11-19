@@ -102,8 +102,11 @@ StorageDistributedDirectoryMonitor::StorageDistributedDirectoryMonitor(StorageDi
     min_batched_block_size_rows = settings.min_insert_block_size_rows;
     min_batched_block_size_bytes = settings.min_insert_block_size_bytes;
     const char * begin = name.data();
-    const char * end = strchr(begin, '_');
-    settings.writing_shard_index = parse<UInt64>(begin, end - begin);;
+    const char * version_end = strchr(begin, '_');
+    const char * shard_number_begin = version_end + 1;
+    const char * shard_number_end = strchr(shard_number_begin, '_');
+    settings.writing_version = parse<String>(begin, version_end - begin);
+    settings.writing_shard_index = parse<UInt64>(shard_number_begin, shard_number_end - shard_number_begin);
 }
 
 

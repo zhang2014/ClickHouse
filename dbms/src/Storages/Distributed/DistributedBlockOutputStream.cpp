@@ -482,7 +482,7 @@ void DistributedBlockOutputStream::writeAsyncImpl(const Block & block, const siz
             if (shard_info.dir_name_for_internal_replication.empty())
                 throw Exception("Directory name for async inserts is empty, table " + storage.getTableName(), ErrorCodes::LOGICAL_ERROR);
 
-            writeToShard(block, {toString(shard_info.shard_num) + "_" +shard_info.dir_name_for_internal_replication});
+            writeToShard(block, {settings.writing_version.toString() + "_" + toString(shard_info.shard_num) + "_" +shard_info.dir_name_for_internal_replication});
         }
     }
     else
@@ -493,7 +493,7 @@ void DistributedBlockOutputStream::writeAsyncImpl(const Block & block, const siz
         std::vector<std::string> dir_names;
         for (const auto & address : cluster->getShardsAddresses()[shard_id])
             if (!address.is_local)
-                dir_names.push_back(toString(shard_info.shard_num) + "_" + address.toStringFull());
+                dir_names.push_back(settings.writing_version.toString() + "_" + toString(shard_info.shard_num) + "_" + address.toStringFull());
 
         if (!dir_names.empty())
             writeToShard(block, dir_names);
@@ -506,6 +506,7 @@ void DistributedBlockOutputStream::writeToLocal(const Block & block, const size_
     /// Async insert does not support settings forwarding yet whereas sync one supports
     std::unique_ptr<Context> query_context = std::make_unique<Context>(storage.context);
     query_context->getSettingsRef().writing_shard_index = shard_number;
+    query_context->getSettingsRef().writing_version = settings.writing_version;
 
     InterpreterInsertQuery interp(query_ast, *query_context);
 

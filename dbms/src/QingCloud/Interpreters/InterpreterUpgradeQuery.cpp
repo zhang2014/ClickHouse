@@ -28,11 +28,14 @@ BlockIO InterpreterUpgradeQuery::execute()
         throw Exception("Cannot run upgrade query for without QingCloud Storage.", ErrorCodes::LOGICAL_ERROR);
 
     BlockIO res;
-    res.in = std::make_shared<UpgradeQueryBlockInputStream>(upgrade_storage);
+    res.in = std::make_shared<UpgradeQueryBlockInputStream>(upgrade_storage, upgrade_query->origin_version, upgrade_query->upgrade_version);
     return res;
 }
 
-UpgradeQueryBlockInputStream::UpgradeQueryBlockInputStream(const StoragePtr & storage) : storage(storage)
+UpgradeQueryBlockInputStream::UpgradeQueryBlockInputStream(const StoragePtr &storage, const String &origin_version,
+                                                           const String &upgrade_version) : storage(storage),
+                                                                                            origin_version(origin_version),
+                                                                                            upgrade_version(upgrade_version)
 {
 }
 

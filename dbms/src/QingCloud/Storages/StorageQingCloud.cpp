@@ -74,12 +74,14 @@ BlockOutputStreamPtr StorageQingCloud::write(const ASTPtr & query, const Setting
     const String writing_version = settings.writing_version;
     const UInt64 writing_shard_number = settings.writing_shard_index;
 
+    std::cout << "Version  " << writing_version << "\t Shard " << toString(writing_shard_number) << "\n";
     if (!writing_version.empty() && writing_shard_number)
         return local_data_storage[std::pair(writing_version, writing_shard_number)]->write(query, settings);
     else if (!writing_version.empty())
         return version_distributed[writing_version]->write(query, settings);
     else
     {
+        std::cout << "AAA" << version_info.writeable_version << "\n";
         /// TODO Read and write lock
         Settings query_settings = settings;
         query_settings.writing_version = version_info.writeable_version;

@@ -12,7 +12,7 @@ namespace DB
 class UpgradeQueryBlockInputStream : public IProfilingBlockInputStream
 {
 public:
-    UpgradeQueryBlockInputStream(const StoragePtr & storage);
+    UpgradeQueryBlockInputStream(const StoragePtr & storage, const String & origin_version, const String & upgrade_version);
 
     String getName() const override;
 
