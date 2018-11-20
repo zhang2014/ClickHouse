@@ -641,6 +641,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
 
         LOG_INFO(log, "Ready for connections.");
 
+        /// TODO: 调用启动函数, 直到多数派全部可用在对外提供服务
         global_context->getDDLSynchronism();
         SCOPE_EXIT({
             LOG_DEBUG(log, "Received termination signal.");

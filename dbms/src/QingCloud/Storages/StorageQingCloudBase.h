@@ -19,7 +19,6 @@ public:
     bool supportsFinal() const override { return true; }
     bool supportsPrewhere() const override { return true; }
 
-
     void drop() override;
 
     void truncate(const ASTPtr &truncate_query) override;

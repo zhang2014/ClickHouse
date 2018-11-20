@@ -21,7 +21,8 @@
 #include <Parsers/ASTIdentifier.h>
 #include <mutex>
 #include <condition_variable>
-#include "StorageQingCloud.h"
+#include <Storages/StorageMergeTree.h>
+#include <Parsers/ASTPartition.h>
 
 
 namespace DB
@@ -88,7 +89,7 @@ BlockOutputStreamPtr StorageQingCloud::write(const ASTPtr & query, const Setting
 }
 
 BlockInputStreams StorageQingCloud::read(const Names & column_names, const SelectQueryInfo &query_info, const Context &context,
-                                         QueryProcessingStage::Enum &processed_stage, size_t max_block_size, unsigned num_streams)
+                                         QueryProcessingStage::Enum processed_stage, size_t max_block_size, unsigned num_streams)
 {
     Settings settings = context.getSettingsRef();
     const String query_version = settings.query_version;
@@ -193,11 +194,28 @@ void StorageQingCloud::cleanupBeforeMigrate(const String &cleanup_version)
     waitActionInClusters(cleanup_version, "CLEANUP_VERSION_DATA" + cleanup_version);
 }
 
-void StorageQingCloud::replaceDataWithLocal(bool drop, const StoragePtr &origin, const StoragePtr &upgrade_storage)
+void StorageQingCloud::replaceDataWithLocal(bool drop, const StoragePtr &origin_, const StoragePtr &upgrade_storage_)
 {
-    upgrade_storage->replacePartitionFrom(origin, {}, false, this->context);
-    if (drop)
-        origin->dropPartition({}, {}, true, this->context);
+    if (dynamic_cast<StorageMergeTree *>(origin_.get()) && dynamic_cast<StorageMergeTree *>(upgrade_storage_.get()))
+    {
+        std::unordered_set<String> partition_ids;
+
+        StorageMergeTree * origin = dynamic_cast<StorageMergeTree *>(origin_.get());
+        StorageMergeTree * upgrade = dynamic_cast<StorageMergeTree *>(upgrade_storage_.get());
+        MergeTreeData::DataPartsVector data_parts = origin->data.getDataPartsVector({MergeTreeDataPart::State::Committed});
+
+        for (const MergeTreeData::DataPartPtr & part : data_parts)
+            partition_ids.emplace(part->info.partition_id);
+
+        for (const auto & partition_id : partition_ids)
+        {
+            auto ast_partition = std::make_shared<ASTPartition>();
+
+            ast_partition->id = partition_id;
+            upgrade->replacePartitionFrom(origin, ast_partition, false, context);
+            if (drop) origin->dropPartition({}, ast_partition, false, context);
+        }
+    }
 }
 
 void StorageQingCloud::rebalanceDataWithCluster(const String &origin_version, const String &upgrade_version, size_t shard_number)

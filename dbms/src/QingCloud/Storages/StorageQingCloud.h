@@ -43,7 +43,7 @@ public:
     BlockOutputStreamPtr write(const ASTPtr & query, const Settings & settings) override;
 
     BlockInputStreams read(const Names & column_names, const SelectQueryInfo & query_info, const Context & context,
-                           QueryProcessingStage::Enum & processed_stage, size_t max_block_size, unsigned num_streams) override;
+                           QueryProcessingStage::Enum processed_stage, size_t max_block_size, unsigned num_streams) override;
 
     void flushVersionData(const String & version);
 
@@ -103,7 +103,7 @@ private:
 
     void cleanupBeforeMigrate(const String &cleanup_version);
 
-    void replaceDataWithLocal(bool drop, const StoragePtr &origin, const StoragePtr &upgrade_storage);
+    void replaceDataWithLocal(bool drop, const StoragePtr &origin_, const StoragePtr &upgrade_storage_);
 
     void rebalanceDataWithCluster(const String &origin_version, const String &upgrade_version, size_t shard_number);
 
