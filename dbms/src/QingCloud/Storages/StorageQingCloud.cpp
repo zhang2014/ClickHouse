@@ -23,6 +23,7 @@
 #include <condition_variable>
 #include <Storages/StorageMergeTree.h>
 #include <Parsers/ASTPartition.h>
+#include <Storages/MergeTree/MergeTreeData.h>
 
 
 namespace DB
@@ -212,7 +213,7 @@ void StorageQingCloud::replaceDataWithLocal(bool drop, const StoragePtr &origin_
             auto ast_partition = std::make_shared<ASTPartition>();
 
             ast_partition->id = partition_id;
-            upgrade->replacePartitionFrom(origin, ast_partition, false, context);
+            upgrade->replacePartitionFrom(origin_, ast_partition, false, context);
             if (drop) origin->dropPartition({}, ast_partition, false, context);
         }
     }
