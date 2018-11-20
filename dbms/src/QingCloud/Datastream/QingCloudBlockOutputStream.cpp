@@ -1,3 +1,4 @@
+/**
 #include <QingCloud/Datastream/QingCloudBlockOutputStream.h>
 #include <Storages/Distributed/DirectoryMonitor.h>
 
@@ -484,3 +485,4 @@ void QingCloudBlockOutputStream::writeToLocal(const Block & block, const size_t 
 }
 
 }
+*/
