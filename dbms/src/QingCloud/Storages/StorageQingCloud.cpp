@@ -156,6 +156,7 @@ void StorageQingCloud::initializeVersionInfo(std::initializer_list<String> reada
             version_info.local_store_versions.emplace_back(*iterator);
     }
 
+    version_info.storeVersionInfo();
     for (auto iterator = readable_versions.begin(); iterator != readable_versions.end(); ++iterator)
         waitActionInClusters(*iterator, "INITIALIZE_VERSION_INFO");
 

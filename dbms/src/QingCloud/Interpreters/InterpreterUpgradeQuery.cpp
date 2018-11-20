@@ -83,7 +83,7 @@ Block UpgradeQueryBlockInputStream::flushOldVersionData(StorageQingCloud * upgra
     return header.cloneWithColumns(std::move(columns));
 }
 
-Block UpgradeQueryBlockInputStream::flushUpgradeVersionData(StorageQingCloud *upgrade_storage)
+Block UpgradeQueryBlockInputStream::flushUpgradeVersionData(StorageQingCloud * upgrade_storage)
 {
     upgrade_storage->flushVersionData(upgrade_version);
     state = REDIRECT_VERSIONS_AFTER_MIGRATE;
@@ -118,7 +118,7 @@ Block UpgradeQueryBlockInputStream::migrateOldVersionData(StorageQingCloud * upg
 
 Block UpgradeQueryBlockInputStream::migrateTmpVersionData(StorageQingCloud * upgrade_storage)
 {
-    upgrade_storage->migrateDataBetweenVersions(origin_version, upgrade_version, true, false);
+    upgrade_storage->migrateDataBetweenVersions("tmp_" + upgrade_version, upgrade_version, true, false);
     state = REDIRECT_VERSION_AFTER_ALL_MIGRATE;
 
     Block header = getHeader();
@@ -129,7 +129,7 @@ Block UpgradeQueryBlockInputStream::migrateTmpVersionData(StorageQingCloud * upg
 
 Block UpgradeQueryBlockInputStream::redirectVersionBeforeMigrate(StorageQingCloud * upgrade_storage)
 {
-    upgrade_storage->initializeVersionInfo({upgrade_version, "tmp_" + upgrade_version}, "tmp_" + upgrade_version);
+    upgrade_storage->initializeVersionInfo({origin_version, "tmp_" + upgrade_version}, "tmp_" + upgrade_version);
     state = FLUSH_OLD_VERSION_DATA;
 
     Block header = getHeader();
@@ -152,6 +152,8 @@ Block UpgradeQueryBlockInputStream::redirectVersionAfterAllMigrate(StorageQingCl
 Block UpgradeQueryBlockInputStream::deleteOutdatedVersions(StorageQingCloud * /*upgrade_storage*/)
 {
     /// TODO: 删除掉一些无用的版本数据, 释放物理空间
+    state = SUCCESSFULLY;
+
     Block header = getHeader();
     MutableColumns columns = header.cloneEmptyColumns();
     columns[0]->insert(String("Deleted Outdated Versions"));
