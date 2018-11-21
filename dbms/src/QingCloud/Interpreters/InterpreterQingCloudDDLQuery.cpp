@@ -28,7 +28,6 @@ BlockIO InterpreterQingCloudDDLQuery::execute()
 InterpreterQingCloudDDLQuery::InterpreterQingCloudDDLQuery(std::unique_ptr<IInterpreter> local_interpreter_, Context & context, ASTPtr & query)
     : context(context), query(query)
 {
-    local_interpreter = std::move(local_interpreter_);
 }
 
 Block QingCloudDDLBlockInputStream::readImpl()

@@ -6,7 +6,10 @@
 #include <QingCloud/Storages/StorageQingCloud.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <Columns/ColumnString.h>
+#include <Columns/ColumnsNumber.h>
 #include <DataTypes/DataTypeString.h>
+#include <Databases/IDatabase.h>
+#include <QingCloud/Common/SafetyPointFactory.h>
 #include "InterpreterUpgradeQuery.h"
 
 
@@ -20,145 +23,43 @@ InterpreterUpgradeQuery::InterpreterUpgradeQuery(const ASTPtr &node, const Conte
 
 BlockIO InterpreterUpgradeQuery::execute()
 {
-    /// TODO: FROM BEGIN
     ASTUpgradeQuery * upgrade_query = typeid_cast<ASTUpgradeQuery *>(node.get());
-    StoragePtr upgrade_storage = context.getTable(upgrade_query->database, upgrade_query->table);
+    /// TODO: 锁住所有的DDL
+    /// TODO: 确保之前的DDL已经被Paxos学习到了
 
-    /// TODO: 获取到所有的表
-    if (!dynamic_cast<StorageQingCloud *>(upgrade_storage.get()))
-        throw Exception("Cannot run upgrade query for without QingCloud Storage.", ErrorCodes::LOGICAL_ERROR);
+//    context.getDDLSynchronism()->weakup();
+//    SafetyPointFactory::instance().createSafetyPoint("Upgrade Version", context.getCluster());
+
+    std::vector<StoragePtr> upgrade_storage;
+    std::vector<TableStructureReadLockPtr> upgrade_storage_lock;
+    for (auto & database_element : context.getDatabases())
+    {
+        const DatabasePtr & database = database_element.second;
+
+        for (auto iterator = database->getIterator(context); iterator->isValid(); iterator->next())
+        {
+            if (auto storage = dynamic_cast<StorageQingCloud *>(iterator->table().get()))
+            {
+                if (storage->checkNeedUpgradeVersion(upgrade_query->origin_version))
+                {
+                    upgrade_storage.emplace_back(iterator->table());
+                    upgrade_storage_lock.emplace_back(iterator->table()->lockStructure(false, __PRETTY_FUNCTION__));
+                }
+
+            }
+        }
+    }
+
 
     BlockIO res;
-    res.in = std::make_shared<UpgradeQueryBlockInputStream>(upgrade_storage, upgrade_query->origin_version, upgrade_query->upgrade_version);
+    res.in = std::make_shared<UpgradeQueryBlockInputStream>(upgrade_storage);
+    for (const auto & lock : upgrade_storage_lock)
+        res.in->addTableLock(lock);
     return res;
 }
 
-UpgradeQueryBlockInputStream::UpgradeQueryBlockInputStream(const StoragePtr &storage, const String &origin_version,
-                                                           const String &upgrade_version) :
-                                                           state(INITIALIZE_UPGRADE_VERSION),
-                                                           storage(storage), origin_version(origin_version), upgrade_version(upgrade_version)
+UpgradeQueryBlockInputStream::UpgradeQueryBlockInputStream(const std::vector<StoragePtr> & upgrade_storage) : upgrade_storage(upgrade_storage)
 {
-}
-
-Block UpgradeQueryBlockInputStream::readImpl()
-{
-    StorageQingCloud * upgrade_storage = dynamic_cast<StorageQingCloud *>(storage.get());
-
-    switch(state)
-    {
-        case FLUSH_OLD_VERSION_DATA:                   return flushOldVersionData(upgrade_storage);
-        case MIGRATE_OLD_VERSION_DATA:                 return migrateOldVersionData(upgrade_storage);
-        case MIGRATE_TMP_VERSION_DATA:                 return migrateTmpVersionData(upgrade_storage);
-        case DELETE_OUTDATED_VERSIONS:                 return deleteOutdatedVersions(upgrade_storage);
-        case FLUSH_UPGRADE_VERSION_DATA:               return flushUpgradeVersionData(upgrade_storage);
-        case INITIALIZE_UPGRADE_VERSION:               return initializeUpgradeVersion(upgrade_storage);
-        case REDIRECT_VERSIONS_AFTER_MIGRATE:          return redirectVersionAfterMigrate(upgrade_storage);
-        case REDIRECT_VERSIONS_BEFORE_MIGRATE:         return redirectVersionBeforeMigrate(upgrade_storage);
-        case REDIRECT_VERSION_AFTER_ALL_MIGRATE:       return redirectVersionAfterAllMigrate(upgrade_storage);
-
-        default:
-        case FAILURE:
-        case SUCCESSFULLY: return {};
-    }
-}
-
-Block UpgradeQueryBlockInputStream::initializeUpgradeVersion(StorageQingCloud * upgrade_storage)
-{
-    upgrade_storage->initializeVersions({origin_version, "tmp_" + upgrade_version, upgrade_version});
-    state = REDIRECT_VERSIONS_BEFORE_MIGRATE;
-
-    Block header = getHeader();
-    MutableColumns columns = header.cloneEmptyColumns();
-    columns[0]->insert(String("Initialize upgrade version"));
-    return header.cloneWithColumns(std::move(columns));
-}
-
-Block UpgradeQueryBlockInputStream::flushOldVersionData(StorageQingCloud * upgrade_storage)
-{
-    upgrade_storage->flushVersionData(origin_version);
-    state = MIGRATE_OLD_VERSION_DATA;
-
-    Block header = getHeader();
-    MutableColumns columns = header.cloneEmptyColumns();
-    columns[0]->insert(String("Flush old version data"));
-    return header.cloneWithColumns(std::move(columns));
-}
-
-Block UpgradeQueryBlockInputStream::flushUpgradeVersionData(StorageQingCloud * upgrade_storage)
-{
-    upgrade_storage->flushVersionData(upgrade_version);
-    state = REDIRECT_VERSIONS_AFTER_MIGRATE;
-
-    Block header = getHeader();
-    MutableColumns columns = header.cloneEmptyColumns();
-    columns[0]->insert(String("Flush upgrade version data"));
-    return header.cloneWithColumns(std::move(columns));
-}
-
-Block UpgradeQueryBlockInputStream::redirectVersionAfterMigrate(StorageQingCloud * upgrade_storage)
-{
-    upgrade_storage->initializeVersionInfo({"tmp_" + upgrade_version, upgrade_version}, upgrade_version);
-    state = MIGRATE_TMP_VERSION_DATA;
-
-    Block header = getHeader();
-    MutableColumns columns = header.cloneEmptyColumns();
-    columns[0]->insert(String("Redirect Version After Migrate"));
-    return header.cloneWithColumns(std::move(columns));
-}
-
-Block UpgradeQueryBlockInputStream::migrateOldVersionData(StorageQingCloud * upgrade_storage)
-{
-    upgrade_storage->migrateDataBetweenVersions(origin_version, upgrade_version, false, true);
-    state = FLUSH_UPGRADE_VERSION_DATA;
-
-    Block header = getHeader();
-    MutableColumns columns = header.cloneEmptyColumns();
-    columns[0]->insert(String("Migrate Old Version Data"));
-    return header.cloneWithColumns(std::move(columns));
-}
-
-Block UpgradeQueryBlockInputStream::migrateTmpVersionData(StorageQingCloud * upgrade_storage)
-{
-    upgrade_storage->migrateDataBetweenVersions("tmp_" + upgrade_version, upgrade_version, true, false);
-    state = REDIRECT_VERSION_AFTER_ALL_MIGRATE;
-
-    Block header = getHeader();
-    MutableColumns columns = header.cloneEmptyColumns();
-    columns[0]->insert(String("Migrate Temp Version Data"));
-    return header.cloneWithColumns(std::move(columns));
-}
-
-Block UpgradeQueryBlockInputStream::redirectVersionBeforeMigrate(StorageQingCloud * upgrade_storage)
-{
-    upgrade_storage->initializeVersionInfo({origin_version, "tmp_" + upgrade_version}, "tmp_" + upgrade_version);
-    state = FLUSH_OLD_VERSION_DATA;
-
-    Block header = getHeader();
-    MutableColumns columns = header.cloneEmptyColumns();
-    columns[0]->insert(String("Redirect Version Before Migrate"));
-    return header.cloneWithColumns(std::move(columns));
-}
-
-Block UpgradeQueryBlockInputStream::redirectVersionAfterAllMigrate(StorageQingCloud * upgrade_storage)
-{
-    upgrade_storage->initializeVersionInfo({upgrade_version}, upgrade_version);
-    state = DELETE_OUTDATED_VERSIONS;
-
-    Block header = getHeader();
-    MutableColumns columns = header.cloneEmptyColumns();
-    columns[0]->insert(String("Redirect Version After All Migrate"));
-    return header.cloneWithColumns(std::move(columns));
-}
-
-Block UpgradeQueryBlockInputStream::deleteOutdatedVersions(StorageQingCloud * /*upgrade_storage*/)
-{
-    /// TODO: 删除掉一些无用的版本数据, 释放物理空间
-    state = SUCCESSFULLY;
-
-    Block header = getHeader();
-    MutableColumns columns = header.cloneEmptyColumns();
-    columns[0]->insert(String("Deleted Outdated Versions"));
-    return header.cloneWithColumns(std::move(columns));
 }
 
 String UpgradeQueryBlockInputStream::getName() const
@@ -168,9 +69,41 @@ String UpgradeQueryBlockInputStream::getName() const
 
 Block UpgradeQueryBlockInputStream::getHeader() const
 {
-    return Block{{
-        ColumnString::create(), std::make_shared<DataTypeString>(), "stage_name",
-    }};
+    return Block {
+        {ColumnUInt64::create(), std::make_shared<DataTypeUInt64>(), "id"},
+        {ColumnString::create(), std::make_shared<DataTypeString>(), "database_name"},
+        {ColumnString::create(), std::make_shared<DataTypeString>(), "table_name"},
+        {ColumnString::create(), std::make_shared<DataTypeString>(), "state"}
+    };
+}
+
+Block UpgradeQueryBlockInputStream::readImpl()
+{
+    for (const auto & storage : upgrade_storage)
+    {
+        if (const auto qing_storage = dynamic_cast<StorageQingCloud *>(storage.get()))
+        {
+//            State::INITIALIZE_UPGRADE_VERSION;
+            qing_storage->initializeVersions({origin_version, "tmp_" + upgrade_version, upgrade_version});
+            qing_storage->initializeVersionInfo({origin_version, "tmp_" + upgrade_version}, "tmp_" + upgrade_version);
+        }
+    }
+
+    for (const auto & storage : upgrade_storage)
+    {
+        if (const auto qing_storage = dynamic_cast<StorageQingCloud *>(storage.get()))
+        {
+            qing_storage->flushVersionData(origin_version);
+            qing_storage->migrateDataBetweenVersions(origin_version, upgrade_version, true);
+            qing_storage->flushVersionData(upgrade_version);
+            qing_storage->initializeVersionInfo({"tmp_" + upgrade_version, upgrade_version}, upgrade_version);
+            qing_storage->migrateDataBetweenVersions("tmp_" + upgrade_version, upgrade_version, false);
+            qing_storage->initializeVersionInfo({upgrade_version}, upgrade_version);
+            /// TODO: delete old version DELETE_OUTDATED_VERSIONS
+        }
+    }
+
+    return {};
 }
 
 }

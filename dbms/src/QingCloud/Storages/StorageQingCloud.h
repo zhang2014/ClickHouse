@@ -15,16 +15,12 @@
 #include <QingCloud/Interpreters/MultiplexedVersionCluster.h>
 #include <Parsers/ASTCreateQuery.h>
 #include "StorageQingCloudBase.h"
+#include "UpgradeProgress.h"
 
 namespace DB
 {
 
 class Context;
-
-class ActionSynchronism
-{
-
-};
 
 class StorageQingCloud : public ext::shared_ptr_helper<StorageQingCloud>, public StorageQingCloudBase
 {
@@ -50,9 +46,9 @@ public:
 
     void initializeVersionInfo(std::initializer_list<String> readable_versions, const String & writable_version);
 
-    void migrateDataBetweenVersions(const String &origin_version, const String &upgrade_version, bool rebalance, bool drop_data);
+    void migrateDataBetweenVersions(const String &origin_version, const String &upgrade_version, bool copy);
 
-    void receiveActionNotify(const String & action_name, const String & version);
+    bool checkNeedUpgradeVersion(const String &upgrade_version);
 
 private:
     Context & context;
@@ -63,40 +59,11 @@ private:
     const ColumnsDescription columns;
     ASTCreateQuery create_query;
 
-    struct VersionInfo
-    {
-        String data_path;
-        String version_path;
-        String writeable_version;
-        std::vector<String> readable_versions;
-        std::vector<String> local_store_versions;
-
-        void loadVersionInfo();
-
-        void storeVersionInfo();
-
-        VersionInfo(const String &data_path, MultiplexedClusterPtr multiplexed_version_cluster);
-    };
-
-    struct ActionNotifyer
-    {
-        std::mutex mutex;
-        std::condition_variable cond;
-        std::vector<String> addresses;
-        std::vector<String> expected_addresses;
-
-        bool checkNotifyIsCompleted();
-    };
-
-    String table_data_path;
-    VersionInfo version_info;
+private:
 
     ASTPtr sharding_key;
-
-    std::mutex notify_nodes_mutex;
-    std::map<String, ActionNotifyer> receive_action_notify;
-
-    void waitActionInCluster(const String &action_version, const String &action_name);
+    String table_data_path;
+    UpgradeProgress version_info;
 
     void createTablesWithCluster(const String & version, const ClusterPtr & cluster, bool attach = false, bool has_force_restore_data_flag = false);
 
@@ -106,7 +73,6 @@ private:
 
     void rebalanceDataWithCluster(const String &origin_version, const String &upgrade_version, size_t shard_number);
 
-    void sendQueryWithAddresses(const std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> &addresses_with_connections, const String &query_string) const;
 };
 
 }

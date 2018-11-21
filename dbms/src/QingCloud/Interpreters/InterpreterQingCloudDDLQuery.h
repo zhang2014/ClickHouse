@@ -36,7 +36,6 @@ public:
     BlockIO execute() override;
 
 private:
-    std::unique_ptr<IInterpreter> local_interpreter;
     Context & context;
     ASTPtr & query;
 };

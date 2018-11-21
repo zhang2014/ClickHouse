@@ -27,16 +27,14 @@ std::unique_ptr<IInterpreter> QingCloudInterpreterFactory::get(ASTPtr & query, C
     else if (typeid_cast<ASTUpgradeQuery *>(query.get()))
         return std::make_unique<InterpreterUpgradeQuery>(query, context);
 
-    std::unique_ptr<IInterpreter> local_interpreter = InterpreterFactory::get(query, context, stage);
-
     if (!context.getSettingsRef().internal_query)
     {
-        if (typeid_cast<ASTDropQuery *>(query.get()) || typeid_cast<ASTAlterQuery *>(query.get()) || typeid_cast<ASTRenameQuery *>(query.get())
-            || typeid_cast<ASTCreateQuery *>(query.get()))
-            return std::make_unique<InterpreterQingCloudDDLQuery>(std::move(local_interpreter), context, query);
+        if (typeid_cast<ASTDropQuery *>(query.get()) || typeid_cast<ASTAlterQuery *>(query.get())
+            || typeid_cast<ASTRenameQuery *>(query.get()) || typeid_cast<ASTCreateQuery *>(query.get()))
+            return std::make_unique<InterpreterQingCloudDDLQuery>(context, query);
     }
 
-    return local_interpreter;
+    return InterpreterFactory::get(query, context, stage);
 }
 
 }

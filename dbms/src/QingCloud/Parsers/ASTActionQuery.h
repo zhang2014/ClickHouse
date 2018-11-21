@@ -3,6 +3,7 @@
 #include <Core/Field.h>
 #include <Common/FieldVisitors.h>
 #include <Parsers/ASTQueryWithOutput.h>
+#include <IO/WriteHelpers.h>
 
 namespace DB
 {
@@ -10,22 +11,19 @@ namespace DB
 struct ASTActionQuery : public ASTQueryWithOutput
 {
     /** Get the text that identifies this element. */
-    String getID() const override
-    { return ("ActionQuery_" + database + "_" + table); }
+    String getID() const override { return ("ActionQuery_" + action_name); }
 
     ASTPtr clone() const override
     {
         auto res = std::make_shared<ASTActionQuery>();
-        res->table = table;
-        res->version = version;
-        res->database = database;
+        res->from = from;
+        res->reentry = reentry;
         res->action_name = action_name;
         return res;
     }
 
-    String table;
-    String version;
-    String database;
+    String from;
+    UInt64 reentry;
     String action_name;
 
 protected:
@@ -40,21 +38,11 @@ protected:
         settings.ostr << (settings.hilite ? hilite_keyword : "") << indent_str << " ACTION NOTIFY " << (settings.hilite ? hilite_none : "");
         settings.ostr << "'" << action_name << "'";
 
-        settings.ostr << (settings.hilite ? hilite_keyword : "") << indent_str << " TABLE " << (settings.hilite ? hilite_none : "");
-        if (!table.empty())
-        {
-            if (!database.empty())
-            {
-                settings.ostr << (settings.hilite ? hilite_keyword : "") << indent_str << backQuoteIfNeed(database)
-                              << (settings.hilite ? hilite_none : "");
-                settings.ostr << ".";
-            }
-            settings.ostr << (settings.hilite ? hilite_keyword : "") << indent_str << backQuoteIfNeed(table)
-                          << (settings.hilite ? hilite_none : "");
-        }
+        settings.ostr << (settings.hilite ? hilite_keyword : "") << indent_str << " REENTRY " << (settings.hilite ? hilite_none : "");
+        settings.ostr << toString(reentry);
 
-        settings.ostr << (settings.hilite ? hilite_keyword : "") << indent_str << " VERSION " << (settings.hilite ? hilite_none : "");
-        settings.ostr << "'" << version << "'";
+        settings.ostr << (settings.hilite ? hilite_keyword : "") << indent_str << " FROM " << (settings.hilite ? hilite_none : "");
+        settings.ostr << "'" << from << "'";
     }
 };
 

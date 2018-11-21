@@ -12,7 +12,7 @@ namespace DB
 class UpgradeQueryBlockInputStream : public IProfilingBlockInputStream
 {
 public:
-    UpgradeQueryBlockInputStream(const StoragePtr & storage, const String & origin_version, const String & upgrade_version);
+    UpgradeQueryBlockInputStream(const std::vector<StoragePtr> & upgrade_storage);
 
     String getName() const override;
 
@@ -37,30 +37,11 @@ private:
     };
 
 private:
-    State state;
-    StoragePtr storage;
     String origin_version;
     String upgrade_version;
+    std::vector<StoragePtr> upgrade_storage;
 
     Block readImpl() override;
-
-    Block initializeUpgradeVersion(StorageQingCloud *upgrade_storage);
-
-    Block redirectVersionBeforeMigrate(StorageQingCloud *upgrade_storage);
-
-    Block flushOldVersionData(StorageQingCloud *upgrade_storage);
-
-    Block flushUpgradeVersionData(StorageQingCloud *upgrade_storage);
-
-    Block redirectVersionAfterMigrate(StorageQingCloud *upgrade_storage);
-
-    Block migrateOldVersionData(StorageQingCloud *upgrade_storage);
-
-    Block migrateTmpVersionData(StorageQingCloud *upgrade_storage);
-
-    Block redirectVersionAfterAllMigrate(StorageQingCloud *upgrade_storage);
-
-    Block deleteOutdatedVersions(StorageQingCloud *upgrade_storage);
 };
 
 class InterpreterUpgradeQuery : public IInterpreter

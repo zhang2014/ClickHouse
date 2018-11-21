@@ -2,6 +2,7 @@
 #include <QingCloud/Parsers/ASTActionQuery.h>
 #include <Common/typeid_cast.h>
 #include <QingCloud/Storages/StorageQingCloud.h>
+#include <QingCloud/Common/SafetyPointFactory.h>
 
 
 namespace DB
@@ -16,15 +17,7 @@ InterpreterActionQuery::InterpreterActionQuery(const ASTPtr &query_ptr_, const C
 BlockIO InterpreterActionQuery::execute()
 {
     ASTActionQuery * action_query = typeid_cast<ASTActionQuery *>(query_ptr.get());
-    StoragePtr storage = context.getTable(action_query->database, action_query->table);
-
-    if (StorageQingCloud * q_storage = dynamic_cast<StorageQingCloud *>(storage.get()))
-    {
-        q_storage->receiveActionNotify(action_query->action_name, action_query->version);
-        return {};
-    }
-
-    throw Exception("Cannot run upgrade query for without QingCloud Storage.", ErrorCodes::LOGICAL_ERROR);
+    SafetyPointFactory::instance().receiveActionNotify(action_query->action_name, action_query->reentry, action_query->from);
 }
 
 }

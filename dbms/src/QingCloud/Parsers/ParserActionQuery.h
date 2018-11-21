@@ -19,18 +19,18 @@ protected:
 
     bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override
     {
-        /// "ACTION NOTIFY '" + action_name + "' FROM VERSION '"+ action_in_version + "'"
-        ParserKeyword s_table("TABLE");
-        ParserKeyword s_version("VERSION");
+        /// "ACTION NOTIFY '" + name + " REENTRY " + toString(reentry) + " FROM '" + listen_hosts[0] + "'"
+        ParserKeyword s_from("FROM");
+        ParserKeyword s_reentry("REENTRY");
         ParserKeyword s_action("ACTION NOTIFY");
 
         ParserIdentifier name_p;
+        ParserLiteral reentry_p;
         ParserStringLiteral string_p;
         ParserToken s_dot(TokenType::Dot);
 
-        ASTPtr table;
-        ASTPtr version;
-        ASTPtr database;
+        ASTPtr from;
+        ASTPtr reentry;
         ASTPtr action_name;
 
         if (!s_action.ignore(pos, expected))
@@ -39,32 +39,22 @@ protected:
         if (!string_p.parse(pos, action_name, expected))
             return false;
 
-        if (!s_table.ignore(pos, expected))
+        if (!s_reentry.ignore(pos, expected))
             return false;
 
-        if (!name_p.parse(pos, table, expected))
+        if (!reentry_p.parse(pos, reentry, expected))
             return false;
 
-        if (s_dot.ignore(pos, expected))
-        {
-            database = table;
-            if (!name_p.parse(pos, table, expected))
-                return false;
-        }
-
-        if (!s_version.ignore(pos, expected))
+        if (!s_from.ignore(pos, expected))
             return false;
 
-        if (!string_p.parse(pos, version, expected))
+        if (!name_p.parse(pos, from, expected))
             return false;
 
         auto query = std::make_shared<ASTActionQuery>();
 
-        if (database)
-            query->database = typeid_cast<ASTIdentifier *>(database.get())->name;
-
-        query->table = typeid_cast<ASTIdentifier *>(table.get())->name;
-        query->version = typeid_cast<ASTLiteral *>(version.get())->value.safeGet<String>();
+        query->from = typeid_cast<ASTLiteral *>(from.get())->value.safeGet<String>();
+        query->reentry = typeid_cast<ASTLiteral *>(reentry.get())->value.safeGet<UInt64>();
         query->action_name = typeid_cast<ASTLiteral *>(action_name.get())->value.safeGet<String>();
         node = query;
 

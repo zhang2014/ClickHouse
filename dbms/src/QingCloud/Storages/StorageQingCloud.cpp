@@ -23,6 +23,7 @@
 #include <Storages/StorageMergeTree.h>
 #include <Parsers/ASTPartition.h>
 #include <Storages/MergeTree/MergeTreeData.h>
+#include <QingCloud/Common/SafetyPointFactory.h>
 
 
 namespace DB
@@ -34,7 +35,6 @@ namespace ErrorCodes
     extern const int ENGINE_REQUIRED;
     extern const int ILLEGAL_TYPE_OF_ARGUMENT;
 }
-
 
 static String wrapVersionName(const String & version)
 {
@@ -58,13 +58,13 @@ StorageQingCloud::StorageQingCloud(
     if (create_query.storage->distributed_by)
         sharding_key = create_query.storage->distributed_by->ptr();
 
-    for (const auto & version : version_info.local_store_versions)
+    for (const auto & version : version_info.retain_versions)
         createTablesWithCluster(version, context.getCluster(wrapVersionName(version)), attach, has_force_restore_data_flag);
 
     /// clear up
     for (Poco::DirectoryIterator it(table_data_path), end; it != end; ++it)
     {
-        std::vector<String> versions = version_info.local_store_versions;
+        std::vector<String> versions = version_info.retain_versions;
         if (it->isDirectory() && std::find(versions.begin(), versions.end(), it.name()) == versions.end())
             it->remove(true);
     }
@@ -83,8 +83,8 @@ BlockOutputStreamPtr StorageQingCloud::write(const ASTPtr & query, const Setting
     else
     {
         Settings query_settings = settings;
-        query_settings.writing_version = version_info.writeable_version;
-        return version_distributed[version_info.writeable_version]->write(query, query_settings);
+        query_settings.writing_version = version_info.write_version;
+        return version_distributed[version_info.write_version]->write(query, query_settings);
     }
 }
 
@@ -105,7 +105,7 @@ BlockInputStreams StorageQingCloud::read(const Names & column_names, const Selec
         BlockInputStreams streams;
 
         /// TODO Read and write lock
-        for (const auto & readable_version : version_info.readable_versions)
+        for (const auto & readable_version : version_info.read_versions)
         {
             if (version_distributed.count(readable_version))
             {
@@ -123,58 +123,71 @@ BlockInputStreams StorageQingCloud::read(const Names & column_names, const Selec
 
 void StorageQingCloud::flushVersionData(const String & version)
 {
-    std::cout << "StorageQingCloud get distributed lock \n";
     dynamic_cast<StorageDistributed *>(version_distributed[version].get())->waitForFlushedOtherServer();
-    std::cout << "StorageQingCloud already get distributed lock \n";
 
-    waitActionInCluster(version, "FLUSHED_DISTRIBUTED_DATA");
+    ClusterPtr flush_cluster = context.getCluster(wrapVersionName(version));
+    SafetyPointFactory::instance().createSafetyPoint("FLUSHED_DISTRIBUTED_DATA", flush_cluster, context)->sync();
 }
 
 void StorageQingCloud::initializeVersions(std::initializer_list<String> versions)
 {
+    std::vector<String> & retain_version = version_info.retain_versions;
     for (auto iterator = versions.begin(); iterator != versions.end(); ++iterator)
     {
         ClusterPtr cluster = context.getCluster(wrapVersionName(*iterator));
-        createTablesWithCluster(*iterator, cluster);
-        waitActionInCluster(*iterator, "INITIALIZE_VERSION");
+        if (std::find(retain_version.begin(), retain_version.end(), *iterator) == retain_version.end())
+        {
+            Poco::File(table_data_path + *iterator).remove(true);
+            createTablesWithCluster(*iterator, cluster);
+            version_info.retain_versions.emplace_back(*iterator);
+        }
+        SafetyPointFactory::instance().createSafetyPoint("INITIALIZE_VERSION", cluster, context)->sync(2);    /// use double check sync
     }
+
+    version_info.store();
 }
 
-void StorageQingCloud::initializeVersionInfo(std::initializer_list<String> readable_versions, const String &writable_version)
+void StorageQingCloud::initializeVersionInfo(std::initializer_list<String> readable_versions, const String & writable_version)
 {
     /// TODO: LOCK
-    version_info.writeable_version = writable_version;
+    version_info.write_version = writable_version;
 
     for (auto iterator = readable_versions.begin(); iterator != readable_versions.end(); ++iterator)
     {
-        /// TODO: check exists
-        std::vector<String> current_r_versions = version_info.readable_versions;
-        std::vector<String> current_l_versions = version_info.local_store_versions;
+        std::vector<String> current_versions = version_info.read_versions;
 
-        if (std::find(current_r_versions.begin(), current_r_versions.end(), *iterator) == current_r_versions.end())
-            version_info.readable_versions.emplace_back(*iterator);
-
-        if (std::find(current_l_versions.begin(), current_l_versions.end(), *iterator) == current_l_versions.end())
-            version_info.local_store_versions.emplace_back(*iterator);
+        if (std::find(current_versions.begin(), current_versions.end(), *iterator) == current_versions.end())
+            version_info.read_versions.emplace_back(*iterator);
     }
 
-    version_info.storeVersionInfo();
+    version_info.store();
 
-    waitActionInCluster(writable_version, "INITIALIZE_WRITE_VERSION_INFO");
+    {
+        ClusterPtr write_cluster = context.getCluster(wrapVersionName(writable_version));
+        SafetyPointFactory::instance().createSafetyPoint("INITIALIZE_WRITE_VERSION_INFO", write_cluster, context)->sync();
+    }
+
     for (auto iterator = readable_versions.begin(); iterator != readable_versions.end(); ++iterator)
-        waitActionInCluster(*iterator, "INITIALIZE_READ_VERSION_INFO");
+    {
+        ClusterPtr read_cluster = context.getCluster(wrapVersionName(*iterator));
+        SafetyPointFactory::instance().createSafetyPoint("INITIALIZE_READ_VERSION_INFO", read_cluster, context)->sync();
+    }
+
 
 }
 
-void StorageQingCloud::migrateDataBetweenVersions(const String & origin_version, const String & upgrade_version, bool drop, bool drop_data)
+void StorageQingCloud::migrateDataBetweenVersions(const String &origin_version, const String &upgrade_version, bool copy)
 {
+    if (copy)
+        cleanupBeforeMigrate(upgrade_version);
+
     const ClusterPtr origin_cluster = context.getCluster(wrapVersionName(origin_version));
     const ClusterPtr upgrade_cluster = context.getCluster(wrapVersionName(upgrade_version));
 
-    if (drop_data)
-        cleanupBeforeMigrate(upgrade_version);
-
     const auto diff_shards = differentClusters(origin_cluster, upgrade_cluster);
+
+    if (!diff_shards.empty() && !copy)
+        throw Exception("LogicError: cannot copy data with diff cluster.", ErrorCodes::LOGICAL_ERROR);
 
     for (const auto & local_storage : local_data_storage)
     {
@@ -185,7 +198,7 @@ void StorageQingCloud::migrateDataBetweenVersions(const String & origin_version,
             if (diff_shards.count(shard_number) && diff_shards.at(shard_number).is_local)
                 rebalanceDataWithCluster(origin_version, upgrade_version, shard_number);
             else
-                replaceDataWithLocal(drop, local_storage.second, local_data_storage[std::pair(upgrade_version, shard_number)]);
+                replaceDataWithLocal(copy, local_storage.second, local_data_storage[std::pair(upgrade_version, shard_number)]);
         }
     }
 }
@@ -196,7 +209,8 @@ void StorageQingCloud::cleanupBeforeMigrate(const String &cleanup_version)
         if (local_storage.first.first == cleanup_version)
             local_storage.second->truncate({});     /// TODO: materialize view need query param
 
-    waitActionInCluster(cleanup_version, "CLEANUP_VERSION_DATA");
+    ClusterPtr cleanup_cluster = context.getCluster(wrapVersionName(cleanup_version));
+    SafetyPointFactory::instance().createSafetyPoint("CLEANUP_VERSION_DATA", cleanup_cluster).sync();
 }
 
 void StorageQingCloud::replaceDataWithLocal(bool drop, const StoragePtr &origin_, const StoragePtr &upgrade_storage_)
@@ -235,83 +249,6 @@ void StorageQingCloud::rebalanceDataWithCluster(const String &origin_version, co
         query_context).execute();
 }
 
-void StorageQingCloud::waitActionInCluster(const String & action_version, const String &action_name)
-{
-    String version = wrapVersionName(action_version);
-    ClusterPtr cluster = context.getCluster(version);
-
-    if (cluster->getLocalShardCount())
-    {
-        std::cout << "Send Action Query: " << "ACTION NOTIFY '" + action_name + "' TABLE " + database_name + "." + table_name +
-                                              " VERSION '" + action_version + "'" << "\n";
-
-        String key = action_name + "_" + action_version;
-        const auto addresses_with_connections = getConnectionPoolsFromClusters(cluster);
-        sendQueryWithAddresses(addresses_with_connections, "ACTION NOTIFY '" + action_name + "' TABLE " + database_name + "." +
-                                                           table_name + " VERSION '" + action_version + "'");
-
-        std::unique_lock lock(receive_action_notify[key].mutex);
-
-        for (const auto & addresses : addresses_with_connections)
-        {
-            if (!addresses.first.is_local)
-                receive_action_notify[key].expected_addresses.emplace_back(addresses.first.toString());
-        }
-
-        if (!receive_action_notify[key].checkNotifyIsCompleted())
-        {
-            std::cv_status wait_res = receive_action_notify[key].cond.wait_for(lock, std::chrono::milliseconds(180000));
-            if (wait_res == std::cv_status::timeout)
-                throw Exception("", ErrorCodes::LOGICAL_ERROR);
-        }
-
-
-        std::cout << "Notfiy Action Query " << "ACTION NOTIFY '" + action_name + "' TABLE " + database_name + "." + table_name +
-                                               " VERSION '" + action_version + "'" << "\n";
-    }
-}
-
-void StorageQingCloud::sendQueryWithAddresses(const std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> &addresses_with_connections,
-                                              const String &query_string) const
-{
-    BlockInputStreams streams;
-    const Settings settings = context.getSettingsRef();
-    for (const auto & address_with_connections : addresses_with_connections)
-    {
-        if (!address_with_connections.first.is_local)
-        {
-            ConnectionPoolPtrs failover_connections;
-            failover_connections.emplace_back(address_with_connections.second);
-
-            ConnectionPoolWithFailoverPtr shard_pool = std::make_shared<ConnectionPoolWithFailover>(
-                failover_connections, SettingLoadBalancing(LoadBalancing::RANDOM), settings.connections_with_failover_max_tries);
-
-            streams.emplace_back(std::make_shared<RemoteBlockInputStream>(shard_pool, query_string, Block{}, context));
-        }
-    }
-
-    if (!streams.empty())
-    {
-        BlockInputStreamPtr union_stream = std::make_shared<UnionBlockInputStream<>>(streams, nullptr, streams.size());
-        std::make_shared<SquashingBlockInputStream>(union_stream, std::numeric_limits<size_t>::max(),
-                                                    std::numeric_limits<size_t>::max())->read();
-    }
-}
-
-void StorageQingCloud::receiveActionNotify(const String & action_name, const String & version)
-{
-    String key = action_name + "_" + version;
-    receive_action_notify[key].mutex.lock();
-    receive_action_notify[action_name + "_" + version].addresses.emplace_back(context.getClientInfo().client_hostname);
-    if (receive_action_notify[key].checkNotifyIsCompleted())
-    {
-        receive_action_notify[key].mutex.unlock();
-        receive_action_notify[action_name + "_" + version].cond.notify_one();
-        return;
-    }
-    receive_action_notify[key].mutex.unlock();
-}
-
 void StorageQingCloud::createTablesWithCluster(const String & version, const ClusterPtr & cluster, bool attach, bool has_force_restore_data_flag)
 {
     String version_table_data_path = table_data_path + version + "/";
@@ -339,42 +276,11 @@ void StorageQingCloud::createTablesWithCluster(const String & version, const Clu
     }
 }
 
+bool StorageQingCloud::checkNeedUpgradeVersion(const String & upgrade_version)
+{
+    return version_info.write_version == upgrade_version;
+}
+
 StorageQingCloud::~StorageQingCloud() = default;
-
-StorageQingCloud::VersionInfo::VersionInfo(const String & data_path, MultiplexedClusterPtr multiplexed_version_cluster)
-    : data_path(data_path), version_path(data_path + "version.info")
-{
-    if (Poco::File(version_path).exists())
-        loadVersionInfo();
-    else
-    {
-        writeable_version = multiplexed_version_cluster->getCurrentWritingVersion();
-        readable_versions.emplace_back(writeable_version);
-        local_store_versions.emplace_back(writeable_version);
-        storeVersionInfo();
-    }
-}
-
-void StorageQingCloud::VersionInfo::loadVersionInfo()
-{
-    ReadBufferFromFile version_buffer(version_path);
-    readBinary(readable_versions, version_buffer);
-    readBinary(local_store_versions, version_buffer);
-    readStringBinary(writeable_version, version_buffer);
-}
-
-void StorageQingCloud::VersionInfo::storeVersionInfo()
-{
-    Poco::File(data_path).createDirectories();
-    WriteBufferFromFile version_buffer(version_path);
-    writeBinary(readable_versions, version_buffer);
-    writeBinary(local_store_versions, version_buffer);
-    writeStringBinary(writeable_version, version_buffer);
-}
-
-bool StorageQingCloud::ActionNotifyer::checkNotifyIsCompleted()
-{
-    return addresses.size() == expected_addresses.size();
-}
 
 }
