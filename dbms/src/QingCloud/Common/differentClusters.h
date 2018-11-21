@@ -13,7 +13,7 @@
 namespace DB
 {
 
-std::map<size_t, Cluster::Address> differentClusters(const ClusterPtr & c1, const ClusterPtr & c2)
+inline std::map<size_t, Cluster::Address> differentClusters(const ClusterPtr & c1, const ClusterPtr & c2)
 {
     std::map<size_t, Cluster::Address> diff_res;
 
@@ -44,7 +44,7 @@ std::map<size_t, Cluster::Address> differentClusters(const ClusterPtr & c1, cons
 }
 
 
-std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> getConnectionPoolsFromClusters(const ClusterPtr & cluster)
+inline std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> getConnectionPoolsFromClusters(const ClusterPtr & cluster)
 {
     std::map<String, size_t> exists;
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> connections;
@@ -67,7 +67,7 @@ std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> getConnectionPoolsFr
     return connections;
 }
 
-ASTPtr makeInsertQueryForSelf(const String & database_name, const String & table_name, const NamesAndTypesList & columns)
+inline ASTPtr makeInsertQueryForSelf(const String & database_name, const String & table_name, const NamesAndTypesList & columns)
 {
     const auto insert_query = std::make_shared<ASTInsertQuery>();
     const auto select_query = std::make_shared<ASTSelectQuery>();

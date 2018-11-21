@@ -8,7 +8,25 @@
 namespace DB
 {
 
-class SafetyPointWithCluster;
+class SafetyPointWithCluster
+{
+public:
+    ~SafetyPointWithCluster();
+
+    SafetyPointWithCluster(const String & name, const ClusterPtr & cluster, const Context & context);
+
+    void sync(size_t check_size = 1);
+
+    void sendQueryWithAddresses(const std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> &addresses_with_connections,
+                                const String &query_string);
+private:
+    const Context & context;
+
+    String name;
+    ClusterPtr cluster;
+    std::atomic<UInt64> count;
+};
+
 using SafetyPointWithClusterPtr = std::shared_ptr<SafetyPointWithCluster>;
 
 class SafetyPointFactory : public ext::singleton<SafetyPointFactory>
@@ -44,25 +62,6 @@ private:
     std::mutex safety_mutex;
     std::map<String, ActionEntity> action_entities;
     std::map<String, SafetyPointEntity> safety_entities;
-};
-
-class SafetyPointWithCluster
-{
-public:
-    ~SafetyPointWithCluster();
-
-    SafetyPointWithCluster(const String & name, const ClusterPtr & cluster, const Context & context);
-
-    void sync(size_t check_size = 1);
-
-    void sendQueryWithAddresses(const std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> &addresses_with_connections,
-                                const String &query_string);
-private:
-    const Context & context;
-
-    String name;
-    ClusterPtr cluster;
-    std::atomic<UInt64> count;
 };
 
 }
