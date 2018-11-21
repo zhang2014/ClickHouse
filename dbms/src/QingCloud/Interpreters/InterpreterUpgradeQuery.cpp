@@ -24,6 +24,7 @@ BlockIO InterpreterUpgradeQuery::execute()
     ASTUpgradeQuery * upgrade_query = typeid_cast<ASTUpgradeQuery *>(node.get());
     StoragePtr upgrade_storage = context.getTable(upgrade_query->database, upgrade_query->table);
 
+    /// TODO: 获取到所有的表
     if (!dynamic_cast<StorageQingCloud *>(upgrade_storage.get()))
         throw Exception("Cannot run upgrade query for without QingCloud Storage.", ErrorCodes::LOGICAL_ERROR);
 
@@ -33,9 +34,9 @@ BlockIO InterpreterUpgradeQuery::execute()
 }
 
 UpgradeQueryBlockInputStream::UpgradeQueryBlockInputStream(const StoragePtr &storage, const String &origin_version,
-                                                           const String &upgrade_version) : storage(storage),
-                                                                                            origin_version(origin_version),
-                                                                                            upgrade_version(upgrade_version)
+                                                           const String &upgrade_version) :
+                                                           state(INITIALIZE_UPGRADE_VERSION),
+                                                           storage(storage), origin_version(origin_version), upgrade_version(upgrade_version)
 {
 }
 
@@ -160,16 +161,16 @@ Block UpgradeQueryBlockInputStream::deleteOutdatedVersions(StorageQingCloud * /*
     return header.cloneWithColumns(std::move(columns));
 }
 
+String UpgradeQueryBlockInputStream::getName() const
+{
+    return "UpgradeVersion";
+}
+
 Block UpgradeQueryBlockInputStream::getHeader() const
 {
     return Block{{
         ColumnString::create(), std::make_shared<DataTypeString>(), "stage_name",
     }};
-}
-
-String UpgradeQueryBlockInputStream::getName() const
-{
-    return "UpgradeVersion";
 }
 
 }
