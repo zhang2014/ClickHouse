@@ -12,8 +12,6 @@ class MultiplexedVersionCluster
 public:
     String getCurrentWritingVersion();
 
-    std::map<String, ClusterPtr> getAllVersionsCluster();
-
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> getAddressesAndConnections();
 
     ClusterPtr getCluster(const String & cluster_name);
@@ -31,13 +29,10 @@ public:
                                   const std::string & replica_config_prefix,
                                   const Settings & settings, Cluster::Addresses & addresses);
 
-    RWLockFIFO::LockHandler getConfigurationLock();
-
     void updateMultiplexedVersionCluster(const Poco::Util::AbstractConfiguration & configuration, const Settings & settings, const std::string & config_prefix);
 private:
     std::map<String, ClusterPtr> all_version_and_cluster;
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> address_and_connection_pool_cache;
-    mutable RWLockFIFOPtr configuration_lock = RWLockFIFO::create();
 
     Cluster::Address createAddress(const Poco::Util::AbstractConfiguration & configuration, const std::string & replica_config_prefix);
 

@@ -53,7 +53,6 @@
 #include <common/logger_useful.h>
 #include <Common/getMultipleKeysFromConfig.h>
 #include <QingCloud/Interpreters/MultiplexedVersionCluster.h>
-#include <QingCloud/Common/notifyAllQingCloudStorage.h>
 
 
 namespace ProfileEvents

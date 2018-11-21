@@ -31,11 +31,6 @@ static inline bool addressEquals(Cluster::Address expect, Cluster::Address actua
     return expect.compression == actual.compression;
 }
 
-std::map<String, ClusterPtr> MultiplexedVersionCluster::getAllVersionsCluster()
-{
-    return all_version_and_cluster;
-}
-
 String MultiplexedVersionCluster::getCurrentWritingVersion()
 {
     for (const auto & version_and_cluster : all_version_and_cluster)
@@ -62,7 +57,6 @@ MultiplexedVersionCluster::MultiplexedVersionCluster(const Poco::Util::AbstractC
 void MultiplexedVersionCluster::updateMultiplexedVersionCluster(
     const Poco::Util::AbstractConfiguration & configuration, const Settings & settings, const std::string & config_prefix)
 {
-    configuration_lock->getLock(RWLockFIFO::Write, "ConfigReload");
     Poco::Util::AbstractConfiguration::Keys versions_key;
     configuration.keys(config_prefix, versions_key);
 
@@ -74,7 +68,7 @@ void MultiplexedVersionCluster::updateMultiplexedVersionCluster(
 
     for (const auto & version_key : versions_key)
     {
-        String version_id = getPropertyOrChildValue<String>(configuration, config_prefix + "." + version_key, "id");
+        const String version_id = getPropertyOrChildValue<String>(configuration, config_prefix + "." + version_key, "id");
         bool readable = getPropertyOrChildValue<bool>(configuration, config_prefix + "." + version_key, "readable");
         bool writeable = getPropertyOrChildValue<bool>(configuration, config_prefix + "." + version_key, "writeable");
 
@@ -142,7 +136,7 @@ template <typename T> T MultiplexedVersionCluster::getPropertyOrChildValue(
 }
 
 template <typename T> T MultiplexedVersionCluster::getPropertyOrChildValue(
-    const Poco::Util::AbstractConfiguration & configuration, const std::string & configuration_key, String property_or_child_name,const T & default_value)
+    const Poco::Util::AbstractConfiguration & configuration, const std::string & configuration_key, String property_or_child_name, const T & default_value)
 {
     if (configuration.has(configuration_key + "[@" + property_or_child_name + "]"))
         return MultiplexedVersionCluster::TypeToEnum<std::decay_t<T>>::getValue(configuration, configuration_key + "[@" + property_or_child_name + "]");
@@ -151,11 +145,6 @@ template <typename T> T MultiplexedVersionCluster::getPropertyOrChildValue(
         return MultiplexedVersionCluster::TypeToEnum<std::decay_t<T>>::getValue(configuration, configuration_key + "." + property_or_child_name);
 
     return default_value;
-}
-
-RWLockFIFO::LockHandler MultiplexedVersionCluster::getConfigurationLock()
-{
-    return configuration_lock->getLock(RWLockFIFO::Read, "getConfigurationLock");
 }
 
 ClusterPtr MultiplexedVersionCluster::getCluster(const DB::String &cluster_name)

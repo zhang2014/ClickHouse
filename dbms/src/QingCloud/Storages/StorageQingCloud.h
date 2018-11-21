@@ -13,7 +13,6 @@
 #include <common/logger_useful.h>
 #include <Storages/MergeTree/MergeTreeSettings.h>
 #include <QingCloud/Interpreters/MultiplexedVersionCluster.h>
-#include <QingCloud/Datastream/QingCloudAsynchronism.h>
 #include <Parsers/ASTCreateQuery.h>
 #include "StorageQingCloudBase.h"
 

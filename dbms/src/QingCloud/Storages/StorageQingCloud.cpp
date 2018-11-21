@@ -4,7 +4,6 @@
 #include <Storages/StorageFactory.h>
 #include <Storages/StorageDistributed.h>
 #include <ext/range.h>
-#include <QingCloud/Common/evaluateQueryInfo.h>
 #include <Storages/AlterCommands.h>
 #include <Databases/IDatabase.h>
 #include <IO/ReadBufferFromFile.h>
