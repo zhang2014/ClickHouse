@@ -74,9 +74,15 @@ private:
     Cluster::AddressesWithFailover addresses;
     ShardsInfo shards_info;
     Cluster::SlotToShard slot_to_shard;
+    size_t remote_shard_count;
+    size_t local_shard_count;
 
 public:
     const SlotToShard & getSlotToShard() const override;
+
+    size_t getLocalShardCount() const override;
+
+    size_t getRemoteShardCount() const override;
 };
 
 template <> struct MultiplexedVersionCluster::TypeToEnum<String>  {

@@ -223,6 +223,8 @@ DummyCluster::DummyCluster(const Poco::Util::AbstractConfiguration & configurati
         info.shard_num = UInt32(shard_idx);
         info.has_internal_replication = false;
         addresses.emplace_back(addresses_pre_replica);
+        local_shard_count += info.isLocal() ? 1 : 0;
+        remote_shard_count += info.isLocal() ? 0 : 1;
         info.weight = multiplexed_version_cluster->getPropertyOrChildValue<UInt32>(configuration, configuration_prefix + "." + shard_key, "weight", 1);
         info.pool = std::make_shared<ConnectionPoolWithFailover>(info.per_replica_pools, settings.load_balancing, settings.connections_with_failover_max_tries);
         shards_info.emplace_back(info);
@@ -251,6 +253,16 @@ const Cluster::ShardsInfo &DummyCluster::getShardsInfo() const
 const Cluster::SlotToShard & DummyCluster::getSlotToShard() const
 {
     return slot_to_shard;
+}
+
+size_t DummyCluster::getLocalShardCount() const
+{
+    return local_shard_count;
+}
+
+size_t DummyCluster::getRemoteShardCount() const
+{
+    return remote_shard_count;
 }
 
 }

@@ -124,7 +124,10 @@ BlockInputStreams StorageQingCloud::read(const Names & column_names, const Selec
 
 void StorageQingCloud::flushVersionData(const String & version)
 {
+    std::cout << "StorageQingCloud get distributed lock \n";
     dynamic_cast<StorageDistributed *>(version_distributed[version].get())->waitForFlushedOtherServer();
+    std::cout << "StorageQingCloud already get distributed lock \n";
+
     waitActionInCluster(version, "FLUSHED_DISTRIBUTED_DATA");
 }
 
@@ -158,9 +161,9 @@ void StorageQingCloud::initializeVersionInfo(std::initializer_list<String> reada
 
     version_info.storeVersionInfo();
 
-    waitActionInCluster(writable_version, "INITIALIZE_VERSION_INFO");
+    waitActionInCluster(writable_version, "INITIALIZE_WRITE_VERSION_INFO");
     for (auto iterator = readable_versions.begin(); iterator != readable_versions.end(); ++iterator)
-        waitActionInCluster(*iterator, "INITIALIZE_VERSION_INFO");
+        waitActionInCluster(*iterator, "INITIALIZE_READ_VERSION_INFO");
 
 }
 
@@ -194,7 +197,7 @@ void StorageQingCloud::cleanupBeforeMigrate(const String &cleanup_version)
         if (local_storage.first.first == cleanup_version)
             local_storage.second->truncate({});     /// TODO: materialize view need query param
 
-    waitActionInCluster(cleanup_version, "CLEANUP_VERSION_DATA" + cleanup_version);
+    waitActionInCluster(cleanup_version, "CLEANUP_VERSION_DATA");
 }
 
 void StorageQingCloud::replaceDataWithLocal(bool drop, const StoragePtr &origin_, const StoragePtr &upgrade_storage_)
@@ -233,34 +236,35 @@ void StorageQingCloud::rebalanceDataWithCluster(const String &origin_version, co
         query_context).execute();
 }
 
-void StorageQingCloud::waitActionInCluster(const String &action_version, const String &action_name)
+void StorageQingCloud::waitActionInCluster(const String & action_version, const String &action_name)
 {
     String version = wrapVersionName(action_version);
     ClusterPtr cluster = context.getCluster(version);
 
     const auto addresses_with_connections = getConnectionPoolsFromClusters(cluster);
 
-    for (const auto & it : addresses_with_connections)
+    if (cluster->getLocalShardCount())
     {
-        if (it.first.is_local)
+        std::cout << "Send Action Query: " << "ACTION NOTIFY '" + action_name + "' TABLE " + database_name + "." + table_name +
+                                              " VERSION '" + action_version + "'" << "\n";
+
+        String key = action_name + "_" + action_version;
+        sendQueryWithAddresses(addresses_with_connections, "ACTION NOTIFY '" + action_name + "' TABLE " + database_name + "." +
+                                                           table_name + " VERSION '" + action_version + "'");
+
+        std::unique_lock lock(receive_action_notify[key].mutex);
+
+        for (const auto & addresses : addresses_with_connections)
         {
-            sendQueryWithAddresses(addresses_with_connections, "ACTION NOTIFY '" + action_name + "' TABLE " + database_name + "." +
-                                                               table_name + " VERSION '" + action_version + "'");
-
-            String key = action_name + "_" + action_version;
-            std::unique_lock lock(receive_action_notify[key].mutex);
-
-            for (const auto & addresses : addresses_with_connections)
-            {
-                if (!addresses.first.is_local)
-                    receive_action_notify[key].expected_addresses.emplace_back(addresses.first.toString());
-            }
-
-            if (!receive_action_notify[key].checkNotifyIsCompleted())
-                receive_action_notify[key].cond.wait_for(lock, std::chrono::milliseconds(180000));
-
-            return;
+            if (!addresses.first.is_local)
+                receive_action_notify[key].expected_addresses.emplace_back(addresses.first.toString());
         }
+
+        if (!receive_action_notify[key].checkNotifyIsCompleted())
+            receive_action_notify[key].cond.wait_for(lock, std::chrono::milliseconds(180000));
+
+        std::cout << "Notfiy Action Query " << "ACTION NOTIFY '" + action_name + "' TABLE " + database_name + "." + table_name +
+                                               " VERSION '" + action_version + "'" << "\n";
     }
 }
 
