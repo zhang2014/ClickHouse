@@ -21,7 +21,9 @@
 #include <Parsers/ASTIdentifier.h>
 #include <mutex>
 #include <condition_variable>
-#include "StorageQingCloud.h"
+#include <Storages/StorageMergeTree.h>
+#include <Parsers/ASTPartition.h>
+#include <Storages/MergeTree/MergeTreeData.h>
 
 
 namespace DB
@@ -88,7 +90,7 @@ BlockOutputStreamPtr StorageQingCloud::write(const ASTPtr & query, const Setting
 }
 
 BlockInputStreams StorageQingCloud::read(const Names & column_names, const SelectQueryInfo &query_info, const Context &context,
-                                         QueryProcessingStage::Enum &processed_stage, size_t max_block_size, unsigned num_streams)
+                                         QueryProcessingStage::Enum processed_stage, size_t max_block_size, unsigned num_streams)
 {
     Settings settings = context.getSettingsRef();
     const String query_version = settings.query_version;
@@ -122,8 +124,11 @@ BlockInputStreams StorageQingCloud::read(const Names & column_names, const Selec
 
 void StorageQingCloud::flushVersionData(const String & version)
 {
+    std::cout << "StorageQingCloud get distributed lock \n";
     dynamic_cast<StorageDistributed *>(version_distributed[version].get())->waitForFlushedOtherServer();
-    waitActionInClusters(version, "FLUSHED_DISTRIBUTED_DATA");
+    std::cout << "StorageQingCloud already get distributed lock \n";
+
+    waitActionInCluster(version, "FLUSHED_DISTRIBUTED_DATA");
 }
 
 void StorageQingCloud::initializeVersions(std::initializer_list<String> versions)
@@ -132,7 +137,7 @@ void StorageQingCloud::initializeVersions(std::initializer_list<String> versions
     {
         ClusterPtr cluster = context.getCluster(wrapVersionName(*iterator));
         createTablesWithCluster(*iterator, cluster);
-        waitActionInClusters(*iterator, "INITIALIZE_VERSION");
+        waitActionInCluster(*iterator, "INITIALIZE_VERSION");
     }
 }
 
@@ -154,10 +159,12 @@ void StorageQingCloud::initializeVersionInfo(std::initializer_list<String> reada
             version_info.local_store_versions.emplace_back(*iterator);
     }
 
-    for (auto iterator = readable_versions.begin(); iterator != readable_versions.end(); ++iterator)
-        waitActionInClusters(*iterator, "INITIALIZE_VERSION_INFO");
+    version_info.storeVersionInfo();
 
-    waitActionInClusters(writable_version, "INITIALIZE_VERSION_INFO");
+    waitActionInCluster(writable_version, "INITIALIZE_WRITE_VERSION_INFO");
+    for (auto iterator = readable_versions.begin(); iterator != readable_versions.end(); ++iterator)
+        waitActionInCluster(*iterator, "INITIALIZE_READ_VERSION_INFO");
+
 }
 
 void StorageQingCloud::migrateDataBetweenVersions(const String & origin_version, const String & upgrade_version, bool drop, bool drop_data)
@@ -190,14 +197,31 @@ void StorageQingCloud::cleanupBeforeMigrate(const String &cleanup_version)
         if (local_storage.first.first == cleanup_version)
             local_storage.second->truncate({});     /// TODO: materialize view need query param
 
-    waitActionInClusters(cleanup_version, "CLEANUP_VERSION_DATA" + cleanup_version);
+    waitActionInCluster(cleanup_version, "CLEANUP_VERSION_DATA");
 }
 
-void StorageQingCloud::replaceDataWithLocal(bool drop, const StoragePtr &origin, const StoragePtr &upgrade_storage)
+void StorageQingCloud::replaceDataWithLocal(bool drop, const StoragePtr &origin_, const StoragePtr &upgrade_storage_)
 {
-    upgrade_storage->replacePartitionFrom(origin, {}, false, this->context);
-    if (drop)
-        origin->dropPartition({}, {}, true, this->context);
+    if (dynamic_cast<StorageMergeTree *>(origin_.get()) && dynamic_cast<StorageMergeTree *>(upgrade_storage_.get()))
+    {
+        std::unordered_set<String> partition_ids;
+
+        StorageMergeTree * origin = dynamic_cast<StorageMergeTree *>(origin_.get());
+        StorageMergeTree * upgrade = dynamic_cast<StorageMergeTree *>(upgrade_storage_.get());
+        MergeTreeData::DataPartsVector data_parts = origin->data.getDataPartsVector({MergeTreeDataPart::State::Committed});
+
+        for (const MergeTreeData::DataPartPtr & part : data_parts)
+            partition_ids.emplace(part->info.partition_id);
+
+        for (const auto & partition_id : partition_ids)
+        {
+            auto ast_partition = std::make_shared<ASTPartition>();
+
+            ast_partition->id = partition_id;
+            upgrade->replacePartitionFrom(origin_, ast_partition, false, context);
+            if (drop) origin->dropPartition({}, ast_partition, false, context);
+        }
+    }
 }
 
 void StorageQingCloud::rebalanceDataWithCluster(const String &origin_version, const String &upgrade_version, size_t shard_number)
@@ -212,34 +236,39 @@ void StorageQingCloud::rebalanceDataWithCluster(const String &origin_version, co
         query_context).execute();
 }
 
-void StorageQingCloud::waitActionInClusters(const String &action_version, const String &action_name)
+void StorageQingCloud::waitActionInCluster(const String & action_version, const String &action_name)
 {
     String version = wrapVersionName(action_version);
     ClusterPtr cluster = context.getCluster(version);
 
-    const auto addresses_with_connections = getConnectionPoolsFromClusters(cluster);
-
-    for (const auto & it : addresses_with_connections)
+    if (cluster->getLocalShardCount())
     {
-        if (it.first.is_local)
+        std::cout << "Send Action Query: " << "ACTION NOTIFY '" + action_name + "' TABLE " + database_name + "." + table_name +
+                                              " VERSION '" + action_version + "'" << "\n";
+
+        String key = action_name + "_" + action_version;
+        const auto addresses_with_connections = getConnectionPoolsFromClusters(cluster);
+        sendQueryWithAddresses(addresses_with_connections, "ACTION NOTIFY '" + action_name + "' TABLE " + database_name + "." +
+                                                           table_name + " VERSION '" + action_version + "'");
+
+        std::unique_lock lock(receive_action_notify[key].mutex);
+
+        for (const auto & addresses : addresses_with_connections)
         {
-            sendQueryWithAddresses(addresses_with_connections, "ACTION NOTIFY '" + action_name + "' TABLE " + database_name + "." +
-                                                               table_name + " VERSION '" + action_version + "'");
-
-            String key = action_name + "_" + action_version;
-            std::unique_lock lock(receive_action_notify[key].mutex);
-
-            for (const auto & addresses : addresses_with_connections)
-            {
-                if (!addresses.first.is_local)
-                    receive_action_notify[key].expected_addresses.emplace_back(addresses.first.toString());
-            }
-
-            if (!receive_action_notify[key].checkNotifyIsCompleted())
-                receive_action_notify[key].cond.wait_for(lock, std::chrono::milliseconds(180000));
-
-            return;
+            if (!addresses.first.is_local)
+                receive_action_notify[key].expected_addresses.emplace_back(addresses.first.toString());
         }
+
+        if (!receive_action_notify[key].checkNotifyIsCompleted())
+        {
+            std::cv_status wait_res = receive_action_notify[key].cond.wait_for(lock, std::chrono::milliseconds(180000));
+            if (wait_res == std::cv_status::timeout)
+                throw Exception("", ErrorCodes::LOGICAL_ERROR);
+        }
+
+
+        std::cout << "Notfiy Action Query " << "ACTION NOTIFY '" + action_name + "' TABLE " + database_name + "." + table_name +
+                                               " VERSION '" + action_version + "'" << "\n";
     }
 }
 

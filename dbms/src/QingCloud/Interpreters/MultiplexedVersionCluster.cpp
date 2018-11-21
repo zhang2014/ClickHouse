@@ -31,20 +31,6 @@ static inline bool addressEquals(Cluster::Address expect, Cluster::Address actua
     return expect.compression == actual.compression;
 }
 
-std::vector<String> MultiplexedVersionCluster::getReadableVersions()
-{
-    std::vector<String> readable_versions;
-
-    for (const auto & version_and_cluster : all_version_and_cluster)
-    {
-        ClusterPtr cluster = version_and_cluster.second;
-        if (static_cast<DummyCluster *>(cluster.get())->is_readable)
-            readable_versions.emplace_back(version_and_cluster.first);
-    }
-
-    return readable_versions;
-}
-
 std::map<String, ClusterPtr> MultiplexedVersionCluster::getAllVersionsCluster()
 {
     return all_version_and_cluster;
@@ -223,6 +209,8 @@ DummyCluster::DummyCluster(const Poco::Util::AbstractConfiguration & configurati
         info.shard_num = UInt32(shard_idx);
         info.has_internal_replication = false;
         addresses.emplace_back(addresses_pre_replica);
+        local_shard_count += info.isLocal() ? 1 : 0;
+        remote_shard_count += info.isLocal() ? 0 : 1;
         info.weight = multiplexed_version_cluster->getPropertyOrChildValue<UInt32>(configuration, configuration_prefix + "." + shard_key, "weight", 1);
         info.pool = std::make_shared<ConnectionPoolWithFailover>(info.per_replica_pools, settings.load_balancing, settings.connections_with_failover_max_tries);
         shards_info.emplace_back(info);
@@ -251,6 +239,16 @@ const Cluster::ShardsInfo &DummyCluster::getShardsInfo() const
 const Cluster::SlotToShard & DummyCluster::getSlotToShard() const
 {
     return slot_to_shard;
+}
+
+size_t DummyCluster::getLocalShardCount() const
+{
+    return local_shard_count;
+}
+
+size_t DummyCluster::getRemoteShardCount() const
+{
+    return remote_shard_count;
 }
 
 }

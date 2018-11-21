@@ -12,8 +12,6 @@ class MultiplexedVersionCluster
 public:
     String getCurrentWritingVersion();
 
-    std::vector<String> getReadableVersions();
-
     std::map<String, ClusterPtr> getAllVersionsCluster();
 
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> getAddressesAndConnections();
@@ -40,8 +38,6 @@ private:
     std::map<String, ClusterPtr> all_version_and_cluster;
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> address_and_connection_pool_cache;
     mutable RWLockFIFOPtr configuration_lock = RWLockFIFO::create();
-    std::mutex synchronism_mutex;
-//    QingCloudDDLSynchronismPtr synchronism;
 
     Cluster::Address createAddress(const Poco::Util::AbstractConfiguration & configuration, const std::string & replica_config_prefix);
 
@@ -59,6 +55,8 @@ public:
     bool is_readable;
     bool is_writeable;
 
+    ~DummyCluster() override = default;
+
     DummyCluster(const Poco::Util::AbstractConfiguration & configuration, const std::string & configuration_prefix,
                  MultiplexedVersionCluster * multiplexed_version_cluster, const Settings & settings, bool is_readable, bool is_writeable);
 
@@ -68,15 +66,19 @@ public:
 
     const ShardsInfo & getShardsInfo() const override;
 
-    ~DummyCluster() = default;
-
 private:
     Cluster::AddressesWithFailover addresses;
     ShardsInfo shards_info;
     Cluster::SlotToShard slot_to_shard;
+    size_t remote_shard_count;
+    size_t local_shard_count;
 
 public:
     const SlotToShard & getSlotToShard() const override;
+
+    size_t getLocalShardCount() const override;
+
+    size_t getRemoteShardCount() const override;
 };
 
 template <> struct MultiplexedVersionCluster::TypeToEnum<String>  {

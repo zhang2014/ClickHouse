@@ -138,11 +138,11 @@ public:
     }
 
     /// The number of remote shards.
-    size_t getRemoteShardCount() const { return remote_shard_count; }
+    virtual size_t getRemoteShardCount() const { return remote_shard_count; }
 
     /// The number of clickhouse nodes located locally
     /// we access the local nodes directly.
-    size_t getLocalShardCount() const { return local_shard_count; }
+    virtual size_t getLocalShardCount() const { return local_shard_count; }
 
     /// The number of all shards.
     virtual size_t getShardCount() const { return shards_info.size(); }

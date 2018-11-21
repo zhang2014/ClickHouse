@@ -43,7 +43,7 @@ public:
     BlockOutputStreamPtr write(const ASTPtr & query, const Settings & settings) override;
 
     BlockInputStreams read(const Names & column_names, const SelectQueryInfo & query_info, const Context & context,
-                           QueryProcessingStage::Enum & processed_stage, size_t max_block_size, unsigned num_streams) override;
+                           QueryProcessingStage::Enum processed_stage, size_t max_block_size, unsigned num_streams) override;
 
     void flushVersionData(const String & version);
 
@@ -97,13 +97,13 @@ private:
     std::mutex notify_nodes_mutex;
     std::map<String, ActionNotifyer> receive_action_notify;
 
-    void waitActionInClusters(const String &action_version, const String &action_name);
+    void waitActionInCluster(const String &action_version, const String &action_name);
 
     void createTablesWithCluster(const String & version, const ClusterPtr & cluster, bool attach = false, bool has_force_restore_data_flag = false);
 
     void cleanupBeforeMigrate(const String &cleanup_version);
 
-    void replaceDataWithLocal(bool drop, const StoragePtr &origin, const StoragePtr &upgrade_storage);
+    void replaceDataWithLocal(bool drop, const StoragePtr &origin_, const StoragePtr &upgrade_storage_);
 
     void rebalanceDataWithCluster(const String &origin_version, const String &upgrade_version, size_t shard_number);
 

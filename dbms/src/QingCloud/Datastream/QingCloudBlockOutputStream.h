@@ -1,3 +1,4 @@
+/**
 #pragma once
 
 #include <Parsers/formatAST.h>
@@ -31,7 +32,7 @@ namespace DB
  *  When writing, the data block is splitted by the remainder of the division of the sharding key by the total weight of the shards,
  *  and the resulting blocks are written in a compressed Native format in separate directories for sending.
  *  For each destination address (each directory with data to send), a separate thread is created in StorageDistributed,
- *  which monitors the directory and sends data. */
+ *  which monitors the directory and sends data.
 class QingCloudBlockOutputStream : public IBlockOutputStream
 {
 public:
@@ -141,3 +142,4 @@ private:
 };
 
 }
+*/

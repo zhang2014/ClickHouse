@@ -150,6 +150,8 @@ void QingCloudDDLSynchronism::work()
     setThreadName("QingCloudDDLSynchronism");
 
     std::unique_lock<std::mutex> lock{mutex};
+
+    CurrentThread::initializeQuery();
     const auto quit_requested = [this] { return quit.load(std::memory_order_relaxed); };
 
     while (!quit_requested())
