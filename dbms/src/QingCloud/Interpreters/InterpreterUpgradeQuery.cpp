@@ -9,7 +9,7 @@
 #include <Columns/ColumnsNumber.h>
 #include <DataTypes/DataTypeString.h>
 #include <Databases/IDatabase.h>
-#include <QingCloud/Common/SafetyPointFactory.h>
+#include <QingCloud/Interpreters/SafetyPointFactory.h>
 #include "InterpreterUpgradeQuery.h"
 
 

@@ -1,5 +1,5 @@
+#include <QingCloud/Interpreters/SafetyPointFactory.h>
 #include <QingCloud/Common/differentClusters.h>
-#include <QingCloud/Common/SafetyPointFactory.h>
 #include <Interpreters/Context.h>
 #include <DataStreams/UnionBlockInputStream.h>
 #include <DataStreams/RemoteBlockInputStream.h>
@@ -77,9 +77,9 @@ bool SafetyPointFactory::checkAllNotify(const String & action_name, const UInt64
     {
         entity.from.clear();
         entity.expected.clear();
-        entity.cond.notify_one();
+        return true;
     }
-
+    return false;
 }
 
 void SafetyPointFactory::expected(const String &action_name, const UInt64 &reentry, const std::vector<String> & expected)

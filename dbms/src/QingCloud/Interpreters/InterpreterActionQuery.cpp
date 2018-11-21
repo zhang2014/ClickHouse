@@ -2,7 +2,7 @@
 #include <QingCloud/Parsers/ASTActionQuery.h>
 #include <Common/typeid_cast.h>
 #include <QingCloud/Storages/StorageQingCloud.h>
-#include <QingCloud/Common/SafetyPointFactory.h>
+#include <QingCloud/Interpreters/SafetyPointFactory.h>
 
 
 namespace DB
@@ -18,6 +18,7 @@ BlockIO InterpreterActionQuery::execute()
 {
     ASTActionQuery * action_query = typeid_cast<ASTActionQuery *>(query_ptr.get());
     SafetyPointFactory::instance().receiveActionNotify(action_query->action_name, action_query->reentry, action_query->from);
+    return {};
 }
 
 }

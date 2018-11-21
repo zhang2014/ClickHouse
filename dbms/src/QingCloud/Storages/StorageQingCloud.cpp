@@ -23,7 +23,7 @@
 #include <Storages/StorageMergeTree.h>
 #include <Parsers/ASTPartition.h>
 #include <Storages/MergeTree/MergeTreeData.h>
-#include <QingCloud/Common/SafetyPointFactory.h>
+#include <QingCloud/Interpreters/SafetyPointFactory.h>
 
 
 namespace DB
@@ -210,7 +210,7 @@ void StorageQingCloud::cleanupBeforeMigrate(const String &cleanup_version)
             local_storage.second->truncate({});     /// TODO: materialize view need query param
 
     ClusterPtr cleanup_cluster = context.getCluster(wrapVersionName(cleanup_version));
-    SafetyPointFactory::instance().createSafetyPoint("CLEANUP_VERSION_DATA", cleanup_cluster).sync();
+    SafetyPointFactory::instance().createSafetyPoint("CLEANUP_VERSION_DATA", cleanup_cluster, context)->sync();
 }
 
 void StorageQingCloud::replaceDataWithLocal(bool drop, const StoragePtr &origin_, const StoragePtr &upgrade_storage_)

@@ -31,7 +31,7 @@ private:
 class InterpreterQingCloudDDLQuery : public IInterpreter
 {
 public:
-    InterpreterQingCloudDDLQuery(std::unique_ptr<IInterpreter> local_interpreter, Context & context, ASTPtr & query);
+    InterpreterQingCloudDDLQuery(Context & context, ASTPtr & query);
 
     BlockIO execute() override;
 
