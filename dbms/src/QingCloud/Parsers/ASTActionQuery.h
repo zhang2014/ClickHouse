@@ -18,12 +18,14 @@ struct ASTActionQuery : public ASTQueryWithOutput
         auto res = std::make_shared<ASTActionQuery>();
         res->from = from;
         res->reentry = reentry;
+        res->sync_name = sync_name;
         res->action_name = action_name;
         return res;
     }
 
     String from;
     UInt64 reentry;
+    String sync_name;
     String action_name;
 
 protected:
@@ -42,7 +44,7 @@ protected:
         settings.ostr << toString(reentry);
 
         settings.ostr << (settings.hilite ? hilite_keyword : "") << indent_str << " FROM " << (settings.hilite ? hilite_none : "");
-        settings.ostr << "'" << from << "'";
+        settings.ostr << "('" << from << "','" << sync_name << "')" ;
     }
 };
 

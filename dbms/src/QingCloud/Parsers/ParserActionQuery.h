@@ -28,9 +28,13 @@ protected:
         ParserLiteral reentry_p;
         ParserStringLiteral string_p;
         ParserToken s_dot(TokenType::Dot);
+        ParserToken s_comma(TokenType::Comma);
+        ParserToken s_open_bracket(TokenType::OpeningRoundBracket);
+        ParserToken s_close_bracket(TokenType::ClosingRoundBracket);
 
         ASTPtr from;
         ASTPtr reentry;
+        ASTPtr sync_name;
         ASTPtr action_name;
 
         if (!s_action.ignore(pos, expected))
@@ -48,13 +52,26 @@ protected:
         if (!s_from.ignore(pos, expected))
             return false;
 
+        if (!s_open_bracket.ignore(pos, expected))
+            return false;
+
         if (!string_p.parse(pos, from, expected))
+            return false;
+
+        if (!s_comma.ignore(pos, expected))
+            return false;
+
+        if (!string_p.parse(pos, sync_name, expected))
+            return false;
+
+        if (!s_close_bracket.ignore(pos, expected))
             return false;
 
         auto query = std::make_shared<ASTActionQuery>();
 
         query->from = typeid_cast<ASTLiteral *>(from.get())->value.safeGet<String>();
         query->reentry = typeid_cast<ASTLiteral *>(reentry.get())->value.safeGet<UInt64>();
+        query->sync_name = typeid_cast<ASTLiteral *>(sync_name.get())->value.safeGet<String>();
         query->action_name = typeid_cast<ASTLiteral *>(action_name.get())->value.safeGet<String>();
         node = query;
 

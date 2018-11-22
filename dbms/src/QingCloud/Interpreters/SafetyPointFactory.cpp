@@ -144,9 +144,9 @@ void SafetyPointWithCluster::notifyActionWaiter(const String &action_name, const
             cond.notify_one();
         }
     }
-    catch (Exception e)
+    catch (const Exception & ex)
     {
-        exception_message = getExceptionMessage(e, false);
+        exception_message = getExceptionMessage(ex, false);
         cond.notify_one();
     }
 }

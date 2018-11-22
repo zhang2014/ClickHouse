@@ -17,7 +17,7 @@ InterpreterActionQuery::InterpreterActionQuery(const ASTPtr &query_ptr_, const C
 BlockIO InterpreterActionQuery::execute()
 {
     ASTActionQuery * action_query = typeid_cast<ASTActionQuery *>(query_ptr.get());
-    SafetyPointFactory::instance().receiveActionNotify(action_query->action_name, action_query->reentry, action_query->from);
+    SafetyPointFactory::instance().receiveActionNotify(action_query->sync_name, action_query->action_name, action_query->reentry, action_query->from);
     return {};
 }
 
