@@ -79,7 +79,7 @@ StoragePtr QingCloudDDLSynchronism::createDDLQueue(const Context & context)
 }
 
 void
-QingCloudDDLSynchronism::updateAddressesAndConnections(const String &node_id, const AddressesWithConnections &addresses_with_connections)
+QingCloudDDLSynchronism::updateAddressesAndConnections(const String & node_id, const AddressesWithConnections &addresses_with_connections)
 {
     std::unique_lock<std::mutex> lock{mutex};
 
@@ -185,7 +185,7 @@ void QingCloudDDLSynchronism::work()
                     break;
                 }
 
-                /// TODO: 执行结果返回给 from
+                /// TODO: 执行结果返回给 from, 错误的catch
                 executeLocalQuery(query_string, context);
                 committed.entity_id = entity_id;
                 committed.paxos_id = proposer_id;
@@ -286,6 +286,7 @@ Block QingCloudDDLSynchronism::executeQueryWithConnections(const String & query_
     BlockInputStreams streams;
     Block header = storage->getSampleBlock();
     Settings settings = context.getSettingsRef();
+    settings.log_queries = 0;
 
     String inner_query = "SELECT * FROM system.ddl_queue WHERE proposer_id > " + toString(offset) + " ORDER BY proposer_id LIMIT " + toString(limit);
 
@@ -296,7 +297,7 @@ Block QingCloudDDLSynchronism::executeQueryWithConnections(const String & query_
         ConnectionPoolWithFailoverPtr shard_pool = std::make_shared<ConnectionPoolWithFailover>(
             failover_connections, SettingLoadBalancing(LoadBalancing::RANDOM), settings.connections_with_failover_max_tries);
 
-        streams.emplace_back(std::make_shared<QingCloudErroneousBlockInputStream>(std::make_shared<RemoteBlockInputStream>(shard_pool, inner_query, header, context)));
+        streams.emplace_back(std::make_shared<QingCloudErroneousBlockInputStream>(std::make_shared<RemoteBlockInputStream>(shard_pool, inner_query, header, context, settings)));
     }
 
     ParserSelectQuery select_parser;

@@ -31,11 +31,11 @@ private:
     std::mutex mutex;
     String exception_message;
     std::condition_variable cond;
-    std::map<String, std::pair<String, UInt64>> actual_arrival;         /// from -> (action_name, reentry)
+    std::map<String, std::vector<std::pair<String, UInt64>>> actual_arrival;         /// from -> (action_name, reentry)
 
-    bool checkAlreadyConsistent();
+    bool checkAlreadyConsistent(const String & action_name, const size_t & reentry);
 
-    bool checkAlreadyInconsistent(const String & action_name, const UInt64 & reentry);
+    void cleanupOldActionName(const String &action_name, const size_t &reentry);
 };
 
 using SafetyPointWithClusterPtr = std::shared_ptr<SafetyPointWithCluster>;

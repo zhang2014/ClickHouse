@@ -141,6 +141,7 @@ Block UpgradeQueryBlockInputStream::readImpl()
         }
     }
 
+    SafetyPointFactory::instance().releaseSafetyPoint("UPGRADE_VERSION_" + origin_version + "_" + upgrade_version);
     return {};
 }
 

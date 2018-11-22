@@ -19,10 +19,8 @@ protected:
     bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override
     {
         ParserKeyword s_to("TO");
-        ParserKeyword s_upgrade("UPGRADE VERSION TABLE");
+        ParserKeyword s_upgrade("UPGRADE VERSION");
 
-        ASTPtr table;
-        ASTPtr database;
         ASTPtr origin_version;
         ASTPtr upgrade_version;
 
@@ -36,16 +34,6 @@ protected:
         if (!s_upgrade.ignore(pos, expected))
             return false;
 
-        if (!name_p.parse(pos, table, expected))
-            return false;
-
-        if (s_dot.ignore(pos, expected))
-        {
-            database = table;
-            if (!name_p.parse(pos, table, expected))
-                return false;
-        }
-
         if (!p_from_version.parse(pos, origin_version, expected))
             return false;
 
@@ -55,10 +43,6 @@ protected:
         if (!p_to_version.parse(pos, upgrade_version, expected))
             return false;
 
-        if (database)
-            query->database = typeid_cast<ASTIdentifier *>(database.get())->name;
-
-        query->table = typeid_cast<ASTIdentifier *>(table.get())->name;
         query->origin_version = typeid_cast<ASTLiteral *>(origin_version.get())->value.safeGet<String>();
         query->upgrade_version = typeid_cast<ASTLiteral *>(upgrade_version.get())->value.safeGet<String>();
         node = query;

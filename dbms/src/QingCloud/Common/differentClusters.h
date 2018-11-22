@@ -49,10 +49,10 @@ inline std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> getConnection
     std::map<String, size_t> exists;
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> connections;
 
-    for (const auto & cluster : clusters)
+    for (auto cluster = clusters.begin(); cluster != clusters.end(); ++cluster)
     {
-        Cluster::ShardsInfo shards_info = cluster->getShardsInfo();
-        Cluster::AddressesWithFailover addresses_with_failover = cluster->getShardsAddresses();
+        Cluster::ShardsInfo shards_info = (*cluster)->getShardsInfo();
+        Cluster::AddressesWithFailover addresses_with_failover = (*cluster)->getShardsAddresses();
 
         for (size_t shard_index : ext::range(0, shards_info.size()))
         {
@@ -62,7 +62,11 @@ inline std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> getConnection
             {
                 Cluster::Address replica_address = shard_addresses[replica_index];
                 if (!exists.count(replica_address.toString()))
+                {
+                    exists[replica_address.toString()] = 1;
                     connections.emplace_back(std::pair(replica_address, replicas_connection[replica_index]));
+                }
+
             }
         }
     }

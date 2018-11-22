@@ -5,6 +5,7 @@
 #include <DataStreams/RemoteBlockInputStream.h>
 #include <DataStreams/SquashingBlockInputStream.h>
 #include <Common/getMultipleKeysFromConfig.h>
+#include <vector>
 #include "SafetyPointFactory.h"
 
 
@@ -49,7 +50,7 @@ SafetyPointWithClusterPtr SafetyPointFactory::createSafetyPoint(const String & s
         syncs[sync_name] = std::make_shared<SafetyPointWithCluster>(sync_name, context, connections);
         if (actions.count(sync_name))
         {
-            for (const std::tuple<String, UInt64, String> ele : actions[sync_name])
+            for (const std::tuple<String, UInt64, String> & ele : actions[sync_name])
                 syncs[sync_name]->notifyActionWaiter(std::get<0>(ele), std::get<1>(ele), std::get<2>(ele));
 
             actions.erase(sync_name);
@@ -97,86 +98,86 @@ void SafetyPointWithCluster::broadcast(const String &query_string)
 
 void SafetyPointWithCluster::broadcastSync(const String &action_name, size_t check_size)
 {
-
     LOG_DEBUG(&Logger::get("SafetyPointWithCluster"), "Execute SafetyPointWithCluster Sync Name : " + sync_name + ", Action Name:" + action_name);
 
-    std::unique_lock<std::mutex> lock(mutex);
+    std::vector<std::string> listen_hosts = getMultipleValuesFromConfig(context.getConfigRef(), "", "listen_host");
 
-    /// 循环检查,可以有效屏蔽半成功问题
     for (size_t index = 0; index < check_size; ++index)
     {
+        /// 循环检查,可以有效屏蔽半成功问题
         size_t reentry = ++count;
-        if (checkAlreadyInconsistent(action_name, reentry))
-            throw Exception("Cannot broadcast sync, because other server is inconsistent.", ErrorCodes::SAFETY_UNEXPECTED);
-
-        std::vector<std::string> listen_hosts = getMultipleValuesFromConfig(context.getConfigRef(), "", "listen_host");
         broadcast("ACTION NOTIFY '" + action_name + "' REENTRY " + toString(reentry) + " FROM ('" + listen_hosts[0] + "', '" + sync_name + "')");
 
-        if (!checkAlreadyConsistent())
         {
-            if (cond.wait_for(lock, std::chrono::milliseconds(180000)) == std::cv_status::timeout || !exception_message.empty())
-                throw Exception(exception_message.empty() ? "Cannot wait other server safety point, because time is out of time."
-                                                          : exception_message,
-                                exception_message.empty() ? ErrorCodes::SAFETY_TIMEOUT : ErrorCodes::SAFETY_UNEXPECTED);
+            std::unique_lock<std::mutex> lock{mutex};
+            while (!checkAlreadyConsistent(action_name, reentry))
+                if (cond.wait_for(lock, std::chrono::milliseconds(180000)) == std::cv_status::timeout || !exception_message.empty())
+                    throw Exception(exception_message.empty() ? "Cannot wait other server safety point, because time is out of time." :
+                                    exception_message, exception_message.empty() ? ErrorCodes::SAFETY_TIMEOUT : ErrorCodes::SAFETY_UNEXPECTED);
 
-            actual_arrival.clear();
+
             exception_message = "";
+            cleanupOldActionName(action_name, reentry);
         }
     }
 
     LOG_DEBUG(&Logger::get("SafetyPointWithCluster"), "Successfully SafetyPointWithCluster : " + action_name);
 }
 
-void SafetyPointWithCluster::notifyActionWaiter(const String &action_name, const UInt64 &reentry, const String &from)
+void SafetyPointWithCluster::notifyActionWaiter(const String & action_name, const UInt64 & reentry, const String & from)
 {
-    try
     {
-        std::unique_lock<std::mutex> lock(mutex);
+        std::lock_guard<std::mutex> lock{mutex};
+        if (actual_arrival.count(from) && actual_arrival[from].size() > 2)
+            throw Exception("Safety point are too different. from " + from, ErrorCodes::SAFETY_UNEXPECTED);
 
-        actual_arrival[from] = std::pair(action_name, reentry);
-
-        if (!checkAlreadyInconsistent(action_name, reentry))
-            throw Exception("Cannot broadcast sync, because other server is inconsistent.", ErrorCodes::SAFETY_UNEXPECTED);
-
-        if (checkAlreadyConsistent())
-        {
-            lock.unlock();
-            cond.notify_one();
-        }
+        actual_arrival[from].emplace_back(std::pair(action_name, reentry));
     }
-    catch (const Exception & ex)
+
     {
-        exception_message = getExceptionMessage(ex, false);
         cond.notify_one();
+        std::lock_guard<std::mutex> lock{mutex};
     }
 }
 
 
-bool SafetyPointWithCluster::checkAlreadyConsistent()
+void SafetyPointWithCluster::cleanupOldActionName(const String & action_name, const size_t & reentry)
+{
+    for (auto & actual : actual_arrival)
+    {
+        for (auto iter = actual.second.begin(); iter != actual.second.end(); )
+        {
+            if ((*iter).first == action_name && (*iter).second == reentry)
+                iter = actual.second.erase(iter);
+            else
+                ++iter;
+        }
+    }
+}
+
+bool SafetyPointWithCluster::checkAlreadyConsistent(const String & action_name, const size_t & reentry)
 {
     auto exists = [&, this](const String & host_name)
     {
         for (const auto & actual : actual_arrival)
+        {
             if (actual.first == host_name)
-                return true;
+            {
+                for (auto iter = actual.second.begin(); iter != actual.second.end(); ++iter)
+                    if ((*iter).first == action_name && (*iter).second == reentry)
+                        return true;
+            }
+        }
 
         return false;
     };
 
     for (const auto & connection : connections)
-        if (!exists(connection.first.host_name))
+        if (!connection.first.is_local && !exists(connection.first.host_name))
             return false;
 
-    return true;
-}
 
-bool SafetyPointWithCluster::checkAlreadyInconsistent(const String &action_name, const UInt64 &reentry)
-{
-    for (const auto & from_and_action : actual_arrival)
-        if (from_and_action.second.first != action_name
-            || from_and_action.second.second != reentry)
-            return true;
-    return false;
+    return true;
 }
 
 }
