@@ -65,8 +65,8 @@ private:
     Cluster::AddressesWithFailover addresses;
     ShardsInfo shards_info;
     Cluster::SlotToShard slot_to_shard;
-    size_t remote_shard_count;
-    size_t local_shard_count;
+    size_t remote_shard_count = 0;
+    size_t local_shard_count = 0;
 
 public:
     const SlotToShard & getSlotToShard() const override;

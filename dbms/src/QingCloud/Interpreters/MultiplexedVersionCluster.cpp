@@ -232,6 +232,7 @@ const Cluster::SlotToShard & DummyCluster::getSlotToShard() const
 
 size_t DummyCluster::getLocalShardCount() const
 {
+    std::cout << "LocalShardCount " << toString(local_shard_count) << "\n";
     return local_shard_count;
 }
 

@@ -44,23 +44,26 @@ inline std::map<size_t, Cluster::Address> differentClusters(const ClusterPtr & c
 }
 
 
-inline std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> getConnectionPoolsFromClusters(const ClusterPtr & cluster)
+inline std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> getConnectionPoolsFromClusters(std::initializer_list<ClusterPtr> clusters)
 {
     std::map<String, size_t> exists;
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> connections;
 
-    Cluster::ShardsInfo shards_info = cluster->getShardsInfo();
-    Cluster::AddressesWithFailover addresses_with_failover = cluster->getShardsAddresses();
-
-    for (size_t shard_index : ext::range(0, shards_info.size()))
+    for (const auto & cluster : clusters)
     {
-        Cluster::Addresses shard_addresses = addresses_with_failover[shard_index];
-        ConnectionPoolPtrs replicas_connection = shards_info[shard_index].per_replica_pools;
-        for (size_t replica_index : ext::range(0, shard_addresses.size()))
+        Cluster::ShardsInfo shards_info = cluster->getShardsInfo();
+        Cluster::AddressesWithFailover addresses_with_failover = cluster->getShardsAddresses();
+
+        for (size_t shard_index : ext::range(0, shards_info.size()))
         {
-            Cluster::Address replica_address = shard_addresses[replica_index];
-            if (!exists.count(replica_address.toString()))
-                connections.emplace_back(std::pair(replica_address, replicas_connection[replica_index]));
+            Cluster::Addresses shard_addresses = addresses_with_failover[shard_index];
+            ConnectionPoolPtrs replicas_connection = shards_info[shard_index].per_replica_pools;
+            for (size_t replica_index : ext::range(0, shard_addresses.size()))
+            {
+                Cluster::Address replica_address = shard_addresses[replica_index];
+                if (!exists.count(replica_address.toString()))
+                    connections.emplace_back(std::pair(replica_address, replicas_connection[replica_index]));
+            }
         }
     }
 

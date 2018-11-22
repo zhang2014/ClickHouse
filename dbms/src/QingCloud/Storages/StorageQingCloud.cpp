@@ -124,9 +124,6 @@ BlockInputStreams StorageQingCloud::read(const Names & column_names, const Selec
 void StorageQingCloud::flushVersionData(const String & version)
 {
     dynamic_cast<StorageDistributed *>(version_distributed[version].get())->waitForFlushedOtherServer();
-
-    ClusterPtr flush_cluster = context.getCluster(wrapVersionName(version));
-    SafetyPointFactory::instance().createSafetyPoint("FLUSHED_DISTRIBUTED_DATA", flush_cluster, context)->sync();
 }
 
 void StorageQingCloud::initializeVersions(std::initializer_list<String> versions)
@@ -137,11 +134,12 @@ void StorageQingCloud::initializeVersions(std::initializer_list<String> versions
         ClusterPtr cluster = context.getCluster(wrapVersionName(*iterator));
         if (std::find(retain_version.begin(), retain_version.end(), *iterator) == retain_version.end())
         {
-            Poco::File(table_data_path + *iterator).remove(true);
+            if (Poco::File(table_data_path + *iterator).exists())
+                Poco::File(table_data_path + *iterator).remove(true);
+
             createTablesWithCluster(*iterator, cluster);
             version_info.retain_versions.emplace_back(*iterator);
         }
-        SafetyPointFactory::instance().createSafetyPoint("INITIALIZE_VERSION", cluster, context)->sync(2);    /// use double check sync
     }
 
     version_info.store();
@@ -161,19 +159,6 @@ void StorageQingCloud::initializeVersionInfo(std::initializer_list<String> reada
     }
 
     version_info.store();
-
-    {
-        ClusterPtr write_cluster = context.getCluster(wrapVersionName(writable_version));
-        SafetyPointFactory::instance().createSafetyPoint("INITIALIZE_WRITE_VERSION_INFO", write_cluster, context)->sync();
-    }
-
-    for (auto iterator = readable_versions.begin(); iterator != readable_versions.end(); ++iterator)
-    {
-        ClusterPtr read_cluster = context.getCluster(wrapVersionName(*iterator));
-        SafetyPointFactory::instance().createSafetyPoint("INITIALIZE_READ_VERSION_INFO", read_cluster, context)->sync();
-    }
-
-
 }
 
 void StorageQingCloud::migrateDataBetweenVersions(const String &origin_version, const String &upgrade_version, bool copy)
@@ -208,9 +193,6 @@ void StorageQingCloud::cleanupBeforeMigrate(const String &cleanup_version)
     for (const auto &local_storage : local_data_storage)
         if (local_storage.first.first == cleanup_version)
             local_storage.second->truncate({});     /// TODO: materialize view need query param
-
-    ClusterPtr cleanup_cluster = context.getCluster(wrapVersionName(cleanup_version));
-    SafetyPointFactory::instance().createSafetyPoint("CLEANUP_VERSION_DATA", cleanup_cluster, context)->sync();
 }
 
 void StorageQingCloud::replaceDataWithLocal(bool drop, const StoragePtr &origin_, const StoragePtr &upgrade_storage_)
@@ -253,9 +235,9 @@ void StorageQingCloud::createTablesWithCluster(const String & version, const Clu
 {
     String version_table_data_path = table_data_path + version + "/";
 
+    Poco::File(version_table_data_path).createDirectories();
     if (!version_distributed.count(version))
     {
-        Poco::File(version_table_data_path).createDirectory();
         version_distributed[version] = StorageDistributed::create(database_name, "Distributed_" + table_name, columns, database_name,
                                                                   table_name, wrapVersionName(version), context, sharding_key,
                                                                   version_table_data_path, attach);

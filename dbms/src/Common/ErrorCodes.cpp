@@ -406,7 +406,8 @@ namespace ErrorCodes
     extern const int ILLEGAL_PROJECTION_MANIPULATOR = 2002;
 
     extern const int PAXOS_EXCEPTION = 3001;
-    extern const int SAFETY_TIMEOUT=3002;
+    extern const int SAFETY_TIMEOUT = 3002;
+    extern const int SAFETY_UNEXPECTED = 3003;
 }
 
 }

@@ -13,18 +13,29 @@ class SafetyPointWithCluster
 public:
     ~SafetyPointWithCluster();
 
-    SafetyPointWithCluster(const String & name, const ClusterPtr & cluster, const Context & context);
+    SafetyPointWithCluster(const String &name, const Context &context, const std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> & connections);
 
-    void sync(size_t check_size = 1);
+    void broadcast(const String & query_string);
 
-    void sendQueryWithAddresses(const std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> &addresses_with_connections,
-                                const String &query_string);
+    void broadcastSync(const String & action_name, size_t check_size = 1);
+
+    void notifyActionWaiter(const String &action_name, const UInt64 &reentry, const String &from);
+
 private:
     const Context & context;
 
-    String name;
-    ClusterPtr cluster;
-    std::atomic<UInt64> count;
+    String sync_name;
+    std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> connections;
+    std::atomic<UInt64> count = 0;
+
+    std::mutex mutex;
+    String exception_message;
+    std::condition_variable cond;
+    std::map<String, std::pair<String, UInt64>> actual_arrival;         /// from -> (action_name, reentry)
+
+    bool checkAlreadyConsistent();
+
+    bool checkAlreadyInconsistent(const String & action_name, const UInt64 & reentry);
 };
 
 using SafetyPointWithClusterPtr = std::shared_ptr<SafetyPointWithCluster>;
@@ -34,34 +45,16 @@ class SafetyPointFactory : public ext::singleton<SafetyPointFactory>
 public:
     void releaseSafetyPoint(const String & name);
 
-    bool waitOther(const String & name, const UInt64 & reentry);
+    void receiveActionNotify(const String & sync_name, const String & action_name, const UInt64 & reentry, const String & from);
 
-    bool checkAllNotify(const String &name, const UInt64 &reentry);
+    SafetyPointWithClusterPtr createSafetyPoint(
+        const String & sync_name, const Context & context, const std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> & connections);
 
-    void expected(const String & action_name, const UInt64 & reentry, const std::vector<String> & expected);
-    void receiveActionNotify(const String & action_name, const UInt64 & reentry, const String & from);
-
-    SafetyPointWithClusterPtr createSafetyPoint(const String & name, const ClusterPtr & cluster, const Context & context);
 private:
-    struct ActionEntity
-    {
-        std::vector<String> from;
-        std::vector<String> expected;
-        std::mutex wait_for_mutex;
-        std::condition_variable cond;
-    };
+    std::mutex mutex;
 
-    struct SafetyPointEntity
-    {
-        size_t wait_size = 0;
-        std::mutex wait_for_mutex;
-        std::condition_variable cond;
-    };
-
-    std::mutex action_mutex;
-    std::mutex safety_mutex;
-    std::map<String, ActionEntity> action_entities;
-    std::map<String, SafetyPointEntity> safety_entities;
+    std::map<String, SafetyPointWithClusterPtr> syncs;
+    std::map<String, std::vector<std::tuple<String, UInt64, String>>> actions;
 };
 
 }

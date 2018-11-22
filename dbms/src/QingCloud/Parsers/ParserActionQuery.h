@@ -48,7 +48,7 @@ protected:
         if (!s_from.ignore(pos, expected))
             return false;
 
-        if (!name_p.parse(pos, from, expected))
+        if (!string_p.parse(pos, from, expected))
             return false;
 
         auto query = std::make_shared<ASTActionQuery>();

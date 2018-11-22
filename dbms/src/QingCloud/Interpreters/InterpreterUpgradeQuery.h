@@ -5,6 +5,7 @@
 #include <Interpreters/IInterpreter.h>
 #include <DataStreams/IProfilingBlockInputStream.h>
 #include <QingCloud/Storages/StorageQingCloud.h>
+#include "SafetyPointFactory.h"
 
 namespace DB
 {
@@ -12,7 +13,8 @@ namespace DB
 class UpgradeQueryBlockInputStream : public IProfilingBlockInputStream
 {
 public:
-    UpgradeQueryBlockInputStream(const std::vector<StoragePtr> & upgrade_storage);
+    UpgradeQueryBlockInputStream(const SafetyPointWithClusterPtr &safety_point_sync, const std::vector<StoragePtr> &upgrade_storage,
+                                 const String &origin_version, const String &upgrade_version);
 
     String getName() const override;
 
@@ -40,6 +42,7 @@ private:
     String origin_version;
     String upgrade_version;
     std::vector<StoragePtr> upgrade_storage;
+    SafetyPointWithClusterPtr safety_point_sync;
 
     Block readImpl() override;
 };

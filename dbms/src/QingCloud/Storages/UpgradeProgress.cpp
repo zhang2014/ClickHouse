@@ -22,7 +22,7 @@ UpgradeProgress::UpgradeProgress(const String &path, const MultiplexedClusterPtr
         readStringBinary(write_version, version_buffer);
     }
 
-
+    store();
 }
 
 void UpgradeProgress::store()
