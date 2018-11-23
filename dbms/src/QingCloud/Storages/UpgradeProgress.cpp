@@ -3,7 +3,6 @@
 #include <IO/ReadBufferFromFile.h>
 #include <IO/ReadHelpers.h>
 #include <IO/WriteBufferFromFile.h>
-#include "UpgradeProgress.h"
 
 
 namespace DB

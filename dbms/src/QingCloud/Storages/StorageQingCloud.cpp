@@ -269,10 +269,6 @@ void StorageQingCloud::deleteOutdatedVersions(std::initializer_list<String> dele
 
         storage->drop();
         storage->is_dropped = true;
-        String version_table_data_path = table_data_path + version + "/";
-
-        if (Poco::File(version_table_data_path).exists())
-            Poco::File(version_table_data_path).remove(true);
     };
 
     for (auto iterator = delete_versions.begin(); iterator != delete_versions.end(); ++iterator)
@@ -283,6 +279,11 @@ void StorageQingCloud::deleteOutdatedVersions(std::initializer_list<String> dele
         for (const auto & local_storage : local_data_storage)
             if (local_storage.first.first == *iterator)
                 drop_storage(*iterator, local_storage.second);
+
+        String version_table_data_path = table_data_path + version + "/";
+
+        if (Poco::File(version_table_data_path).exists())
+            Poco::File(version_table_data_path).remove(true);
     }
 }
 
