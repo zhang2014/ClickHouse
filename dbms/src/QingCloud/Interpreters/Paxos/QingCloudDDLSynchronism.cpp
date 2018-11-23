@@ -294,7 +294,7 @@ Block QingCloudDDLSynchronism::executeQueryWithConnections(const String & query_
         ConnectionPoolWithFailoverPtr shard_pool = std::make_shared<ConnectionPoolWithFailover>(
             failover_connections, SettingLoadBalancing(LoadBalancing::RANDOM), settings.connections_with_failover_max_tries);
 
-        streams.emplace_back(std::make_shared<QingCloudErroneousBlockInputStream>(std::make_shared<RemoteBlockInputStream>(shard_pool, inner_query, header, context, settings)));
+        streams.emplace_back(std::make_shared<QingCloudErroneousBlockInputStream>(std::make_shared<RemoteBlockInputStream>(shard_pool, inner_query, header, context, &settings)));
     }
 
     ParserSelectQuery select_parser;

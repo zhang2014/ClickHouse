@@ -278,11 +278,11 @@ void StorageQingCloud::deleteOutdatedVersions(std::initializer_list<String> dele
     for (auto iterator = delete_versions.begin(); iterator != delete_versions.end(); ++iterator)
     {
         if (version_distributed.count(*iterator))
-            drop_storage(version_distributed[*iterator]);
+            drop_storage(*iterator, version_distributed[*iterator]);
 
         for (const auto & local_storage : local_data_storage)
             if (local_storage.first.first == *iterator)
-                drop_storage(local_storage.second);
+                drop_storage(*iterator, local_storage.second);
     }
 }
 
