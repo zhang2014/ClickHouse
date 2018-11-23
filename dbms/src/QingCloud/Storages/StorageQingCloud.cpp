@@ -262,7 +262,7 @@ void StorageQingCloud::createTablesWithCluster(const String & version, const Clu
 
 void StorageQingCloud::deleteOutdatedVersions(std::initializer_list<String> delete_versions)
 {
-    const auto drop_storage = [&] (const String & version, const StoragePtr & storage)
+    const auto drop_storage = [&] (const StoragePtr & storage)
     {
         storage->shutdown();
         auto table_lock = storage->lockForAlter(__PRETTY_FUNCTION__);
@@ -274,11 +274,11 @@ void StorageQingCloud::deleteOutdatedVersions(std::initializer_list<String> dele
     for (auto iterator = delete_versions.begin(); iterator != delete_versions.end(); ++iterator)
     {
         if (version_distributed.count(*iterator))
-            drop_storage(*iterator, version_distributed[*iterator]);
+            drop_storage(version_distributed[*iterator]);
 
         for (const auto & local_storage : local_data_storage)
             if (local_storage.first.first == *iterator)
-                drop_storage(*iterator, local_storage.second);
+                drop_storage(local_storage.second);
 
         String version_table_data_path = table_data_path + *iterator + "/";
 
