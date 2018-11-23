@@ -24,6 +24,7 @@
 #include <Parsers/ASTPartition.h>
 #include <Storages/MergeTree/MergeTreeData.h>
 #include <QingCloud/Interpreters/SafetyPointFactory.h>
+#include "StorageQingCloud.h"
 
 
 namespace DB
@@ -161,17 +162,15 @@ void StorageQingCloud::initializeVersionInfo(std::initializer_list<String> reada
     version_info.store();
 }
 
-void StorageQingCloud::migrateDataBetweenVersions(const String &origin_version, const String &upgrade_version, bool copy)
+void StorageQingCloud::migrateDataBetweenVersions(const String &origin_version, const String &upgrade_version, bool move)
 {
-    if (copy)
-        cleanupBeforeMigrate(upgrade_version);
-
     const ClusterPtr origin_cluster = context.getCluster(wrapVersionName(origin_version));
     const ClusterPtr upgrade_cluster = context.getCluster(wrapVersionName(upgrade_version));
 
+    /// shard_number -> leader_address
     const auto diff_shards = differentClusters(origin_cluster, upgrade_cluster);
 
-    if (!diff_shards.empty() && !copy)
+    if (!diff_shards.empty() && move)
         throw Exception("LogicError: cannot copy data with diff cluster.", ErrorCodes::LOGICAL_ERROR);
 
     for (const auto & local_storage : local_data_storage)
@@ -181,9 +180,9 @@ void StorageQingCloud::migrateDataBetweenVersions(const String &origin_version, 
             size_t shard_number = local_storage.first.second;
 
             if (diff_shards.count(shard_number) && diff_shards.at(shard_number).is_local)
-                rebalanceDataWithCluster(origin_version, upgrade_version, shard_number);
+                migrateDataInCluster(origin_version, upgrade_version, shard_number);
             else
-                replaceDataWithLocal(copy, local_storage.second, local_data_storage[std::pair(upgrade_version, shard_number)]);
+                migrateDataInLocal(move, local_storage.second, local_data_storage[std::pair(upgrade_version, shard_number)]);
         }
     }
 }
@@ -195,31 +194,34 @@ void StorageQingCloud::cleanupBeforeMigrate(const String &cleanup_version)
             local_storage.second->truncate({});     /// TODO: materialize view need query param
 }
 
-void StorageQingCloud::replaceDataWithLocal(bool drop, const StoragePtr &origin_, const StoragePtr &upgrade_storage_)
+void StorageQingCloud::migrateDataInLocal(bool move, const StoragePtr &origin_, const StoragePtr &upgrade_storage_)
 {
     if (dynamic_cast<StorageMergeTree *>(origin_.get()) && dynamic_cast<StorageMergeTree *>(upgrade_storage_.get()))
     {
-        std::unordered_set<String> partition_ids;
+        std::unordered_set<String> processed_partition_id;
 
-        StorageMergeTree * origin = dynamic_cast<StorageMergeTree *>(origin_.get());
-        StorageMergeTree * upgrade = dynamic_cast<StorageMergeTree *>(upgrade_storage_.get());
+        auto * origin = dynamic_cast<StorageMergeTree *>(origin_.get());
+        auto * upgrade = dynamic_cast<StorageMergeTree *>(upgrade_storage_.get());
         MergeTreeData::DataPartsVector data_parts = origin->data.getDataPartsVector({MergeTreeDataPart::State::Committed});
 
+
         for (const MergeTreeData::DataPartPtr & part : data_parts)
-            partition_ids.emplace(part->info.partition_id);
-
-        for (const auto & partition_id : partition_ids)
         {
-            auto ast_partition = std::make_shared<ASTPartition>();
+            auto partition_id = part->info.partition_id;
+            if (!processed_partition_id.count(partition_id))
+            {
+                auto ast_partition = std::make_shared<ASTPartition>();
 
-            ast_partition->id = partition_id;
-            upgrade->replacePartitionFrom(origin_, ast_partition, false, context);
-            if (drop) origin->dropPartition({}, ast_partition, false, context);
+                ast_partition->id = partition_id;
+                processed_partition_id.emplace(partition_id);
+                upgrade->replacePartitionFrom(origin_, ast_partition, false, context);
+                if (move) origin->dropPartition({}, ast_partition, false, context);
+            }
         }
     }
 }
 
-void StorageQingCloud::rebalanceDataWithCluster(const String &origin_version, const String &upgrade_version, size_t shard_number)
+void StorageQingCloud::migrateDataInCluster(const String &origin_version, const String &upgrade_version, size_t shard_number)
 {
     Context query_context = context;
     query_context.getSettingsRef().query_version = origin_version;
@@ -255,6 +257,32 @@ void StorageQingCloud::createTablesWithCluster(const String & version, const Clu
                     true, create_query, version_table_data_path, "Shard_" + toString(shard_number + 1) + "_" + table_name, database_name,
                     local_context, context, columns, attach, has_force_restore_data_flag);
         }
+    }
+}
+
+void StorageQingCloud::deleteOutdatedVersions(std::initializer_list<String> delete_versions)
+{
+    const auto drop_storage = [&] (const String & version, const StoragePtr & storage)
+    {
+        storage->shutdown();
+        auto table_lock = storage->lockForAlter(__PRETTY_FUNCTION__);
+
+        storage->drop();
+        storage->is_dropped = true;
+        String version_table_data_path = table_data_path + version + "/";
+
+        if (Poco::File(version_table_data_path).exists())
+            Poco::File(version_table_data_path).remove(true);
+    };
+
+    for (auto iterator = delete_versions.begin(); iterator != delete_versions.end(); ++iterator)
+    {
+        if (version_distributed.count(*iterator))
+            drop_storage(version_distributed[*iterator]);
+
+        for (const auto & local_storage : local_data_storage)
+            if (local_storage.first.first == *iterator)
+                drop_storage(local_storage.second);
     }
 }
 

@@ -24,6 +24,7 @@ static void changeProcessAndSync(ProgressEnum progress_enum, StorageQingCloud * 
         case INITIALIZE_UPGRADE_VERSION : safety_point_sync->broadcastSync("INITIALIZE_UPGRADE_VERSION"); break;
         case REDIRECT_VERSIONS_BEFORE_MIGRATE: safety_point_sync->broadcastSync("REDIRECT_VERSIONS_BEFORE_MIGRATE"); break;
         case FLUSH_OLD_VERSION_DATA: safety_point_sync->broadcastSync("FLUSH_OLD_VERSION_DATA"); break;
+        case CLEANUP_UPGRADE_VERSION: safety_point_sync->broadcastSync("CLEANUP_UPGRADE_VERSION"); break;
         case MIGRATE_OLD_VERSION_DATA: safety_point_sync->broadcastSync("MIGRATE_OLD_VERSION_DATA"); break;
         case FLUSH_UPGRADE_VERSION_DATA: safety_point_sync->broadcastSync("FLUSH_UPGRADE_VERSION_DATA"); break;
         case REDIRECT_VERSIONS_AFTER_MIGRATE: safety_point_sync->broadcastSync("REDIRECT_VERSIONS_AFTER_MIGRATE"); break;
@@ -86,7 +87,7 @@ BlockIO InterpreterUpgradeQuery::execute()
 UpgradeQueryBlockInputStream::UpgradeQueryBlockInputStream(
     const SafetyPointWithClusterPtr &safety_point_sync, const std::vector<StoragePtr> &upgrade_storage, const String &origin_version,
     const String &upgrade_version)
-    : origin_version(origin_version), upgrade_version(upgrade_version), upgrade_storage(upgrade_storage),
+    : origin_version(origin_version), upgrade_version(upgrade_version), upgrade_storages(upgrade_storage),
       safety_point_sync(safety_point_sync)
 {
 }
@@ -108,41 +109,50 @@ Block UpgradeQueryBlockInputStream::getHeader() const
 
 Block UpgradeQueryBlockInputStream::readImpl()
 {
-    for (const auto &storage : upgrade_storage)
+    try
     {
-        if (const auto qing_storage = dynamic_cast<StorageQingCloud *>(storage.get()))
+        for (const auto & upgrade_storage : upgrade_storages)
         {
-            qing_storage->initializeVersions({origin_version, "tmp_" + upgrade_version, upgrade_version});
-            changeProcessAndSync(ProgressEnum::INITIALIZE_UPGRADE_VERSION, qing_storage, safety_point_sync);
-            qing_storage->initializeVersionInfo({origin_version, "tmp_" + upgrade_version}, "tmp_" + upgrade_version);
-            changeProcessAndSync(ProgressEnum::REDIRECT_VERSIONS_BEFORE_MIGRATE, qing_storage, safety_point_sync);
+            if (const auto storage = dynamic_cast<StorageQingCloud *>(upgrade_storage.get()))
+            {
+                storage->initializeVersions({origin_version, "tmp_" + upgrade_version, upgrade_version});
+                changeProcessAndSync(ProgressEnum::INITIALIZE_UPGRADE_VERSION, storage, safety_point_sync);
+                storage->initializeVersionInfo({origin_version, "tmp_" + upgrade_version}, "tmp_" + upgrade_version);
+                changeProcessAndSync(ProgressEnum::REDIRECT_VERSIONS_BEFORE_MIGRATE, storage, safety_point_sync);
+            }
         }
-    }
 
-    for (const auto &storage : upgrade_storage)
+        for (const auto & upgrade_storage : upgrade_storages)
+        {
+            if (const auto storage = dynamic_cast<StorageQingCloud *>(upgrade_storage.get()))
+            {
+                storage->flushVersionData(origin_version);
+                changeProcessAndSync(ProgressEnum::FLUSH_OLD_VERSION_DATA, storage, safety_point_sync);
+                storage->cleanupBeforeMigrate(upgrade_version);
+                changeProcessAndSync(ProgressEnum::CLEANUP_UPGRADE_VERSION, storage, safety_point_sync);
+                storage->migrateDataBetweenVersions(origin_version, upgrade_version, true);
+                changeProcessAndSync(ProgressEnum::MIGRATE_OLD_VERSION_DATA, storage, safety_point_sync);
+                storage->flushVersionData(upgrade_version);
+                changeProcessAndSync(ProgressEnum::FLUSH_UPGRADE_VERSION_DATA, storage, safety_point_sync);
+                storage->initializeVersionInfo({"tmp_" + upgrade_version, upgrade_version}, upgrade_version);
+                changeProcessAndSync(ProgressEnum::REDIRECT_VERSIONS_AFTER_MIGRATE, storage, safety_point_sync);
+                storage->migrateDataBetweenVersions("tmp_" + upgrade_version, upgrade_version, false);
+                changeProcessAndSync(ProgressEnum::MIGRATE_TMP_VERSION_DATA, storage, safety_point_sync);
+                storage->initializeVersionInfo({upgrade_version}, upgrade_version);
+                changeProcessAndSync(ProgressEnum::REDIRECT_VERSION_AFTER_ALL_MIGRATE, storage, safety_point_sync);
+                storage->deleteOutdatedVersions({origin_version, "tmp_" + upgrade_version});
+                changeProcessAndSync(ProgressEnum::NORMAL, storage, safety_point_sync);
+            }
+        }
+
+        SafetyPointFactory::instance().releaseSafetyPoint("UPGRADE_VERSION_" + origin_version + "_" + upgrade_version);
+        return {};
+    }
+    catch(...)
     {
-        if (const auto qing_storage = dynamic_cast<StorageQingCloud *>(storage.get()))
-        {
-            qing_storage->flushVersionData(origin_version);
-            changeProcessAndSync(ProgressEnum::FLUSH_OLD_VERSION_DATA, qing_storage, safety_point_sync);
-            qing_storage->migrateDataBetweenVersions(origin_version, upgrade_version, true);
-            changeProcessAndSync(ProgressEnum::MIGRATE_OLD_VERSION_DATA, qing_storage, safety_point_sync);
-            qing_storage->flushVersionData(upgrade_version);
-            changeProcessAndSync(ProgressEnum::FLUSH_UPGRADE_VERSION_DATA, qing_storage, safety_point_sync);
-            qing_storage->initializeVersionInfo({"tmp_" + upgrade_version, upgrade_version}, upgrade_version);
-            changeProcessAndSync(ProgressEnum::REDIRECT_VERSIONS_AFTER_MIGRATE, qing_storage, safety_point_sync);
-            qing_storage->migrateDataBetweenVersions("tmp_" + upgrade_version, upgrade_version, false);
-            changeProcessAndSync(ProgressEnum::MIGRATE_TMP_VERSION_DATA, qing_storage, safety_point_sync);
-            qing_storage->initializeVersionInfo({upgrade_version}, upgrade_version);
-            changeProcessAndSync(ProgressEnum::REDIRECT_VERSION_AFTER_ALL_MIGRATE, qing_storage, safety_point_sync);
-            /// TODO: delete old version DELETE_OUTDATED_VERSIONS
-
-            changeProcessAndSync(ProgressEnum::NORMAL, qing_storage, safety_point_sync);
-        }
+        SafetyPointFactory::instance().releaseSafetyPoint("UPGRADE_VERSION_" + origin_version + "_" + upgrade_version);
+        throw;
     }
-
-    SafetyPointFactory::instance().releaseSafetyPoint("UPGRADE_VERSION_" + origin_version + "_" + upgrade_version);
-    return {};
 }
 
 }

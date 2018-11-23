@@ -21,27 +21,9 @@ public:
     Block getHeader() const override;
 
 private:
-    enum State
-    {
-        INITIALIZE_UPGRADE_VERSION,
-        REDIRECT_VERSIONS_BEFORE_MIGRATE,
-        FLUSH_OLD_VERSION_DATA,
-        MIGRATE_OLD_VERSION_DATA,
-        FLUSH_UPGRADE_VERSION_DATA,                   /// At this time, old version and upgrade version data is consistent
-        REDIRECT_VERSIONS_AFTER_MIGRATE,
-        MIGRATE_TMP_VERSION_DATA,                     /// At this time, Temp version data is detached
-        REDIRECT_VERSION_AFTER_ALL_MIGRATE,
-        DELETE_OUTDATED_VERSIONS,                     /// At this time, Upgrade version is Done.
-
-        /// The end state
-        SUCCESSFULLY,
-        FAILURE
-    };
-
-private:
     String origin_version;
     String upgrade_version;
-    std::vector<StoragePtr> upgrade_storage;
+    std::vector<StoragePtr> upgrade_storages;
     SafetyPointWithClusterPtr safety_point_sync;
 
     Block readImpl() override;

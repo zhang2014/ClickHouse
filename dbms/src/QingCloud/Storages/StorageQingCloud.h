@@ -42,13 +42,17 @@ public:
 
     void flushVersionData(const String & version);
 
+    void cleanupBeforeMigrate(const String & cleanup_version);
+
     void initializeVersions(std::initializer_list<String> versions);
 
     void initializeVersionInfo(std::initializer_list<String> readable_versions, const String & writable_version);
 
-    void migrateDataBetweenVersions(const String &origin_version, const String &upgrade_version, bool copy);
+    void migrateDataBetweenVersions(const String &origin_version, const String &upgrade_version, bool move);
 
     bool checkNeedUpgradeVersion(const String &upgrade_version);
+
+    void deleteOutdatedVersions(std::initializer_list<String> delete_versions);
 
 private:
     Context & context;
@@ -67,11 +71,9 @@ private:
 
     void createTablesWithCluster(const String & version, const ClusterPtr & cluster, bool attach = false, bool has_force_restore_data_flag = false);
 
-    void cleanupBeforeMigrate(const String &cleanup_version);
+    void migrateDataInLocal(bool move, const StoragePtr &origin_, const StoragePtr &upgrade_storage_);
 
-    void replaceDataWithLocal(bool drop, const StoragePtr &origin_, const StoragePtr &upgrade_storage_);
-
-    void rebalanceDataWithCluster(const String &origin_version, const String &upgrade_version, size_t shard_number);
+    void migrateDataInCluster(const String &origin_version, const String &upgrade_version, size_t shard_number);
 
 };
 

@@ -46,15 +46,12 @@ static Block executeLocalQuery(const String &query_string, const Context &contex
     ASTPtr query = parseQuery(query_parser, query_string.data(), query_string.data() + query_string.size(), "", 0);
     std::unique_ptr<IInterpreter> interpreter = InterpreterFactory::get(query, const_cast<Context &>(context));
     if (BlockInputStreamPtr input = interpreter->execute().in)
-    {
-        return std::make_shared<SquashingBlockInputStream>(input, std::numeric_limits<size_t>::max(),
-                                                           std::numeric_limits<size_t>::max())->read();
-    }
+        return std::make_shared<SquashingBlockInputStream>(input, std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max())->read();
     return {};
 }
 
 
-QingCloudDDLSynchronism::QingCloudDDLSynchronism(const Context &context, const String &node_id) : context(context)
+QingCloudDDLSynchronism::QingCloudDDLSynchronism(const Context & context, const String & node_id) : context(context)
 {
     /// TODO sleep_time
     storage = createDDLQueue(context);
