@@ -150,15 +150,8 @@ void StorageQingCloud::initializeVersionInfo(std::initializer_list<String> reada
 {
     /// TODO: LOCK
     version_info.write_version = writable_version;
-
-    for (auto iterator = readable_versions.begin(); iterator != readable_versions.end(); ++iterator)
-    {
-        std::vector<String> current_versions = version_info.read_versions;
-
-        if (std::find(current_versions.begin(), current_versions.end(), *iterator) == current_versions.end())
-            version_info.read_versions.emplace_back(*iterator);
-    }
-
+    version_info.read_versions.clear();
+    version_info.read_versions.insert(version_info.read_versions.end(), readable_versions.begin(), readable_versions.end());
     version_info.store();
 }
 

@@ -7,7 +7,6 @@
 #include <DataStreams/OneBlockInputStream.h>
 #include <DataTypes/DataTypeString.h>
 #include <Columns/ColumnString.h>
-#include "InterpreterQingCloudDDLQuery.h"
 
 
 namespace DB

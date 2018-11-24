@@ -2,67 +2,64 @@
 
 #include <Storages/IStorage.h>
 #include <Interpreters/Cluster.h>
-#include <QingCloud/Interpreters/Paxos/QingCloudPaxos.h>
+#include "QingCloudPaxosLearner.h"
+#include "QingCloudPaxos.h"
 
 namespace DB
 {
 
 class Context;
 
+using LogEntity = std::pair<UInt64, String>;
+
 class QingCloudDDLSynchronism;
 using QingCloudDDLSynchronismPtr = std::shared_ptr<QingCloudDDLSynchronism>;
 
 class QingCloudDDLSynchronism
 {
-    friend class InterpreterPaxosQuery;
-private:
-    using AddressesWithConnections = std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>>;
+public:
 
     struct DDLEntity
     {
-        UInt64 paxos_id = 0;
-        UInt64 entity_id = 0;
+        std::mutex mutex;
+        UInt64 applied_paxos_id = 0;
+        UInt64 applied_entity_id = 0;
 
-        UInt64 local_paxos_id = 0;
-        UInt64 local_entity_id = 0;
-        String local_ddl_query_string = "";
+        UInt64 accepted_paxos_id = 0;
+        UInt64 accepted_entity_id = 0;
+        String accepted_entity_value = "";
+
+        DDLEntity(const String & data_path);
+
+        void store();
+
+    private:
+        const String dir;
+        const String data_path;
     };
 
-public:
     ~QingCloudDDLSynchronism();
 
     QingCloudDDLSynchronism(const Context & context, const String & node_id);
 
     bool enqueue(const String & query_string, std::function<bool()> quit_state);
 
-    void updateAddressesAndConnections(const String & node_id, const AddressesWithConnections & addresses_with_connections);
+    Block receivePrepare(const UInt64 & prepare_paxos_id);
+
+    Block acceptProposal(const String &from, const UInt64 & prepare_paxos_id, const LogEntity & value);
+
+    Block acceptedProposal(const String &from, const UInt64 & accepted_paxos_id, const LogEntity & accepted_entity);
 
 private:
     std::mutex mutex;
-    StoragePtr storage;
-    QingCloudPaxosPtr paxos;
-    std::vector<ConnectionPoolPtr> connections;
+    StoragePtr state_machine_storage;
+    std::shared_ptr<QingCloudPaxos> paxos;
+    std::shared_ptr<QingCloudPaxosLearner> learner;
 
-    std::thread thread;
     const Context & context;
-
-    std::atomic<bool> quit {false};
-    std::condition_variable cond;
-    std::chrono::milliseconds sleep_time;
-
-    String data_path;
-
-    void work();
-
-    DDLEntity loadCommitted();
-
-    void storeCommitted(const DDLEntity &entity);
-
-    void learningDDLEntities();
+    DDLEntity entity;
 
     StoragePtr createDDLQueue(const Context & context);
-
-    Block executeQueryWithConnections(const String & query_string, UInt64 offset = 0, UInt64 limit = 10);
 
 };
 

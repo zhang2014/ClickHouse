@@ -51,9 +51,10 @@ BlockIO InterpreterUpgradeQuery::execute()
     const auto safety_point_sync = SafetyPointFactory::instance().createSafetyPoint(sync_name, context, connections);
 
     /// TODO: 锁住所有的DDL
+//    const auto lock = context.getDDLSynchronism()->lock()
     safety_point_sync->broadcastSync("LOCK_NODE_DDL", 2);
     /// TODO: 收敛Paxos状态, 升级Paxos
-    //    context.getDDLSynchronism()->upgrade();
+    //    context.getDDLSynchronism()->upgrade(upgrade_query->upgrade_version);
     safety_point_sync->broadcastSync("UPGRADE_PAXOS", 2);
 
     std::vector<StoragePtr> upgrade_storage;
