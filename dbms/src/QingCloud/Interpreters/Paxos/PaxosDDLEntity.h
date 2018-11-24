@@ -10,6 +10,7 @@ using LogEntity = std::pair<UInt64, String>;
 
 class DDLEntity
 {
+public:
     std::mutex mutex;
     UInt64 applied_paxos_id = 0;
     UInt64 applied_entity_id = 0;
