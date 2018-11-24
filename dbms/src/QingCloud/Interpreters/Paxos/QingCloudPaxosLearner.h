@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Storages/IStorage.h>
 #include <Interpreters/Cluster.h>
 #include <QingCloud/Interpreters/Paxos/PaxosDDLEntity.h>
 
@@ -18,7 +19,7 @@ public:
 private:
     const Context & context;
     const StoragePtr & state_machine_storage;
-    QingCloudDDLSynchronism::DDLEntity & entity_state;
+    DDLEntity & entity_state;
 
     ClusterPtr work_cluster;
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> connections;

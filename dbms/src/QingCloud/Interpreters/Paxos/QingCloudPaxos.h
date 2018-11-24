@@ -35,7 +35,7 @@ public:
 private:
     const Context & context;
     const StoragePtr & state_machine_storage;
-    QingCloudDDLSynchronism::DDLEntity & entity_state;
+    DDLEntity & entity_state;
     const ClusterPtr work_cluster;
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> connections;
     String self_address;

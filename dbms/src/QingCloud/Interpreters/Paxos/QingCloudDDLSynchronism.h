@@ -10,9 +10,6 @@ namespace DB
 {
 
 class Context;
-
-using LogEntity = std::pair<UInt64, String>;
-
 class QingCloudDDLSynchronism;
 using QingCloudDDLSynchronismPtr = std::shared_ptr<QingCloudDDLSynchronism>;
 

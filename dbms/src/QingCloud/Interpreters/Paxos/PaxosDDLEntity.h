@@ -6,6 +6,8 @@
 namespace DB
 {
 
+using LogEntity = std::pair<UInt64, String>;
+
 class DDLEntity
 {
     std::mutex mutex;
