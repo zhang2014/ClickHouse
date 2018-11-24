@@ -94,13 +94,17 @@ size_t QingCloudPaxosLearner::applyDDLQueries()
 
     for (size_t row = 0; row < wait_apply_res.rows(); ++row)
     {
-        const String query = typeid_cast<const ColumnString &>(*fetch_res.getByName("query_string").column).getDataAt(rows - 1).toString();
+        const String query = typeid_cast<const ColumnString &>(*wait_apply_res.getByName("query_string").column).getDataAt(row).toString();
         executeLocalQuery(query, context);
+
+        entity_state.applied_paxos_id = typeid_cast<const ColumnUInt64 &>(*wait_apply_res.getByName("proposer_id").column).getUInt(row);
+        entity_state.applied_entity_id = typeid_cast<const ColumnUInt64 &>(*wait_apply_res.getByName("id").column).getUInt(row);
+        entity_state.store();
         /// TODO: try catch exception
     }
 
-    entity_state.applied_paxos_id = typeid_cast<const ColumnUInt64 &>(*wait_apply_res.getByName("proposer_id").column).getUInt(rows - 1);
-    entity_state.applied_entity_id = typeid_cast<const ColumnUInt64 &>(*wait_apply_res.getByName("id").column).getUInt(rows - 1);
+//    size_t rows = wait_apply_res.rows();
+
     return wait_apply_res.rows();
 }
 

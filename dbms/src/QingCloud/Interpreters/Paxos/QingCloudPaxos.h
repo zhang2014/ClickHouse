@@ -4,13 +4,14 @@
 #include <Columns/ColumnString.h>
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
-#include <Interpreters/Context.h>
 #include <Interpreters/Cluster.h>
 #include <Storages/IStorage.h>
 #include <QingCloud/Interpreters/Paxos/PaxosDDLEntity.h>
 
 namespace DB
 {
+
+class Context;
 
 class QingCloudPaxos
 {
