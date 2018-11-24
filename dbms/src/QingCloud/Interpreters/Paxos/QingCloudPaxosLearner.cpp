@@ -76,6 +76,7 @@ size_t QingCloudPaxosLearner::learning()
     BlockOutputStreamPtr out = state_machine_storage->write({}, query_settings);
     out->writePrefix();out->write(fetch_res);out->writeSuffix();
 
+    size_t rows = fetch_res.rows();
     entity_state.accepted_paxos_id = typeid_cast<const ColumnUInt64 &>(*fetch_res.getByName("proposer_id").column).getUInt(rows - 1);
     entity_state.accepted_entity_id = typeid_cast<const ColumnUInt64 &>(*fetch_res.getByName("id").column).getUInt(rows - 1);
     entity_state.accepted_entity_value = typeid_cast<const ColumnString &>(*fetch_res.getByName("query_string").column).getDataAt(rows - 1).toString();
@@ -107,11 +108,12 @@ Block QingCloudPaxosLearner::queryWithTwoLevel(const String & first_query, const
 {
     BlockInputStreams streams;
     Settings settings = context.getSettingsRef();
+    Block header = state_machine_storage->getSampleBlock();
 
     for (size_t index = 0; index < connections.size(); ++index)
     {
         ConnectionPoolPtrs failover_connections;
-        failover_connections.emplace_back(connections[index]);
+        failover_connections.emplace_back(connections[index].second);
         ConnectionPoolWithFailoverPtr shard_pool = std::make_shared<ConnectionPoolWithFailover>(
             failover_connections, SettingLoadBalancing(LoadBalancing::RANDOM), settings.connections_with_failover_max_tries);
 

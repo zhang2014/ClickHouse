@@ -58,6 +58,7 @@ QingCloudPaxos::State QingCloudPaxos::sendPrepare(const LogEntity & value)
             return validateQuorumState(accept_res, connections.size()) ? State::SUCCESSFULLY : State::FAILURE;
         }
     }
+    return State::FAILURE;
 }
 
 Block QingCloudPaxos::receivePrepare(const UInt64 & prepare_paxos_id)
