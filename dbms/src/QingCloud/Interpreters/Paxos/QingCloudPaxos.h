@@ -4,8 +4,10 @@
 #include <Columns/ColumnString.h>
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
-
-#include "QingCloudDDLSynchronism.h"
+#include <Interpreters/Context.h>
+#include <Interpreters/Cluster.h>
+#include <Storages/IStorage.h>
+#include <QingCloud/Interpreters/Paxos/PaxosDDLEntity.h>
 
 namespace DB
 {
@@ -13,7 +15,7 @@ namespace DB
 class QingCloudPaxos
 {
 public:
-    QingCloudPaxos(QingCloudDDLSynchronism::DDLEntity & entity_state, const ClusterPtr & work_cluster, const Context & context, const StoragePtr & state_machine_storage);
+    QingCloudPaxos(DDLEntity & entity_state, const ClusterPtr & work_cluster, const Context & context, const StoragePtr & state_machine_storage);
 
     enum State
     {

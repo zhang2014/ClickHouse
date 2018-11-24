@@ -2,8 +2,9 @@
 
 #include <Storages/IStorage.h>
 #include <Interpreters/Cluster.h>
-#include "QingCloudPaxosLearner.h"
-#include "QingCloudPaxos.h"
+#include <QingCloud/Interpreters/Paxos/PaxosDDLEntity.h>
+#include <QingCloud/Interpreters/Paxos/QingCloudPaxos.h>
+#include <QingCloud/Interpreters/Paxos/QingCloudPaxosLearner.h>
 
 namespace DB
 {
@@ -18,25 +19,6 @@ using QingCloudDDLSynchronismPtr = std::shared_ptr<QingCloudDDLSynchronism>;
 class QingCloudDDLSynchronism
 {
 public:
-
-    struct DDLEntity
-    {
-        std::mutex mutex;
-        UInt64 applied_paxos_id = 0;
-        UInt64 applied_entity_id = 0;
-
-        UInt64 accepted_paxos_id = 0;
-        UInt64 accepted_entity_id = 0;
-        String accepted_entity_value = "";
-
-        DDLEntity(const String & data_path);
-
-        void store();
-
-    private:
-        const String dir;
-        const String data_path;
-    };
 
     ~QingCloudDDLSynchronism();
 

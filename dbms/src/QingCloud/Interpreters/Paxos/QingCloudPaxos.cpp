@@ -10,7 +10,6 @@
 #include <Parsers/parseQuery.h>
 #include <QingCloud/Interpreters/InterpreterPaxosQuery.h>
 #include <Common/getMultipleKeysFromConfig.h>
-#include "QingCloudPaxos.h"
 
 
 namespace DB
@@ -21,8 +20,7 @@ namespace ErrorCodes
     extern const int PAXOS_EXCEPTION;
 }
 
-QingCloudPaxos::QingCloudPaxos(
-    QingCloudDDLSynchronism::DDLEntity &entity_state, const ClusterPtr &work_cluster, const Context &context,
+QingCloudPaxos::QingCloudPaxos(DDLEntity &entity_state, const ClusterPtr &work_cluster, const Context &context,
     const StoragePtr &state_machine_storage) :
     context(context), state_machine_storage(state_machine_storage), entity_state(entity_state),
     work_cluster(work_cluster)

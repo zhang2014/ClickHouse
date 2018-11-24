@@ -1,15 +1,16 @@
 #pragma once
 
 #include <Interpreters/Cluster.h>
-#include "QingCloudDDLSynchronism.h"
+#include <QingCloud/Interpreters/Paxos/PaxosDDLEntity.h>
 
 namespace DB
 {
 
+
 class QingCloudPaxosLearner
 {
 public:
-    QingCloudPaxosLearner(QingCloudDDLSynchronism::DDLEntity &entity_state, const StoragePtr &state_machine_storage,
+    QingCloudPaxosLearner(DDLEntity & entity_state, const StoragePtr & state_machine_storage,
                           const ClusterPtr &work_cluster, const Context &context);
 
     void work();

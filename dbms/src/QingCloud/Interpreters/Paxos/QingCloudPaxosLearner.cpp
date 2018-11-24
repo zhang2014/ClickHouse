@@ -10,7 +10,6 @@
 #include <Parsers/parseQuery.h>
 #include <DataStreams/SquashingBlockInputStream.h>
 #include <Interpreters/SpecializedAggregator.h>
-#include "QingCloudPaxosLearner.h"
 #include <Parsers/ParserQuery.h>
 #include <Interpreters/InterpreterFactory.h>
 
@@ -31,7 +30,7 @@ static Block executeLocalQuery(const String &query_string, const Context &contex
     return {};
 }
 
-QingCloudPaxosLearner::QingCloudPaxosLearner(QingCloudDDLSynchronism::DDLEntity &entity_state, const StoragePtr &state_machine_storage,
+QingCloudPaxosLearner::QingCloudPaxosLearner(DDLEntity &entity_state, const StoragePtr &state_machine_storage,
                                              const ClusterPtr &work_cluster, const Context &context)
     : context(context), state_machine_storage(state_machine_storage), entity_state(entity_state), work_cluster(work_cluster),
       connections(getConnectionPoolsFromClusters({work_cluster}))
