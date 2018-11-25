@@ -12,6 +12,7 @@
 #include <Interpreters/SpecializedAggregator.h>
 #include <Parsers/ParserQuery.h>
 #include <Interpreters/InterpreterFactory.h>
+#include <Common/getMultipleKeysFromConfig.h>
 
 
 namespace DB
@@ -32,11 +33,21 @@ static Block executeLocalQuery(const String &query_string, const Context &contex
 
 QingCloudPaxosLearner::QingCloudPaxosLearner(DDLEntity &entity_state, const StoragePtr &state_machine_storage,
                                              const ClusterPtr &work_cluster, const Context &context)
-    : context(context), state_machine_storage(state_machine_storage), entity_state(entity_state), work_cluster(work_cluster),
-      connections(getConnectionPoolsFromClusters({work_cluster}))
+    : context(context), state_machine_storage(state_machine_storage), entity_state(entity_state), work_cluster(work_cluster)
 {
     /// TODO sleep_time for settings
     sleep_time = std::chrono::milliseconds(5000);
+    std::vector<std::string> listen_hosts = DB::getMultipleValuesFromConfig(context.getConfigRef(), "", "listen_host");
+    self_address = listen_hosts.empty() ?  "localhost" : listen_hosts[0];
+    auto work_cluster_connections = getConnectionPoolsFromClusters({work_cluster});
+    for (const auto & connection : work_cluster_connections)
+    {
+        if (connection.first.is_local)
+        {
+            connections = work_cluster_connections;
+            return;
+        }
+    }
 }
 
 void QingCloudPaxosLearner::work()
@@ -51,32 +62,32 @@ void QingCloudPaxosLearner::work()
         try
         {
             std::lock_guard<std::recursive_mutex> state_lock(entity_state.mutex);
-
-            size_t learning_size = learning();
-            if (learning_size == applyDDLQueries() && learning_size == 10)
-                continue;
+            learning();
+            applyDDLQueries();
+            cond.wait_for(lock, sleep_time, quit_requested);
         }
         catch (...)
         {
             tryLogCurrentException(&Logger::get("QingCloudPaxosLearner"));
+            /// TODO: 睡一段时间, 但不让出锁
         }
-
-        cond.wait_for(lock, sleep_time, quit_requested);
     }
 }
 
-size_t QingCloudPaxosLearner::learning()
+void QingCloudPaxosLearner::learning()
 {
     const String offset = toString(entity_state.accepted_paxos_id);
     const String query_without_agg = "SELECT * FROM system.ddl_queue WHERE proposer_id > " + offset + " ORDER BY proposer_id LIMIT 10";
-    const String query_with_agg = "SELECT DISTINCT id, proposer_id, query_string FROM system.ddl_queue WHERE _res_code = 0 ORDER BY proposer_id";
+    const String query_with_agg = "SELECT DISTINCT id, proposer_id, query_string, from FROM system.ddl_queue WHERE _res_code = 0 ORDER BY proposer_id";
 
-    std::cout << "QingCloudPaxosLearner::learning " << offset << "\n";
-    Settings query_settings = context.getSettingsRef();
-    Block fetch_res = queryWithTwoLevel(query_without_agg, query_with_agg);
-
-    if (fetch_res)
+    while (true)
     {
+        Settings query_settings = context.getSettingsRef();
+        Block fetch_res = queryWithTwoLevel(query_without_agg, query_with_agg);
+
+        if (!fetch_res || !fetch_res.rows())
+            return;
+
         size_t rows = fetch_res.rows();
         BlockOutputStreamPtr out = state_machine_storage->write({}, query_settings);
         out->writePrefix();out->write(fetch_res);out->writeSuffix();
@@ -84,33 +95,50 @@ size_t QingCloudPaxosLearner::learning()
         entity_state.accepted_entity_id = typeid_cast<const ColumnUInt64 &>(*fetch_res.getByName("id").column).getUInt(rows - 1);
         entity_state.accepted_entity_value = typeid_cast<const ColumnString &>(*fetch_res.getByName("query_string").column).getDataAt(rows - 1).toString();
         entity_state.store();
-        return rows;
     }
-
-    return fetch_res.rows();
 }
 
-size_t QingCloudPaxosLearner::applyDDLQueries()
+void QingCloudPaxosLearner::applyDDLQueries()
 {
     const String offset = toString(entity_state.applied_paxos_id);
-    const String query_with_distinct = "SELECT DISTINCT id, proposer_id, query_string FROM system.ddl_queue WHERE proposer_id > " + offset + " ORDER BY proposer_id";
+    const String query_with_distinct = "SELECT DISTINCT id, proposer_id, query_string, from FROM system.ddl_queue WHERE proposer_id > " + offset + " ORDER BY proposer_id LIMIT 10";
 
-    Block wait_apply_res = executeLocalQuery(query_with_distinct, context);
-
-    for (size_t row = 0; row < wait_apply_res.rows(); ++row)
+    while (true)
     {
-        const String query = typeid_cast<const ColumnString &>(*wait_apply_res.getByName("query_string").column).getDataAt(row).toString();
-        executeLocalQuery(query, context);
+        Block wait_apply_res = executeLocalQuery(query_with_distinct, context);
 
-        entity_state.applied_paxos_id = typeid_cast<const ColumnUInt64 &>(*wait_apply_res.getByName("proposer_id").column).getUInt(row);
-        entity_state.applied_entity_id = typeid_cast<const ColumnUInt64 &>(*wait_apply_res.getByName("id").column).getUInt(row);
-        entity_state.store();
-        /// TODO: try catch exception
+        if (!wait_apply_res || !wait_apply_res.rows())
+            return;
+
+        for (size_t row = 0; row < wait_apply_res.rows(); ++row)
+        {
+            const UInt64 paxos_id = typeid_cast<const ColumnUInt64 &>(*wait_apply_res.getByName("proposer_id").column).getUInt(row);
+            const UInt64 entity_id = typeid_cast<const ColumnUInt64 &>(*wait_apply_res.getByName("id").column).getUInt(row);
+            const String from = typeid_cast<const ColumnString &>(*wait_apply_res.getByName("from").column).getDataAt(row).toString();;
+            const String apply_query = typeid_cast<const ColumnString &>(*wait_apply_res.getByName("query_string").column).getDataAt(row).toString();
+            /// TODO: try catch exception
+            try
+            {
+                executeLocalQuery(apply_query, context);
+                sendQueryToPaxosProxy(
+                    "PAXOS PAXOS_NOTIFY res_state=0, entity_id=" + toString(entity_id) + ", exception_message='', from ='" + self_address +
+                    "'", from);
+            }
+            catch (...)
+            {
+                UInt64 error_code = getCurrentExceptionCode();
+                const String exception_message = getCurrentExceptionMessage(false);
+                sendQueryToPaxosProxy("PAXOS PAXOS_NOTIFY res_state=" + toString(error_code) + ",entity_id=" +
+                                      toString(entity_id) + ",exception_message='" + exception_message + "',from='" + self_address + "'",
+                                      from);
+            }
+
+
+            entity_state.applied_paxos_id = paxos_id;
+            entity_state.applied_entity_id = entity_id;
+            entity_state.store();
+        }
     }
-
-//    size_t rows = wait_apply_res.rows();
-
-    return wait_apply_res.rows();
 }
 
 Block QingCloudPaxosLearner::queryWithTwoLevel(const String & first_query, const String & second_query)
@@ -141,6 +169,29 @@ Block QingCloudPaxosLearner::queryWithTwoLevel(const String & first_query, const
     InterpreterSelectQuery interpreter(node, context, std::make_shared<UnionBlockInputStream<>>(streams, nullptr, streams.size()));
     return std::make_shared<SquashingBlockInputStream>(interpreter.execute().in, std::numeric_limits<size_t>::max(),
                                                        std::numeric_limits<size_t>::max())->read();
+}
+
+Block QingCloudPaxosLearner::sendQueryToPaxosProxy(const String &send_query, const String & from)
+{
+    Block header =  Block{};
+    Settings settings = context.getSettingsRef();
+
+    for (const auto & connection : connections)
+    {
+        if (connection.first.host_name == from)
+        {
+            ConnectionPoolPtrs failover_connections;
+            failover_connections.emplace_back(connection.second);
+            ConnectionPoolWithFailoverPtr shard_pool = std::make_shared<ConnectionPoolWithFailover>(
+                failover_connections, SettingLoadBalancing(LoadBalancing::RANDOM), settings.connections_with_failover_max_tries);
+
+            return std::make_shared<SquashingBlockInputStream>(
+                std::make_shared<RemoteBlockInputStream>(shard_pool, send_query, header, context, &settings),
+                std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max())->read();
+        }
+    }
+
+    return {};
 }
 
 }

@@ -22,19 +22,22 @@ private:
     DDLEntity & entity_state;
 
     ClusterPtr work_cluster;
+    std::chrono::milliseconds sleep_time;
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> connections;
 
     std::mutex mutex;
     std::atomic<bool> quit{false};
     std::condition_variable cond;
-    std::chrono::milliseconds sleep_time;
+    String self_address;
     std::thread thread = std::thread{&QingCloudPaxosLearner::work, this};
 
-    size_t learning();
+    void learning();
 
-    size_t applyDDLQueries();
+    void applyDDLQueries();
 
     Block queryWithTwoLevel(const String &first_query, const String &second_query);
+
+    Block sendQueryToPaxosProxy(const String & send_query, const String & from);
 };
 
 }

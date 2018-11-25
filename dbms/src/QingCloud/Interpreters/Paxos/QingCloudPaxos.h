@@ -31,7 +31,7 @@ public:
 
     Block acceptProposal(const String &from, const UInt64 & prepare_paxos_id, const LogEntity & value);
 
-    Block acceptedProposal(const String &from, const UInt64 & accepted_paxos_id, const LogEntity & accepted_entity);
+    Block acceptedProposal(const String &from, const String & origin_from, const UInt64 & accepted_paxos_id, const LogEntity & accepted_entity);
 
 private:
     const Context & context;

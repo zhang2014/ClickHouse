@@ -32,9 +32,7 @@ QingCloudPaxos::QingCloudPaxos(DDLEntity &entity_state, const ClusterPtr &work_c
 
 QingCloudPaxos::State QingCloudPaxos::sendPrepare(const LogEntity & value)
 {
-    std::cout << "QingCloudPaxos::sendPrepare -1 \n";
     std::lock_guard<std::recursive_mutex> lock(entity_state.mutex);
-    std::cout << "QingCloudPaxos::sendPrepare -2 \n";
     prepared_paxos_id = std::max(prepared_paxos_id, entity_state.accepted_paxos_id);
 
     ++prepared_paxos_id;
@@ -78,7 +76,7 @@ Block QingCloudPaxos::receivePrepare(const UInt64 & prepare_paxos_id)
     return prepare_header.cloneWithColumns(std::move(columns));
 }
 
-Block QingCloudPaxos::acceptProposal(const String & /*from*/, const UInt64 & prepare_paxos_id, const LogEntity & value)
+Block QingCloudPaxos::acceptProposal(const String & from, const UInt64 & prepare_paxos_id, const LogEntity & value)
 {
     std::lock_guard<std::recursive_mutex> lock(entity_state.mutex);
     promised_paxos_id = std::max(promised_paxos_id, entity_state.accepted_paxos_id);
@@ -88,8 +86,8 @@ Block QingCloudPaxos::acceptProposal(const String & /*from*/, const UInt64 & pre
     {
         Block accepted_res = validateQueryIsQuorum(
             sendQueryToCluster(accepted_header, "PAXOS ACCEPTED proposal_number=" + toString(prepare_paxos_id) + ",proposal_value_id=" +
-                                                toString(value.first) + ",proposal_value_query='" + value.second + "',from='" +
-                                                self_address + "'"), connections.size());
+                                                toString(value.first) + ",proposal_value_query='" + value.second +
+                                                "',from=', origin_from = '" + from + "'" + self_address + "'"), connections.size());
 
         if (validateQuorumState(accepted_res, connections.size()))
         {
@@ -104,7 +102,7 @@ Block QingCloudPaxos::acceptProposal(const String & /*from*/, const UInt64 & pre
     return accepted_header.cloneWithColumns(std::move(columns));
 }
 
-Block QingCloudPaxos::acceptedProposal(const String & from, const UInt64 & accepted_paxos_id, const LogEntity & accepted_entity)
+Block QingCloudPaxos::acceptedProposal(const String & from, const String & origin_from, const UInt64 & accepted_paxos_id, const LogEntity & accepted_entity)
 {
     std::lock_guard<std::recursive_mutex> lock(entity_state.mutex);
 
@@ -115,8 +113,6 @@ Block QingCloudPaxos::acceptedProposal(const String & from, const UInt64 & accep
         if (wait_commits[accepted_paxos_id].size() == connections.size() ||
             wait_commits[accepted_paxos_id].size() >= (connections.size() / 2 + 1))
         {
-
-            /// TODO: 由于写入与更新paxos不是原子的, 应该在其中加入一个create_time, 如果存在两个一样的值 取更新更后面的
             BlockOutputStreamPtr output = state_machine_storage->write({}, context.getSettingsRef());
             Block header = state_machine_storage->getSampleBlock();
 
@@ -124,6 +120,7 @@ Block QingCloudPaxos::acceptedProposal(const String & from, const UInt64 & accep
             mutable_columns[0]->insert(accepted_entity.first);
             mutable_columns[1]->insert(accepted_paxos_id);
             mutable_columns[2]->insert(accepted_entity.second);
+            mutable_columns[3]->insert(origin_from);
             header.setColumns(std::move(mutable_columns));
             output->writePrefix(); output->write(header); output->writeSuffix();
 

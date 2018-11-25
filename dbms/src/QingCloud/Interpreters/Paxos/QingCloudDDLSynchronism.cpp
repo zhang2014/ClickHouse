@@ -30,6 +30,7 @@
 #include "QingCloudDDLSynchronism.h"
 #include "QingCloudPaxosLearner.h"
 #include "QingCloudPaxos.h"
+#include <QingCloud/Common/differentClusters.h>
 
 
 namespace DB
@@ -60,8 +61,10 @@ QingCloudDDLSynchronism::QingCloudDDLSynchronism(const Context & context, const 
     const String default_version = context.getMultiplexedVersion()->getCurrentWritingVersion();
 
     const ClusterPtr work_cluster = context.getCluster("Cluster_" + default_version);
+
     paxos = std::make_shared<QingCloudPaxos>(entity, work_cluster, context, state_machine_storage);
     learner = std::make_shared<QingCloudPaxosLearner>(entity, state_machine_storage, work_cluster, context);
+    current_cluster_node_size = getConnectionPoolsFromClusters({work_cluster}).size();
 }
 
 StoragePtr QingCloudDDLSynchronism::createDDLQueue(const Context & context)
@@ -69,7 +72,7 @@ StoragePtr QingCloudDDLSynchronism::createDDLQueue(const Context & context)
     StoragePtr storage = context.tryGetTable("system", "ddl_queue");
     if (!storage)
     {
-        String create_query = "CREATE TABLE system.ddl_queue(id UInt64, proposer_id UInt64, query_string String)";
+        String create_query = "CREATE TABLE system.ddl_queue(id UInt64, proposer_id UInt64, query_string String, from String)";
         String storage_declare = "ENGINE = MergeTree PARTITION BY proposer_id / 300000 ORDER BY (id, proposer_id)";
         executeLocalQuery(create_query + storage_declare, context);
         storage = context.getTable("system", "ddl_queue");
@@ -79,16 +82,27 @@ StoragePtr QingCloudDDLSynchronism::createDDLQueue(const Context & context)
 
 bool QingCloudDDLSynchronism::enqueue(const String & query_string, std::function<bool()> quit_state)
 {
+    std::unique_lock<std::recursive_mutex> lock{mutex};
+
     while (!quit_state())
     {
-        std::cout << "QingCloudDDLSynchronism::enqueue -1 \n";
-        std::unique_lock<std::recursive_mutex> lock{mutex};
-        std::cout << "QingCloudDDLSynchronism::enqueue -2 \n";
-//        learner->weakup();
         std::lock_guard<std::recursive_mutex> entity_lock(entity.mutex);
-        std::cout << "QingCloudDDLSynchronism::enqueue -3 \n";
-        if (paxos->sendPrepare(std::pair(entity.applied_entity_id + 1, query_string)) == QingCloudPaxos::SUCCESSFULLY)
-            return true;
+        /// TODO: 可中断的weakup
+        //        learner->weakup();
+
+        if (!quit_state())
+        {
+            UInt64 entity_id = entity.accepted_entity_id + 1;
+            wait_apply_res[entity_id] = std::make_shared<WaitApplyRes>();
+            if (paxos->sendPrepare(std::pair(entity_id, query_string)) == QingCloudPaxos::SUCCESSFULLY)
+            {
+                wait_apply_res[entity_id]->cond.wait(lock, quit_state);
+
+                wait_apply_res.erase(entity_id);
+                return true;
+            }
+            wait_apply_res.erase(entity_id);
+        }
     }
 
     return false;
@@ -96,20 +110,47 @@ bool QingCloudDDLSynchronism::enqueue(const String & query_string, std::function
 
 Block QingCloudDDLSynchronism::receivePrepare(const UInt64 & prepare_paxos_id)
 {
-    std::unique_lock<std::recursive_mutex> lock{mutex};
+    std::unique_lock<std::recursive_mutex> lock(mutex, std::try_to_lock);
+    if (!lock.owns_lock())
+        throw Exception("Cannot get paxos lock, because already in a paxos cycle.", ErrorCodes::PAXOS_EXCEPTION);
+
     return paxos->receivePrepare(prepare_paxos_id);
 }
 
 Block QingCloudDDLSynchronism::acceptProposal(const String &from, const UInt64 &prepare_paxos_id, const LogEntity &value)
 {
-    std::unique_lock<std::recursive_mutex> lock{mutex};
+    std::unique_lock<std::recursive_mutex> lock(mutex, std::try_to_lock);
+    if (!lock.owns_lock())
+        throw Exception("Cannot get paxos lock, because already in a paxos cycle.", ErrorCodes::PAXOS_EXCEPTION);
+
     return paxos->acceptProposal(from, prepare_paxos_id, value);
 }
 
-Block QingCloudDDLSynchronism::acceptedProposal(const String &from, const UInt64 &accepted_paxos_id, const LogEntity &accepted_entity)
+Block QingCloudDDLSynchronism::acceptedProposal(const String &from, const String & origin_from, const UInt64 &accepted_paxos_id, const LogEntity &accepted_entity)
 {
-    std::unique_lock<std::recursive_mutex> lock{mutex};
-    return paxos->acceptedProposal(from, accepted_paxos_id, accepted_entity);
+    std::unique_lock<std::recursive_mutex> lock(mutex, std::try_to_lock);
+    if (!lock.owns_lock())
+        throw Exception("Cannot get paxos lock, because already in a paxos cycle.", ErrorCodes::PAXOS_EXCEPTION);
+
+    return paxos->acceptedProposal(from, origin_from, accepted_paxos_id, accepted_entity);
+}
+
+void QingCloudDDLSynchronism::notifyPaxos(const UInt64 & res_state, const UInt64 & entity_id, const String & exception_message, const String & from)
+{
+    bool notify = false;
+
+    {
+        std::unique_lock<std::recursive_mutex> lock{mutex};
+        if (wait_apply_res.count(entity_id))
+        {
+            wait_apply_res[entity_id]->paxos_res.emplace_back(std::tuple(res_state, exception_message, from));
+            if (current_cluster_node_size == wait_apply_res[entity_id]->paxos_res.size())
+                notify = true;
+        }
+    }
+
+    if (notify)
+        wait_apply_res[entity_id]->cond.notify_one();
 }
 
 QingCloudDDLSynchronism::~QingCloudDDLSynchronism() = default;
