@@ -33,6 +33,12 @@ public:
 
     QingCloudDDLSynchronism(const Context & context, const String & node_id);
 
+    void wakeupLearner();
+
+    std::unique_lock<std::recursive_mutex> lock();
+
+    void upgradeVersion(const String & origin_version, const String & upgrade_version);
+
     UInt64 enqueue(const String & query_string, std::function<bool()> quit_state);
 
     Block receivePrepare(const UInt64 & prepare_paxos_id);

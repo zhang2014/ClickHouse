@@ -13,6 +13,7 @@
 #include <Parsers/ParserQuery.h>
 #include <Interpreters/InterpreterFactory.h>
 #include <Common/getMultipleKeysFromConfig.h>
+#include "QingCloudPaxosLearner.h"
 
 
 namespace DB
@@ -72,9 +73,15 @@ void QingCloudPaxosLearner::work()
         catch (...)
         {
             tryLogCurrentException(&Logger::get("QingCloudPaxosLearner"));
-            /// TODO: 睡一段时间, 但不让出锁
+            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
         }
     }
+}
+
+void QingCloudPaxosLearner::wakeup()
+{
+    cond.notify_one();
+    std::unique_lock<std::mutex> lock{mutex};
 }
 
 void QingCloudPaxosLearner::learning()

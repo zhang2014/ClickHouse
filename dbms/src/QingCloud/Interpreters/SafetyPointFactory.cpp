@@ -104,7 +104,6 @@ void SafetyPointWithCluster::broadcastSync(const String &action_name, size_t che
 
     for (size_t index = 0; index < check_size; ++index)
     {
-        /// 循环检查,可以有效屏蔽半成功问题
         size_t reentry = ++count;
         broadcast("ACTION NOTIFY '" + action_name + "' REENTRY " + toString(reentry) + " FROM ('" + listen_hosts[0] + "', '" + sync_name + "')");
 

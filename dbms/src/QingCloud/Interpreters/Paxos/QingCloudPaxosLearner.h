@@ -16,6 +16,8 @@ public:
 
     void work();
 
+    void wakeup();
+
 private:
     const Context & context;
     const StoragePtr & state_machine_storage;

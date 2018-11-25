@@ -59,7 +59,7 @@ Block QingCloudDDLBlockInputStream::readImpl()
                 columns[2]->insert(String("unknow"));
             }
 
-            return res.cloneWithColumns(columns);
+            return res.cloneWithColumns(std::move(columns));
         }
     }
 
