@@ -81,9 +81,12 @@ bool QingCloudDDLSynchronism::enqueue(const String & query_string, std::function
 {
     while (!quit_state())
     {
-        std::unique_lock<std::mutex> lock{mutex};
+        std::cout << "QingCloudDDLSynchronism::enqueue -1 \n";
+        std::unique_lock<std::recursive_mutex> lock{mutex};
+        std::cout << "QingCloudDDLSynchronism::enqueue -2 \n";
 //        learner->weakup();
-        std::lock_guard<std::mutex> entity_lock(entity.mutex);
+        std::lock_guard<std::recursive_mutex> entity_lock(entity.mutex);
+        std::cout << "QingCloudDDLSynchronism::enqueue -3 \n";
         if (paxos->sendPrepare(std::pair(entity.applied_entity_id + 1, query_string)) == QingCloudPaxos::SUCCESSFULLY)
             return true;
     }
@@ -93,16 +96,19 @@ bool QingCloudDDLSynchronism::enqueue(const String & query_string, std::function
 
 Block QingCloudDDLSynchronism::receivePrepare(const UInt64 & prepare_paxos_id)
 {
+    std::unique_lock<std::recursive_mutex> lock{mutex};
     return paxos->receivePrepare(prepare_paxos_id);
 }
 
 Block QingCloudDDLSynchronism::acceptProposal(const String &from, const UInt64 &prepare_paxos_id, const LogEntity &value)
 {
+    std::unique_lock<std::recursive_mutex> lock{mutex};
     return paxos->acceptProposal(from, prepare_paxos_id, value);
 }
 
 Block QingCloudDDLSynchronism::acceptedProposal(const String &from, const UInt64 &accepted_paxos_id, const LogEntity &accepted_entity)
 {
+    std::unique_lock<std::recursive_mutex> lock{mutex};
     return paxos->acceptedProposal(from, accepted_paxos_id, accepted_entity);
 }
 

@@ -50,7 +50,7 @@ void QingCloudPaxosLearner::work()
     {
         try
         {
-            std::lock_guard<std::mutex> state_lock(entity_state.mutex);
+            std::lock_guard<std::recursive_mutex> state_lock(entity_state.mutex);
 
             size_t learning_size = learning();
             if (learning_size == applyDDLQueries() && learning_size == 10)
@@ -71,16 +71,21 @@ size_t QingCloudPaxosLearner::learning()
     const String query_without_agg = "SELECT * FROM system.ddl_queue WHERE proposer_id > " + offset + " ORDER BY proposer_id LIMIT 10";
     const String query_with_agg = "SELECT DISTINCT id, proposer_id, query_string FROM system.ddl_queue WHERE _res_code = 0 ORDER BY proposer_id";
 
+    std::cout << "QingCloudPaxosLearner::learning " << offset << "\n";
     Settings query_settings = context.getSettingsRef();
     Block fetch_res = queryWithTwoLevel(query_without_agg, query_with_agg);
-    BlockOutputStreamPtr out = state_machine_storage->write({}, query_settings);
-    out->writePrefix();out->write(fetch_res);out->writeSuffix();
 
-    size_t rows = fetch_res.rows();
-    entity_state.accepted_paxos_id = typeid_cast<const ColumnUInt64 &>(*fetch_res.getByName("proposer_id").column).getUInt(rows - 1);
-    entity_state.accepted_entity_id = typeid_cast<const ColumnUInt64 &>(*fetch_res.getByName("id").column).getUInt(rows - 1);
-    entity_state.accepted_entity_value = typeid_cast<const ColumnString &>(*fetch_res.getByName("query_string").column).getDataAt(rows - 1).toString();
-    entity_state.store();
+    if (fetch_res)
+    {
+        size_t rows = fetch_res.rows();
+        BlockOutputStreamPtr out = state_machine_storage->write({}, query_settings);
+        out->writePrefix();out->write(fetch_res);out->writeSuffix();
+        entity_state.accepted_paxos_id = typeid_cast<const ColumnUInt64 &>(*fetch_res.getByName("proposer_id").column).getUInt(rows - 1);
+        entity_state.accepted_entity_id = typeid_cast<const ColumnUInt64 &>(*fetch_res.getByName("id").column).getUInt(rows - 1);
+        entity_state.accepted_entity_value = typeid_cast<const ColumnString &>(*fetch_res.getByName("query_string").column).getDataAt(rows - 1).toString();
+        entity_state.store();
+        return rows;
+    }
 
     return fetch_res.rows();
 }
@@ -116,14 +121,20 @@ Block QingCloudPaxosLearner::queryWithTwoLevel(const String & first_query, const
 
     for (size_t index = 0; index < connections.size(); ++index)
     {
-        ConnectionPoolPtrs failover_connections;
-        failover_connections.emplace_back(connections[index].second);
-        ConnectionPoolWithFailoverPtr shard_pool = std::make_shared<ConnectionPoolWithFailover>(
-            failover_connections, SettingLoadBalancing(LoadBalancing::RANDOM), settings.connections_with_failover_max_tries);
+        if (!connections[index].first.is_local)
+        {
+            ConnectionPoolPtrs failover_connections;
+            failover_connections.emplace_back(connections[index].second);
+            ConnectionPoolWithFailoverPtr shard_pool = std::make_shared<ConnectionPoolWithFailover>(
+                failover_connections, SettingLoadBalancing(LoadBalancing::RANDOM), settings.connections_with_failover_max_tries);
 
-        streams.emplace_back(std::make_shared<QingCloudErroneousBlockInputStream>(
-            std::make_shared<RemoteBlockInputStream>(shard_pool, first_query, header, context, &settings)));
+            streams.emplace_back(std::make_shared<QingCloudErroneousBlockInputStream>(
+                std::make_shared<RemoteBlockInputStream>(shard_pool, first_query, header, context, &settings)));
+        }
     }
+
+    if (streams.empty())
+        return {};
 
     ParserSelectQuery select_parser;
     ASTPtr node = parseQuery(select_parser, second_query.data(), second_query.data() + second_query.size(), "", 0);

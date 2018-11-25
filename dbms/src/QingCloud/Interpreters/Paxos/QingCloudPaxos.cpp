@@ -32,7 +32,9 @@ QingCloudPaxos::QingCloudPaxos(DDLEntity &entity_state, const ClusterPtr &work_c
 
 QingCloudPaxos::State QingCloudPaxos::sendPrepare(const LogEntity & value)
 {
-    std::lock_guard<std::mutex> lock(entity_state.mutex);
+    std::cout << "QingCloudPaxos::sendPrepare -1 \n";
+    std::lock_guard<std::recursive_mutex> lock(entity_state.mutex);
+    std::cout << "QingCloudPaxos::sendPrepare -2 \n";
     prepared_paxos_id = std::max(prepared_paxos_id, entity_state.accepted_paxos_id);
 
     ++prepared_paxos_id;
@@ -63,7 +65,7 @@ QingCloudPaxos::State QingCloudPaxos::sendPrepare(const LogEntity & value)
 
 Block QingCloudPaxos::receivePrepare(const UInt64 & prepare_paxos_id)
 {
-    std::lock_guard<std::mutex> lock(entity_state.mutex);
+    std::lock_guard<std::recursive_mutex> lock(entity_state.mutex);
     promised_paxos_id = std::max(promised_paxos_id, entity_state.accepted_paxos_id);
     promised_paxos_id = std::max(promised_paxos_id, prepare_paxos_id);
 
@@ -78,7 +80,7 @@ Block QingCloudPaxos::receivePrepare(const UInt64 & prepare_paxos_id)
 
 Block QingCloudPaxos::acceptProposal(const String & /*from*/, const UInt64 & prepare_paxos_id, const LogEntity & value)
 {
-    std::lock_guard<std::mutex> lock(entity_state.mutex);
+    std::lock_guard<std::recursive_mutex> lock(entity_state.mutex);
     promised_paxos_id = std::max(promised_paxos_id, entity_state.accepted_paxos_id);
     promised_paxos_id = std::max(promised_paxos_id, prepare_paxos_id);
 
@@ -104,7 +106,7 @@ Block QingCloudPaxos::acceptProposal(const String & /*from*/, const UInt64 & pre
 
 Block QingCloudPaxos::acceptedProposal(const String & from, const UInt64 & accepted_paxos_id, const LogEntity & accepted_entity)
 {
-    std::lock_guard<std::mutex> lock(entity_state.mutex);
+    std::lock_guard<std::recursive_mutex> lock(entity_state.mutex);
 
     if (accepted_paxos_id >= entity_state.accepted_paxos_id)
     {
@@ -157,7 +159,7 @@ Block QingCloudPaxos::sendQueryToCluster(const Block & header, const String & qu
             ParserPaxos parser_paxos;
             ASTPtr query = parseQuery(parser_paxos, query_string.data(), query_string.data() + query_string.size(), "", 0 );
             InterpreterPaxosQuery interpreter(query, context);
-            streams.emplace_back(interpreter.execute().in);
+            streams.emplace_back(std::make_shared<QingCloudErroneousBlockInputStream>(interpreter.execute().in));
         }
         else
         {

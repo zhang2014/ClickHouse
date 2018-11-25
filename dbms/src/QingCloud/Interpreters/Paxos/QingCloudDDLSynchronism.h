@@ -30,7 +30,7 @@ public:
     Block acceptedProposal(const String &from, const UInt64 & accepted_paxos_id, const LogEntity & accepted_entity);
 
 private:
-    std::mutex mutex;
+    std::recursive_mutex mutex;
     StoragePtr state_machine_storage;
     std::shared_ptr<QingCloudPaxos> paxos;
     std::shared_ptr<QingCloudPaxosLearner> learner;
