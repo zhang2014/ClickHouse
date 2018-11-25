@@ -36,13 +36,30 @@ Block QingCloudDDLBlockInputStream::readImpl()
         is_enqueue = true;
         if (UInt64 entity_id = synchronism->enqueue(ddl_query, [this](){ return isCancelled();}))
         {
-            synchronism->waitNotify(entity_id, [this](){ return isCancelled();});
-            /// TODO: 监听队列查看完成的情况
+            std::pair<bool, QingCloudDDLSynchronism::WaitApplyResPtr> wait_results = synchronism->waitNotify(entity_id, [this](){ return isCancelled();});
 
-            /// TODO
-            /// host          result          message
-            /// other         success
-            /// 192.168.1.1   failure         table already exists.
+            Block res = getHeader();
+
+            MutableColumns columns = res.cloneEmptyColumns();
+            for (const auto & wait_res : wait_results.second->paxos_res)
+            {
+                UInt64 res_state = std::get<0>(wait_res);
+                const String & from = std::get<2>(wait_res);
+                const String & exception_message = std::get<1>(wait_res);
+
+                columns[0]->insert(from);
+                columns[1]->insert(res_state ? "failure" : "success");
+                columns[2]->insert(exception_message);
+            }
+
+            if (!wait_results.first)
+            {
+                columns[0]->insert(String("other"));
+                columns[1]->insert(String("timeout"));
+                columns[2]->insert(String("unknow"));
+            }
+
+            return res.cloneWithColumns(columns);
         }
     }
 

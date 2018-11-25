@@ -38,6 +38,8 @@ private:
     Block queryWithTwoLevel(const String &first_query, const String &second_query);
 
     Block sendQueryToPaxosProxy(const String & send_query, const String & from);
+
+    void applyDDLQuery(const UInt64 &entity_id, const String &apply_query, const String &from);
 };
 
 }

@@ -92,6 +92,7 @@ UInt64 QingCloudDDLSynchronism::enqueue(const String & query_string, std::functi
 
         if (!quit_state())
         {
+            std::lock_guard<std::mutex> notify_lock(notify_mutex);
             UInt64 entity_id = entity.accepted_entity_id + 1;
             wait_apply_res[entity_id] = std::make_shared<WaitApplyRes>();
             if (paxos->sendPrepare(std::pair(entity_id, query_string)) == QingCloudPaxos::SUCCESSFULLY)
@@ -131,29 +132,51 @@ Block QingCloudDDLSynchronism::acceptedProposal(const String &from, const String
     return paxos->acceptedProposal(from, origin_from, accepted_paxos_id, accepted_entity);
 }
 
-void QingCloudDDLSynchronism::waitNotify(const UInt64 & entity_id, std::function<bool()> quit_state)
+std::pair<bool, QingCloudDDLSynchronism::WaitApplyResPtr> QingCloudDDLSynchronism::waitNotify(const UInt64 & entity_id, std::function<bool()> quit_state)
 {
+    const auto duration = std::chrono::milliseconds(180000);
+
     while (!quit_state())
     {
-        std::unique_lock<std::mutex> lock(wait_apply_res[entity_id]->mutex);
+        std::unique_lock<std::mutex> notify_lock(notify_mutex);
 
-        wait_apply_res[entity_id]->cond.wait(lock, quit_state);
+        if (!wait_apply_res.count(entity_id))
+            throw Exception(
+                "LOGICAL ERROR: cannot wait for ddl query result, because " + toString(entity_id) + " owner is not self.",
+                ErrorCodes::LOGICAL_ERROR);
 
-        if (current_cluster_node_size == wait_apply_res[entity_id]->paxos_res.size())
-            return;
+        std::cv_status wait_res;
+        if ((wait_res = wait_apply_res[entity_id]->cond.wait_for(notify_lock, duration)) == std::cv_status::timeout ||
+            current_cluster_node_size == wait_apply_res[entity_id]->paxos_res.size())
+        {
+            auto wait_paxos_res = wait_apply_res[entity_id];
+            wait_apply_res.erase(entity_id);
+            return std::pair(wait_res == std::cv_status::no_timeout, wait_paxos_res);
+        }
     }
+
+    return {};
 }
 
 void QingCloudDDLSynchronism::notifyPaxos(const UInt64 & res_state, const UInt64 & entity_id, const String & exception_message, const String & from)
 {
+    std::shared_ptr<WaitApplyRes> wait_res;
+
     {
-        std::unique_lock<std::mutex> lock(wait_apply_res[entity_id]->mutex);
+        std::lock_guard<std::mutex> notify_lock(notify_mutex);
 
         if (wait_apply_res.count(entity_id))
+        {
+            wait_res = wait_apply_res[entity_id];
             wait_apply_res[entity_id]->paxos_res.emplace_back(std::tuple(res_state, exception_message, from));
+        }
     }
 
-    wait_apply_res[entity_id]->cond.notify_one();
+    if (wait_res)
+    {
+        wait_res->cond.notify_one();
+        std::lock_guard<std::mutex> notify_lock(notify_mutex);
+    }
 }
 
 QingCloudDDLSynchronism::~QingCloudDDLSynchronism() = default;

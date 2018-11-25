@@ -61,9 +61,12 @@ void QingCloudPaxosLearner::work()
     {
         try
         {
-            std::lock_guard<std::recursive_mutex> state_lock(entity_state.mutex);
-            learning();
-            applyDDLQueries();
+            {
+                std::lock_guard<std::recursive_mutex> state_lock(entity_state.mutex);
+                learning();
+                applyDDLQueries();
+            }
+
             cond.wait_for(lock, sleep_time, quit_requested);
         }
         catch (...)
@@ -76,12 +79,12 @@ void QingCloudPaxosLearner::work()
 
 void QingCloudPaxosLearner::learning()
 {
-    const String offset = toString(entity_state.accepted_paxos_id);
-    const String query_without_agg = "SELECT * FROM system.ddl_queue WHERE proposer_id > " + offset + " ORDER BY proposer_id LIMIT 10";
-    const String query_with_agg = "SELECT DISTINCT id, proposer_id, query_string, from FROM system.ddl_queue WHERE _res_code = 0 ORDER BY proposer_id";
-
     while (true)
     {
+        const String offset = toString(entity_state.accepted_paxos_id);
+        const String query_without_agg = "SELECT * FROM system.ddl_queue WHERE proposer_id > " + offset + " ORDER BY proposer_id LIMIT 10";
+        const String query_with_agg = "SELECT DISTINCT id, proposer_id, query_string, from FROM system.ddl_queue WHERE _res_code = 0 ORDER BY proposer_id";
+
         Settings query_settings = context.getSettingsRef();
         Block fetch_res = queryWithTwoLevel(query_without_agg, query_with_agg);
 
@@ -100,11 +103,11 @@ void QingCloudPaxosLearner::learning()
 
 void QingCloudPaxosLearner::applyDDLQueries()
 {
-    const String offset = toString(entity_state.applied_paxos_id);
-    const String query_with_distinct = "SELECT DISTINCT id, proposer_id, query_string, from FROM system.ddl_queue WHERE proposer_id > " + offset + " ORDER BY proposer_id LIMIT 10";
-
     while (true)
     {
+        const String offset = toString(entity_state.applied_paxos_id);
+        const String query_with_distinct = "SELECT DISTINCT id, proposer_id, query_string, from FROM system.ddl_queue WHERE proposer_id > " + offset + " ORDER BY proposer_id LIMIT 10";
+
         Block wait_apply_res = executeLocalQuery(query_with_distinct, context);
 
         if (!wait_apply_res || !wait_apply_res.rows())
@@ -116,28 +119,32 @@ void QingCloudPaxosLearner::applyDDLQueries()
             const UInt64 entity_id = typeid_cast<const ColumnUInt64 &>(*wait_apply_res.getByName("id").column).getUInt(row);
             const String from = typeid_cast<const ColumnString &>(*wait_apply_res.getByName("from").column).getDataAt(row).toString();;
             const String apply_query = typeid_cast<const ColumnString &>(*wait_apply_res.getByName("query_string").column).getDataAt(row).toString();
-            /// TODO: try catch exception
-            try
-            {
-                executeLocalQuery(apply_query, context);
-                sendQueryToPaxosProxy(
-                    "PAXOS PAXOS_NOTIFY res_state=0, entity_id=" + toString(entity_id) + ", exception_message='', from ='" + self_address +
-                    "'", from);
-            }
-            catch (...)
-            {
-                UInt64 error_code = getCurrentExceptionCode();
-                const String exception_message = getCurrentExceptionMessage(false);
-                sendQueryToPaxosProxy("PAXOS PAXOS_NOTIFY res_state=" + toString(error_code) + ",entity_id=" +
-                                      toString(entity_id) + ",exception_message='" + exception_message + "',from='" + self_address + "'",
-                                      from);
-            }
 
-
+            applyDDLQuery(entity_id, apply_query, from);
             entity_state.applied_paxos_id = paxos_id;
             entity_state.applied_entity_id = entity_id;
             entity_state.store();
         }
+    }
+}
+
+void QingCloudPaxosLearner::applyDDLQuery(const UInt64 &entity_id, const String &apply_query, const String &from)
+{
+    try
+    {
+        const String notify_query =
+            "PAXOS PAXOS_NOTIFY res_state=0, entity_id=" + toString(entity_id) + ", exception_message='', from ='" + self_address + "'";
+
+        executeLocalQuery(apply_query, context);
+        sendQueryToPaxosProxy(notify_query, from);
+    }
+    catch (...)
+    {
+        int error_code = getCurrentExceptionCode();
+        const String exception_message = getCurrentExceptionMessage(false);
+        sendQueryToPaxosProxy("PAXOS PAXOS_NOTIFY res_state=" + toString(error_code) + ",entity_id=" +
+                              toString(entity_id) + ",exception_message='" + exception_message + "',from='" + self_address + "'",
+                              from);
     }
 }
 
