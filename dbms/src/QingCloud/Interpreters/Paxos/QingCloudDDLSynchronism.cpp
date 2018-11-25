@@ -80,7 +80,7 @@ StoragePtr QingCloudDDLSynchronism::createDDLQueue(const Context & context)
     return storage;
 }
 
-bool QingCloudDDLSynchronism::enqueue(const String & query_string, std::function<bool()> quit_state)
+UInt64 QingCloudDDLSynchronism::enqueue(const String & query_string, std::function<bool()> quit_state)
 {
     std::unique_lock<std::recursive_mutex> lock{mutex};
 
@@ -95,17 +95,13 @@ bool QingCloudDDLSynchronism::enqueue(const String & query_string, std::function
             UInt64 entity_id = entity.accepted_entity_id + 1;
             wait_apply_res[entity_id] = std::make_shared<WaitApplyRes>();
             if (paxos->sendPrepare(std::pair(entity_id, query_string)) == QingCloudPaxos::SUCCESSFULLY)
-            {
-                wait_apply_res[entity_id]->cond.wait(lock, quit_state);
+                return entity_id;
 
-                wait_apply_res.erase(entity_id);
-                return true;
-            }
             wait_apply_res.erase(entity_id);
         }
     }
 
-    return false;
+    return 0;
 }
 
 Block QingCloudDDLSynchronism::receivePrepare(const UInt64 & prepare_paxos_id)
@@ -135,22 +131,29 @@ Block QingCloudDDLSynchronism::acceptedProposal(const String &from, const String
     return paxos->acceptedProposal(from, origin_from, accepted_paxos_id, accepted_entity);
 }
 
+void QingCloudDDLSynchronism::waitNotify(const UInt64 & entity_id, std::function<bool()> quit_state)
+{
+    while (!quit_state())
+    {
+        std::unique_lock<std::mutex> lock(wait_apply_res[entity_id]->mutex);
+
+        wait_apply_res[entity_id]->cond.wait(lock, quit_state);
+
+        if (current_cluster_node_size == wait_apply_res[entity_id]->paxos_res.size())
+            return;
+    }
+}
+
 void QingCloudDDLSynchronism::notifyPaxos(const UInt64 & res_state, const UInt64 & entity_id, const String & exception_message, const String & from)
 {
-    bool notify = false;
-
     {
-        std::unique_lock<std::recursive_mutex> lock{mutex};
+        std::unique_lock<std::mutex> lock(wait_apply_res[entity_id]->mutex);
+
         if (wait_apply_res.count(entity_id))
-        {
             wait_apply_res[entity_id]->paxos_res.emplace_back(std::tuple(res_state, exception_message, from));
-            if (current_cluster_node_size == wait_apply_res[entity_id]->paxos_res.size())
-                notify = true;
-        }
     }
 
-    if (notify)
-        wait_apply_res[entity_id]->cond.notify_one();
+    wait_apply_res[entity_id]->cond.notify_one();
 }
 
 QingCloudDDLSynchronism::~QingCloudDDLSynchronism() = default;

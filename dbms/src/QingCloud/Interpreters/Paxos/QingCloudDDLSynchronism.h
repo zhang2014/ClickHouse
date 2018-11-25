@@ -23,11 +23,13 @@ public:
 
     QingCloudDDLSynchronism(const Context & context, const String & node_id);
 
-    bool enqueue(const String & query_string, std::function<bool()> quit_state);
+    UInt64 enqueue(const String & query_string, std::function<bool()> quit_state);
 
     Block receivePrepare(const UInt64 & prepare_paxos_id);
 
     Block acceptProposal(const String &from, const UInt64 & prepare_paxos_id, const LogEntity & value);
+
+    void waitNotify(const UInt64 & entity_id, std::function<bool()> quit_state);
 
     void notifyPaxos(const UInt64 & res_state, const UInt64 & entity_id, const String & exception_message, const String & from);
 
@@ -45,11 +47,12 @@ private:
 
     struct WaitApplyRes
     {
+
+        std::mutex mutex;
         std::condition_variable cond;
         std::vector<std::tuple<UInt64, String, String>> paxos_res;
     };
     std::map<UInt64, std::shared_ptr<WaitApplyRes>> wait_apply_res;
-    UInt64 expected_entity_id = 0;
 
     StoragePtr createDDLQueue(const Context & context);
 

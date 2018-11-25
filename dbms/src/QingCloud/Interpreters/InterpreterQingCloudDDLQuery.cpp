@@ -34,8 +34,9 @@ Block QingCloudDDLBlockInputStream::readImpl()
     if (!is_enqueue)
     {
         is_enqueue = true;
-        if (synchronism->enqueue(ddl_query, [this](){ return isCancelled();}))
+        if (UInt64 entity_id = synchronism->enqueue(ddl_query, [this](){ return isCancelled();}))
         {
+            synchronism->waitNotify(entity_id, [this](){ return isCancelled();});
             /// TODO: 监听队列查看完成的情况
 
             /// TODO
