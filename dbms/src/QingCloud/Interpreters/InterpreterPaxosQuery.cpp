@@ -44,7 +44,8 @@ BlockIO InterpreterPaxosQuery::execute()
         UInt64 res_state = paxos_query->names_and_values["res_state"].safeGet<UInt64>();
         UInt64 entity_id = paxos_query->names_and_values["entity_id"].safeGet<UInt64>();
         String exception_message = paxos_query->names_and_values["exception_message"].safeGet<String>();
-        context.getDDLSynchronism()->notifyPaxos(res_state, entity_id, exception_message, from);
+        context.getDDLSynchronism()->getWaitApplyRes(entity_id)->notify_one(res_state, exception_message, from);
+//        context.getDDLSynchronism()->notifyPaxos(res_state, entity_id, exception_message, from);
     }
     else
         throw Exception("Unknow kind for paxos.", ErrorCodes::LOGICAL_ERROR);

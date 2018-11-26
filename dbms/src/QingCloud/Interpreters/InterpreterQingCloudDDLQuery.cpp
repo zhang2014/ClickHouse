@@ -36,12 +36,15 @@ Block QingCloudDDLBlockInputStream::readImpl()
         is_enqueue = true;
         if (UInt64 entity_id = synchronism->enqueue(ddl_query, [this](){ return isCancelled();}))
         {
-            std::pair<bool, QingCloudDDLSynchronism::WaitApplyResPtr> wait_results = synchronism->waitNotify(entity_id, [this](){ return isCancelled();});
+            const auto wait_res_ptr = synchronism->getWaitApplyRes(entity_id);
+            synchronism->getWaitApplyRes(entity_id)->wait(std::chrono::milliseconds(180000));
+            synchronism->releaseApplyRes(entity_id);
+//            std::pair<bool, QingCloudDDLSynchronism::WaitApplyResPtr> wait_results = synchronism->waitNotify(entity_id, [this](){ return isCancelled();});
 
             Block res = getHeader();
 
             MutableColumns columns = res.cloneEmptyColumns();
-            for (const auto & wait_res : wait_results.second->paxos_res)
+            for (const auto & wait_res : wait_res_ptr->paxos_res)
             {
                 UInt64 res_state = std::get<0>(wait_res);
                 const String & from = std::get<2>(wait_res);
@@ -52,12 +55,12 @@ Block QingCloudDDLBlockInputStream::readImpl()
                 columns[2]->insert(exception_message);
             }
 
-            if (!wait_results.first)
-            {
-                columns[0]->insert(String("other"));
-                columns[1]->insert(String("timeout"));
-                columns[2]->insert(String("unknow"));
-            }
+//            if (!wait_results.first)
+//            {
+//                columns[0]->insert(String("other"));
+//                columns[1]->insert(String("timeout"));
+//                columns[2]->insert(String("unknow"));
+//            }
 
             return res.cloneWithColumns(std::move(columns));
         }

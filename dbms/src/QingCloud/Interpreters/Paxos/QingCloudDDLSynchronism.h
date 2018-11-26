@@ -24,7 +24,15 @@ public:
     public:
         std::mutex mutex;
         std::condition_variable cond;
+        size_t current_cluster_node_size;
         std::vector<std::tuple<UInt64, String, String>> paxos_res;
+
+        WaitApplyRes(size_t current_cluster_node_size_) : current_cluster_node_size(current_cluster_node_size_)
+        {}
+
+        void wait(const std::chrono::duration<long long int, std::milli> &timeout);
+
+        void notify_one(const UInt64 & entity_id, const String & exception_message, const String & from);
     };
 
     using WaitApplyResPtr = std::shared_ptr<WaitApplyRes>;
@@ -43,16 +51,16 @@ public:
 
     Block receivePrepare(const UInt64 & prepare_paxos_id);
 
+    void releaseApplyRes(const UInt64 & entity_id);
+
+    WaitApplyResPtr getWaitApplyRes(const UInt64 & entity_id);
+
     Block acceptProposal(const String &from, const UInt64 & prepare_paxos_id, const LogEntity & value);
-
-    std::pair<bool, WaitApplyResPtr> waitNotify(const UInt64 & entity_id, std::function<bool()> quit_state);
-
-    void notifyPaxos(const UInt64 & res_state, const UInt64 & entity_id, const String & exception_message, const String & from);
 
     Block acceptedProposal(const String &from, const String & origin_from, const UInt64 & accepted_paxos_id, const LogEntity & accepted_entity);
 
 private:
-    std::recursive_mutex mutex;
+//    std::recursive_mutex mutex;
     StoragePtr state_machine_storage;
     std::shared_ptr<QingCloudPaxos> paxos;
     std::shared_ptr<QingCloudPaxosLearner> learner;
@@ -61,7 +69,7 @@ private:
     DDLEntity entity;
     size_t current_cluster_node_size;
 
-    std::mutex notify_mutex;
+//    std::mutex notify_mutex;
     std::map<UInt64, std::shared_ptr<WaitApplyRes>> wait_apply_res;
 
     StoragePtr createDDLQueue(const Context & context);
