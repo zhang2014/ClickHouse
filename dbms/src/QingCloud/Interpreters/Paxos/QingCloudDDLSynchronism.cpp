@@ -82,19 +82,31 @@ StoragePtr QingCloudDDLSynchronism::createDDLQueue(const Context & context)
 
 UInt64 QingCloudDDLSynchronism::enqueue(const String & query_string, std::function<bool()> quit_state)
 {
-    const auto lock = work_lock->getLock(RWLockFIFO::Read, "QingCloudDDLSynchronism");
+    std::unique_lock<std::mutex> lock(mutex);
 
-    while (!quit_state())
+    auto next_entity_id = [&, this] ()
     {
         entity.learning_cond.notify_one();
         std::lock_guard<std::recursive_mutex> entity_lock(entity.mutex);
+        return entity.accepted_entity_id + 1;
+    };
 
-        UInt64 entity_id = entity.accepted_entity_id + 1;
-        wait_apply_res[entity_id] = std::make_shared<WaitApplyRes>(current_cluster_node_size);
+    while (!quit_state())
+    {
+        UInt64 entity_id = next_entity_id();
+
+        {
+            std::lock_guard<std::mutex> wait_lock(wait_apply_res_mutex);
+            wait_apply_res[entity_id] = std::make_shared<WaitApplyRes>(current_cluster_node_size);
+        }
+
         if (paxos->sendPrepare(std::pair(entity_id, query_string)) == QingCloudPaxos::SUCCESSFULLY)
             return entity_id;
 
-        wait_apply_res.erase(entity_id);
+        {
+            std::lock_guard<std::mutex> wait_lock(wait_apply_res_mutex);
+            wait_apply_res.erase(entity_id);
+        }
     }
 
     return 0;
@@ -102,34 +114,24 @@ UInt64 QingCloudDDLSynchronism::enqueue(const String & query_string, std::functi
 
 Block QingCloudDDLSynchronism::receivePrepare(const UInt64 & prepare_paxos_id)
 {
-    std::unique_lock<std::recursive_mutex> lock(entity.mutex, std::try_to_lock);
-    if (!lock.owns_lock())
-        throw Exception("Cannot get paxos lock, because already in a paxos cycle.", ErrorCodes::PAXOS_EXCEPTION);
-
+    std::unique_lock<std::mutex> lock(prepare_mutex);
     return paxos->receivePrepare(prepare_paxos_id);
 }
 
 Block QingCloudDDLSynchronism::acceptProposal(const String &from, const UInt64 &prepare_paxos_id, const LogEntity &value)
 {
-    std::unique_lock<std::recursive_mutex> lock(entity.mutex, std::try_to_lock);
-    if (!lock.owns_lock())
-        throw Exception("Cannot get paxos lock, because already in a paxos cycle.", ErrorCodes::PAXOS_EXCEPTION);
-
+    std::unique_lock<std::mutex> lock(acceptor_mutex);
     return paxos->acceptProposal(from, prepare_paxos_id, value);
 }
 
-Block QingCloudDDLSynchronism::acceptedProposal(const String &from, const String & origin_from, const UInt64 &accepted_paxos_id, const LogEntity &accepted_entity)
+Block QingCloudDDLSynchronism::acceptedProposal(const String &from, const String & origin_from, const UInt64 &accepted_paxos_id, const LogEntity & accepted_entity)
 {
-    std::unique_lock<std::recursive_mutex> lock(entity.mutex, std::try_to_lock);
-    if (!lock.owns_lock())
-        throw Exception("Cannot get paxos lock, because already in a paxos cycle.", ErrorCodes::PAXOS_EXCEPTION);
-
+    std::unique_lock<std::mutex> lock(final_acceptor_mutex);
     return paxos->acceptedProposal(from, origin_from, accepted_paxos_id, accepted_entity);
 }
 
 void QingCloudDDLSynchronism::upgradeVersion(const String & /*origin_version*/, const String & upgrade_version)
 {
-
     const ClusterPtr work_cluster = context.getCluster("Cluster_" + upgrade_version);
     paxos = std::make_shared<QingCloudPaxos>(entity, work_cluster, context, state_machine_storage);
     learner = std::make_shared<QingCloudPaxosLearner>(entity, state_machine_storage, work_cluster, context);
@@ -143,18 +145,25 @@ void QingCloudDDLSynchronism::wakeupLearner()
     std::lock_guard<std::recursive_mutex> entity_lock(entity.mutex);
 }
 
-RWLockFIFO::LockHandler QingCloudDDLSynchronism::lock()
+void QingCloudDDLSynchronism::lock(std::function<void()> fun_with_lock)
 {
+    std::unique_lock<std::mutex> lock(mutex);
+    std::unique_lock<std::mutex> prepare_lock(prepare_mutex);
+    std::unique_lock<std::mutex> acceptor_lock(acceptor_mutex);
+    std::unique_lock<std::mutex> final_acceptor_lock(final_acceptor_mutex);
 
     for (size_t retries = 0; true; ++retries)
     {
         if (retries != 0)
             std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
-        const auto lock = work_lock->getLock(RWLockFIFO::Write, "QingCloudDDLSynchronism");
+        std::unique_lock<std::mutex> wait_apply_lock(wait_apply_res_mutex);
 
         if (wait_apply_res.empty())
-            return lock;
+        {
+            fun_with_lock();
+            return;
+        }
     }
 }
 
@@ -181,7 +190,7 @@ void QingCloudDDLSynchronism::WaitApplyRes::notify_one(const UInt64 & res_state,
 
 QingCloudDDLSynchronism::WaitApplyResPtr QingCloudDDLSynchronism::getWaitApplyRes(const UInt64 & entity_id, bool must_exists)
 {
-    std::lock_guard<std::recursive_mutex> entity_lock(entity.mutex);
+    std::lock_guard<std::mutex> entity_lock(wait_apply_res_mutex);
 
     if (!wait_apply_res.count(entity_id) && must_exists)
         throw Exception("LOGICAL ERROR: cannot wait for ddl query result, because " + toString(entity_id) + " owner is not self.",
@@ -192,7 +201,7 @@ QingCloudDDLSynchronism::WaitApplyResPtr QingCloudDDLSynchronism::getWaitApplyRe
 
 void QingCloudDDLSynchronism::releaseApplyRes(const UInt64 & entity_id)
 {
-    std::lock_guard<std::recursive_mutex> entity_lock(entity.mutex);
+    std::lock_guard<std::mutex> entity_lock(wait_apply_res_mutex);
 
     if (!wait_apply_res.count(entity_id))
         throw Exception("LOGICAL ERROR: cannot wait for ddl query result, because " + toString(entity_id) + " owner is not self.",

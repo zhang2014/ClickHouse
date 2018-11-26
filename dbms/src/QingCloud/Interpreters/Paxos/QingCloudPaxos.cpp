@@ -33,10 +33,11 @@ QingCloudPaxos::QingCloudPaxos(DDLEntity &entity_state, const ClusterPtr &work_c
 
 QingCloudPaxos::State QingCloudPaxos::sendPrepare(const LogEntity & value)
 {
-    std::lock_guard<std::recursive_mutex> lock(entity_state.mutex);
-    prepared_paxos_id = std::max(prepared_paxos_id, entity_state.accepted_paxos_id);
+    {
+        std::lock_guard<std::recursive_mutex> lock(entity_state.mutex);
+        prepared_paxos_id = std::max(prepared_paxos_id, entity_state.accepted_paxos_id);
+    }
 
-    std::cout << "QingCloudPaxos::sendPrepare \n";
     ++prepared_paxos_id;
     Block prepare_res = sendQueryToCluster(prepare_header, "PAXOS PREPARE proposal_number = " + toString(prepared_paxos_id));
 
@@ -46,19 +47,25 @@ QingCloudPaxos::State QingCloudPaxos::sendPrepare(const LogEntity & value)
 
     for (size_t row = 0, promised = 0; row < prepare_res.rows(); ++row)
     {
-        if (column_accepted_id.getUInt(row) > entity_state.accepted_paxos_id)
-            return State::NEED_LEARN; /// has different paxos, we reach agreement through study.
-
-        promised += column_proposer_id.getUInt(row) == prepared_paxos_id && column_state.getBool(row) ? 1 : 0;
-        if (promised == connections.size() || promised >= connections.size() / 2 + 1)
         {
-            const String query_string = "PAXOS ACCEPT proposal_number=" + toString(prepared_paxos_id) + ",proposal_value_id=" +
-                                        toString(value.first) + ",proposal_value_query='" + escapeForFileName(value.second) + "',from='" + self_address + "'";
+            std::lock_guard<std::recursive_mutex> lock(entity_state.mutex);
 
-            Block accept_res = validateQueryIsQuorum(sendQueryToCluster(accepted_header, query_string), connections.size());
+            if (column_accepted_id.getUInt(row) > entity_state.accepted_paxos_id)
+                return State::NEED_LEARN; /// has different paxos, we reach agreement through study.
 
-            return validateQuorumState(accept_res, connections.size()) ? State::SUCCESSFULLY : State::FAILURE;
+            promised += column_proposer_id.getUInt(row) == prepared_paxos_id && column_state.getBool(row) ? 1 : 0;
+
+            if (promised != connections.size() && promised < connections.size() / 2 + 1)
+                continue;
         }
+
+        const String query_string = "PAXOS ACCEPT proposal_number=" + toString(prepared_paxos_id) + ",proposal_value_id=" +
+                                    toString(value.first) + ",proposal_value_query='" + escapeForFileName(value.second) + "',from='" +
+                                    self_address + "'";
+
+        Block accept_res = validateQueryIsQuorum(sendQueryToCluster(accepted_header, query_string), connections.size());
+
+        return validateQuorumState(accept_res, connections.size()) ? State::SUCCESSFULLY : State::FAILURE;
     }
     return State::FAILURE;
 }
@@ -69,7 +76,6 @@ Block QingCloudPaxos::receivePrepare(const UInt64 & prepare_paxos_id)
     promised_paxos_id = std::max(promised_paxos_id, entity_state.accepted_paxos_id);
     promised_paxos_id = std::max(promised_paxos_id, prepare_paxos_id);
 
-    std::cout << "QingCloudPaxos::receivePrepare \n";
     MutableColumns columns = prepare_header.cloneEmptyColumns();
     columns[0]->insert(UInt64(prepare_paxos_id == promised_paxos_id));
     columns[1]->insert(prepare_paxos_id);
@@ -81,9 +87,11 @@ Block QingCloudPaxos::receivePrepare(const UInt64 & prepare_paxos_id)
 
 Block QingCloudPaxos::acceptProposal(const String & from, const UInt64 & prepare_paxos_id, const LogEntity & value)
 {
-    std::lock_guard<std::recursive_mutex> lock(entity_state.mutex);
-    promised_paxos_id = std::max(promised_paxos_id, entity_state.accepted_paxos_id);
-    promised_paxos_id = std::max(promised_paxos_id, prepare_paxos_id);
+    {
+        std::lock_guard<std::recursive_mutex> lock(entity_state.mutex);
+        promised_paxos_id = std::max(promised_paxos_id, entity_state.accepted_paxos_id);
+        promised_paxos_id = std::max(promised_paxos_id, prepare_paxos_id);
+    }
 
     if (promised_paxos_id == prepare_paxos_id)
     {

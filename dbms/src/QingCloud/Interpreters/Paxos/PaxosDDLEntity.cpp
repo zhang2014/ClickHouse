@@ -4,6 +4,7 @@
 #include <IO/WriteHelpers.h>
 #include <IO/ReadBufferFromFile.h>
 #include <IO/WriteBufferFromFile.h>
+#include "PaxosDDLEntity.h"
 
 
 namespace DB

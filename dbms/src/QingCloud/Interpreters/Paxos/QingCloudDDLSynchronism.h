@@ -43,7 +43,7 @@ public:
 
     void wakeupLearner();
 
-    RWLockFIFO::LockHandler lock();
+    void lock(std::function<void()> fun_with_lock);
 
     void upgradeVersion(const String & origin_version, const String & upgrade_version);
 
@@ -67,6 +67,12 @@ private:
     const Context & context;
     DDLEntity entity;
     size_t current_cluster_node_size;
+
+    std::mutex mutex;
+    std::mutex prepare_mutex;
+    std::mutex acceptor_mutex;
+    std::mutex final_acceptor_mutex;
+    std::mutex wait_apply_res_mutex;
 
     RWLockFIFOPtr work_lock = RWLockFIFO::create();
     std::map<UInt64, std::shared_ptr<WaitApplyRes>> wait_apply_res;

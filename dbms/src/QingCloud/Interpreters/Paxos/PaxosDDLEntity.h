@@ -25,10 +25,11 @@ public:
 
     void store();
 
-
 private:
     const String dir;
     const String data_path;
 };
+
+
 
 }
