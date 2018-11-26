@@ -43,7 +43,7 @@ public:
 
     void wakeupLearner();
 
-    std::unique_lock<std::recursive_mutex> lock();
+    RWLockFIFO::LockHandler lock();
 
     void upgradeVersion(const String & origin_version, const String & upgrade_version);
 
@@ -53,14 +53,13 @@ public:
 
     void releaseApplyRes(const UInt64 & entity_id);
 
-    WaitApplyResPtr getWaitApplyRes(const UInt64 & entity_id);
+    WaitApplyResPtr getWaitApplyRes(const UInt64 & entity_id, bool must_exists = true);
 
     Block acceptProposal(const String &from, const UInt64 & prepare_paxos_id, const LogEntity & value);
 
     Block acceptedProposal(const String &from, const String & origin_from, const UInt64 & accepted_paxos_id, const LogEntity & accepted_entity);
 
 private:
-//    std::recursive_mutex mutex;
     StoragePtr state_machine_storage;
     std::shared_ptr<QingCloudPaxos> paxos;
     std::shared_ptr<QingCloudPaxosLearner> learner;
@@ -69,7 +68,7 @@ private:
     DDLEntity entity;
     size_t current_cluster_node_size;
 
-//    std::mutex notify_mutex;
+    RWLockFIFOPtr work_lock = RWLockFIFO::create();
     std::map<UInt64, std::shared_ptr<WaitApplyRes>> wait_apply_res;
 
     StoragePtr createDDLQueue(const Context & context);

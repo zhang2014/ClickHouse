@@ -81,21 +81,12 @@ BlockIO InterpreterUpgradeQuery::execute()
 
 void InterpreterUpgradeQuery::upgradeVersionForPaxos(ASTUpgradeQuery * upgrade_query, const SafetyPointWithClusterPtr & safety_point_sync)
 {
-    /// TODO: 锁住Paxos, 不在接受新的Paxos Query
-    /// TODO: 等待当前执行的Paxos全部执行完毕, wait_paxos_res is empty
+    const auto lock = context.getDDLSynchronism()->lock();
     safety_point_sync->broadcastSync("LOCK_NEW_PAXOS_QUERIES", 2);
-    /// TODO: 等待当前执行的Paxos在全部可同步节点同步完毕
     context.getDDLSynchronism()->wakeupLearner();
     safety_point_sync->broadcastSync("LOCK_PAXOS_STATUS_SYNC", 2);
-    /// TODO: 升级Paxos
     context.getDDLSynchronism()->upgradeVersion(upgrade_query->origin_version, upgrade_query->upgrade_version);
     safety_point_sync->broadcastSync("LOCK_UPGRADE_VERSION_FOR_PAXOS", 2);
-    const auto lock = context.getDDLSynchronism()->lock();
-//
-//
-//    safety_point_sync->broadcastSync("WAKEUP_PAXOS_LEARNER", 2);
-//
-//    safety_point_sync->broadcastSync("UPGRADE_PAXOS", 2);
 }
 
 UpgradeQueryBlockInputStream::UpgradeQueryBlockInputStream(

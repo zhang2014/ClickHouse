@@ -82,6 +82,8 @@ StoragePtr QingCloudDDLSynchronism::createDDLQueue(const Context & context)
 
 UInt64 QingCloudDDLSynchronism::enqueue(const String & query_string, std::function<bool()> quit_state)
 {
+    const auto lock = work_lock->getLock(RWLockFIFO::Read, "QingCloudDDLSynchronism");
+
     while (!quit_state())
     {
         entity.learning_cond.notify_one();
@@ -127,7 +129,7 @@ Block QingCloudDDLSynchronism::acceptedProposal(const String &from, const String
 
 void QingCloudDDLSynchronism::upgradeVersion(const String & /*origin_version*/, const String & upgrade_version)
 {
-    std::unique_lock<std::recursive_mutex> lock(entity.mutex, std::try_to_lock);
+    std::unique_lock<std::recursive_mutex> lock(entity.mutex);
 
     const ClusterPtr work_cluster = context.getCluster("Cluster_" + upgrade_version);
     paxos = std::make_shared<QingCloudPaxos>(entity, work_cluster, context, state_machine_storage);
@@ -141,17 +143,18 @@ void QingCloudDDLSynchronism::wakeupLearner()
     std::lock_guard<std::recursive_mutex> entity_lock(entity.mutex);
 }
 
-std::unique_lock<std::recursive_mutex> QingCloudDDLSynchronism::lock()
+RWLockFIFO::LockHandler QingCloudDDLSynchronism::lock()
 {
+
     for (size_t retries = 0; true; ++retries)
     {
         if (retries != 0)
             std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
-        std::unique_lock<std::recursive_mutex> entity_lock(entity.mutex);
+        const auto lock = work_lock->getLock(RWLockFIFO::Write, "QingCloudDDLSynchronism");
 
         if (wait_apply_res.empty())
-            return entity_lock;
+            return lock;
     }
 }
 
@@ -176,15 +179,15 @@ void QingCloudDDLSynchronism::WaitApplyRes::notify_one(const UInt64 & res_state,
     cond.notify_one();
 }
 
-QingCloudDDLSynchronism::WaitApplyResPtr QingCloudDDLSynchronism::getWaitApplyRes(const UInt64 & entity_id)
+QingCloudDDLSynchronism::WaitApplyResPtr QingCloudDDLSynchronism::getWaitApplyRes(const UInt64 & entity_id, bool must_exists)
 {
     std::lock_guard<std::recursive_mutex> entity_lock(entity.mutex);
 
-    if (!wait_apply_res.count(entity_id))
+    if (!wait_apply_res.count(entity_id) && must_exists)
         throw Exception("LOGICAL ERROR: cannot wait for ddl query result, because " + toString(entity_id) + " owner is not self.",
                         ErrorCodes::LOGICAL_ERROR);
 
-    return wait_apply_res[entity_id];
+    return wait_apply_res.count(entity_id) ? wait_apply_res[entity_id] : std::make_shared<WaitApplyRes>(current_cluster_node_size);
 }
 
 void QingCloudDDLSynchronism::releaseApplyRes(const UInt64 & entity_id)

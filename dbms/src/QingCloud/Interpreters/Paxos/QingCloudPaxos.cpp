@@ -10,6 +10,7 @@
 #include <Parsers/parseQuery.h>
 #include <QingCloud/Interpreters/InterpreterPaxosQuery.h>
 #include <Common/getMultipleKeysFromConfig.h>
+#include <Common/escapeForFileName.h>
 
 
 namespace DB
@@ -52,7 +53,7 @@ QingCloudPaxos::State QingCloudPaxos::sendPrepare(const LogEntity & value)
         if (promised == connections.size() || promised >= connections.size() / 2 + 1)
         {
             const String query_string = "PAXOS ACCEPT proposal_number=" + toString(prepared_paxos_id) + ",proposal_value_id=" +
-                                        toString(value.first) + ",proposal_value_query='" + value.second + "',from='" + self_address + "'";
+                                        toString(value.first) + ",proposal_value_query='" + escapeForFileName(value.second) + "',from='" + self_address + "'";
 
             Block accept_res = validateQueryIsQuorum(sendQueryToCluster(accepted_header, query_string), connections.size());
 
@@ -225,14 +226,14 @@ void QingCloudPaxos::maybeAcceptedCommit(const String & from, const String &orig
     MutableColumns mutable_columns = header.mutateColumns();
     mutable_columns[0]->insert(accepted_entity.first);
     mutable_columns[1]->insert(accepted_paxos_id);
-    mutable_columns[2]->insert(accepted_entity.second);
+    mutable_columns[2]->insert(unescapeForFileName(accepted_entity.second));
     mutable_columns[3]->insert(origin_from);
     header.setColumns(std::move(mutable_columns));
     output->writePrefix(); output->write(header); output->writeSuffix();
 
     entity_state.accepted_paxos_id = accepted_paxos_id;
     entity_state.accepted_entity_id = accepted_entity.first;
-    entity_state.accepted_entity_value = accepted_entity.second;
+    entity_state.accepted_entity_value = unescapeForFileName(accepted_entity.second);
     entity_state.store();
 }
 

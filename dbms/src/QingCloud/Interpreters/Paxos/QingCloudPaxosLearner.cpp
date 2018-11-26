@@ -11,6 +11,7 @@
 #include <DataStreams/SquashingBlockInputStream.h>
 #include <Interpreters/SpecializedAggregator.h>
 #include <Parsers/ParserQuery.h>
+#include <Common/escapeForFileName.h>
 #include <Interpreters/InterpreterFactory.h>
 #include <Common/getMultipleKeysFromConfig.h>
 #include <QingCloud/Parsers/ParserPaxosQuery.h>
@@ -56,7 +57,7 @@ void QingCloudPaxosLearner::work()
 {
     CurrentThread::initializeQuery();
     setThreadName("QingCloudPaxosLearner");
-    std::lock_guard<std::recursive_mutex> state_lock(entity_state.mutex);
+    std::unique_lock<std::recursive_mutex> state_lock(entity_state.mutex);
     const auto quit_requested = [this] { return quit.load(std::memory_order_relaxed); };
 
     while (!quit_requested())
@@ -136,18 +137,16 @@ void QingCloudPaxosLearner::applyDDLQuery(const UInt64 &entity_id, const String 
 {
     try
     {
-        const String notify_query =
-            "PAXOS PAXOS_NOTIFY res_state=0, entity_id=" + toString(entity_id) + ", exception_message='', from ='" + self_address + "'";
-
         executeLocalQuery(apply_query, context);
-        sendQueryToPaxosProxy(notify_query, from);
+        sendQueryToPaxosProxy(
+            "PAXOS PAXOS_NOTIFY res_state=0, entity_id=" + toString(entity_id) + ", exception_message='', from ='" + self_address + "'", from);
     }
     catch (...)
     {
         int error_code = getCurrentExceptionCode();
         const String exception_message = getCurrentExceptionMessage(false);
         sendQueryToPaxosProxy("PAXOS PAXOS_NOTIFY res_state=" + toString(error_code) + ",entity_id=" +
-                              toString(entity_id) + ",exception_message='" + exception_message + "',from='" + self_address + "'",
+                              toString(entity_id) + ",exception_message='" + escapeForFileName(exception_message) + "',from='" + self_address + "'",
                               from);
     }
 }
@@ -184,6 +183,7 @@ Block QingCloudPaxosLearner::queryWithTwoLevel(const String & first_query, const
 
 Block QingCloudPaxosLearner::sendQueryToPaxosProxy(const String &send_query, const String & from)
 {
+    std::cout << "Send Query to Paxos Proxy " << send_query << "\n";
     Block header =  Block{};
     Settings settings = context.getSettingsRef();
 
