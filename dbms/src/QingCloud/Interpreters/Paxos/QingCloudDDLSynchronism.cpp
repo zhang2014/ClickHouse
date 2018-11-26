@@ -154,17 +154,15 @@ void QingCloudDDLSynchronism::lock(std::function<void()> fun_with_lock)
 
     for (size_t retries = 0; true; ++retries)
     {
-        if (retries != 0)
-            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-
         std::unique_lock<std::mutex> wait_apply_lock(wait_apply_res_mutex);
 
-        if (wait_apply_res.empty())
-        {
-            fun_with_lock();
-            return;
-        }
+        if (!wait_apply_res.empty())
+            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+        else
+            break;
     }
+
+    fun_with_lock();
 }
 
 void QingCloudDDLSynchronism::WaitApplyRes::wait(const std::chrono::duration<long long int, std::milli> &timeout)
