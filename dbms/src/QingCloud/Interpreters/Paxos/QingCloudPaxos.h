@@ -41,8 +41,8 @@ private:
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> connections;
     String self_address;
 
-    UInt64 promised_paxos_id;
-    UInt64 prepared_paxos_id;
+    UInt64 promised_paxos_id = 0;
+    UInt64 prepared_paxos_id = 0;
     std::map<UInt64, std::vector<String>> wait_commits;
 
     Block accepted_header = Block{{ColumnUInt64::create(), std::make_shared<DataTypeUInt64>(), "state"}};

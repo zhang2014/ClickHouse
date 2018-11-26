@@ -125,8 +125,13 @@ Block UpgradeQueryBlockInputStream::readImpl()
         {
             if (const auto storage = dynamic_cast<StorageQingCloud *>(upgrade_storage.get()))
             {
+                progressToString(ProgressEnum::NORMAL);
+#define DECLARE(ENUM, STORAGE, SYNC, INVOKE) \
+    INVOKE; \
+    std::cout << "Upgrade query input :" << progressToString(ENUM) << "\n"; \
+    changeProcessAndSync(ENUM, STORAGE, SYNC);
 
-#define APPLY_FOR_PROGRESS(M)  \
+#define APPLY_FOR_SECOND_PROGRESS(M)  \
                 M(ProgressEnum::FLUSH_OLD_VERSION_DATA, storage, safety_point_sync, storage->flushVersionData(origin_version)) \
                 M(ProgressEnum::CLEANUP_UPGRADE_VERSION, storage, safety_point_sync, storage->cleanupBeforeMigrate(upgrade_version)) \
                 M(ProgressEnum::MIGRATE_OLD_VERSION_DATA, storage, safety_point_sync, storage->migrateDataBetweenVersions(origin_version, upgrade_version, true)) \
@@ -136,28 +141,10 @@ Block UpgradeQueryBlockInputStream::readImpl()
                 M(ProgressEnum::REDIRECT_VERSION_AFTER_ALL_MIGRATE, storage, safety_point_sync,storage->initializeVersionInfo({upgrade_version}, upgrade_version)) \
                 M(ProgressEnum::NORMAL, storage, safety_point_sync ,storage->deleteOutdatedVersions({origin_version, "tmp_" + upgrade_version}))
 
-#define DECLARE(ENUM, STORAGE, SYNC, INVOKE) \
-    INVOKE; \
-    changeProcessAndSync(ENUM, STORAGE, SYNC);
+                APPLY_FOR_SECOND_PROGRESS(DECLARE)
+#undef APPLY_FOR_SECOND_PROGRESS
 
-    APPLY_FOR_PROGRESS(DECLARE)
-#undef DECLARE
-//                storage->flushVersionData(origin_version);
-//                changeProcessAndSync(ProgressEnum::FLUSH_OLD_VERSION_DATA, storage, safety_point_sync);
-//                storage->cleanupBeforeMigrate(upgrade_version);
-//                changeProcessAndSync(ProgressEnum::CLEANUP_UPGRADE_VERSION, storage, safety_point_sync);
-//                storage->migrateDataBetweenVersions(origin_version, upgrade_version, true);
-//                changeProcessAndSync(ProgressEnum::MIGRATE_OLD_VERSION_DATA, storage, safety_point_sync);
-//                storage->flushVersionData(upgrade_version);
-//                changeProcessAndSync(ProgressEnum::FLUSH_UPGRADE_VERSION_DATA, storage, safety_point_sync);
-//                storage->initializeVersionInfo({"tmp_" + upgrade_version, upgrade_version}, upgrade_version);
-//                changeProcessAndSync(ProgressEnum::REDIRECT_VERSIONS_AFTER_MIGRATE, storage, safety_point_sync);
-//                storage->migrateDataBetweenVersions("tmp_" + upgrade_version, upgrade_version, false);
-//                changeProcessAndSync(ProgressEnum::MIGRATE_TMP_VERSION_DATA, storage, safety_point_sync);
-//                storage->initializeVersionInfo({upgrade_version}, upgrade_version);
-//                changeProcessAndSync(ProgressEnum::REDIRECT_VERSION_AFTER_ALL_MIGRATE, storage, safety_point_sync);
-//                storage->deleteOutdatedVersions({origin_version, "tmp_" + upgrade_version});
-//                changeProcessAndSync(ProgressEnum::NORMAL, storage, safety_point_sync);
+
             }
         }
 

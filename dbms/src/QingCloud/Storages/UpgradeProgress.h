@@ -20,6 +20,8 @@ enum ProgressEnum
     DELETE_OUTDATED_VERSIONS = 10,                     /// At this time, Upgrade version is Done.
 
     NORMAL = 11
+
+
 };
 
 class UpgradeProgress
