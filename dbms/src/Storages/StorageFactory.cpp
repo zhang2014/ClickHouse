@@ -70,7 +70,8 @@ StoragePtr StorageFactory::get(
 {
     String name;
     ASTs args;
-    ASTStorage * storage_def = query.storage;
+
+
 
     if (query.is_view)
     {

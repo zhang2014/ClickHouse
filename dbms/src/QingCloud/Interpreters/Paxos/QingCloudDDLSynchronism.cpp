@@ -84,18 +84,15 @@ UInt64 QingCloudDDLSynchronism::enqueue(const String & query_string, std::functi
 {
     while (!quit_state())
     {
-        learner->wakeup();
+        entity.learning_cond.notify_one();
+        std::lock_guard<std::recursive_mutex> entity_lock(entity.mutex);
 
-        if (!quit_state())
-        {
-            std::lock_guard<std::recursive_mutex> entity_lock(entity.mutex);
-            UInt64 entity_id = entity.accepted_entity_id + 1;
-            wait_apply_res[entity_id] = std::make_shared<WaitApplyRes>(current_cluster_node_size);
-            if (paxos->sendPrepare(std::pair(entity_id, query_string)) == QingCloudPaxos::SUCCESSFULLY)
-                return entity_id;
+        UInt64 entity_id = entity.accepted_entity_id + 1;
+        wait_apply_res[entity_id] = std::make_shared<WaitApplyRes>(current_cluster_node_size);
+        if (paxos->sendPrepare(std::pair(entity_id, query_string)) == QingCloudPaxos::SUCCESSFULLY)
+            return entity_id;
 
-            wait_apply_res.erase(entity_id);
-        }
+        wait_apply_res.erase(entity_id);
     }
 
     return 0;
@@ -128,9 +125,20 @@ Block QingCloudDDLSynchronism::acceptedProposal(const String &from, const String
     return paxos->acceptedProposal(from, origin_from, accepted_paxos_id, accepted_entity);
 }
 
+void QingCloudDDLSynchronism::upgradeVersion(const String & /*origin_version*/, const String & upgrade_version)
+{
+    std::unique_lock<std::recursive_mutex> lock(entity.mutex, std::try_to_lock);
+
+    const ClusterPtr work_cluster = context.getCluster("Cluster_" + upgrade_version);
+    paxos = std::make_shared<QingCloudPaxos>(entity, work_cluster, context, state_machine_storage);
+    learner = std::make_shared<QingCloudPaxosLearner>(entity, state_machine_storage, work_cluster, context);
+    current_cluster_node_size = getConnectionPoolsFromClusters({work_cluster}).size();
+}
+
 void QingCloudDDLSynchronism::wakeupLearner()
 {
-    learner->wakeup();
+    entity.learning_cond.notify_one();
+    std::lock_guard<std::recursive_mutex> entity_lock(entity.mutex);
 }
 
 std::unique_lock<std::recursive_mutex> QingCloudDDLSynchronism::lock()
@@ -145,24 +153,6 @@ std::unique_lock<std::recursive_mutex> QingCloudDDLSynchronism::lock()
         if (wait_apply_res.empty())
             return entity_lock;
     }
-}
-
-void QingCloudDDLSynchronism::upgradeVersion(const String & /*origin_version*/, const String &upgrade_version)
-{
-    try
-    {
-        const ClusterPtr work_cluster = context.getCluster("Cluster_" + upgrade_version);
-
-        paxos = std::make_shared<QingCloudPaxos>(entity, work_cluster, context, state_machine_storage);
-        learner = std::make_shared<QingCloudPaxosLearner>(entity, state_machine_storage, work_cluster, context);
-        current_cluster_node_size = getConnectionPoolsFromClusters({work_cluster}).size();
-    }
-    catch (...)
-    {
-        tryLogCurrentException(&Logger::get("QingCloudDDLSynchronism"), "Upgrade Version : ");
-        throw;
-    }
-
 }
 
 void QingCloudDDLSynchronism::WaitApplyRes::wait(const std::chrono::duration<long long int, std::milli> &timeout)
@@ -182,6 +172,7 @@ void QingCloudDDLSynchronism::WaitApplyRes::notify_one(const UInt64 & res_state,
         std::unique_lock<std::mutex> lock(mutex);
         paxos_res.emplace_back(std::tuple(res_state, exception_message, from));
     }
+
     cond.notify_one();
 }
 
@@ -208,4 +199,5 @@ void QingCloudDDLSynchronism::releaseApplyRes(const UInt64 & entity_id)
 }
 
 QingCloudDDLSynchronism::~QingCloudDDLSynchronism() = default;
+
 }

@@ -49,12 +49,7 @@ BlockIO InterpreterUpgradeQuery::execute()
     const auto connections = getConnectionPoolsFromClusters({origin_cluster, upgrade_cluster});
     const auto safety_point_sync = SafetyPointFactory::instance().createSafetyPoint(sync_name, context, connections);
 
-    const auto lock = context.getDDLSynchronism()->lock();
-    safety_point_sync->broadcastSync("LOCK_NODE_DDL", 2);
-    context.getDDLSynchronism()->wakeupLearner();
-    safety_point_sync->broadcastSync("WAKEUP_PAXOS_LEARNER", 2);
-    context.getDDLSynchronism()->upgradeVersion(upgrade_query->origin_version, upgrade_query->upgrade_version);
-    safety_point_sync->broadcastSync("UPGRADE_PAXOS", 2);
+    upgradeVersionForPaxos(upgrade_query, safety_point_sync);
 
     std::vector<StoragePtr> upgrade_storage;
     std::vector<TableStructureReadLockPtr> upgrade_storage_lock;
@@ -82,6 +77,25 @@ BlockIO InterpreterUpgradeQuery::execute()
     for (const auto & storage_lock : upgrade_storage_lock)
         res.in->addTableLock(storage_lock);
     return res;
+}
+
+void InterpreterUpgradeQuery::upgradeVersionForPaxos(ASTUpgradeQuery * upgrade_query, const SafetyPointWithClusterPtr & safety_point_sync)
+{
+    /// TODO: 锁住Paxos, 不在接受新的Paxos Query
+    /// TODO: 等待当前执行的Paxos全部执行完毕, wait_paxos_res is empty
+    safety_point_sync->broadcastSync("LOCK_NEW_PAXOS_QUERIES", 2);
+    /// TODO: 等待当前执行的Paxos在全部可同步节点同步完毕
+    context.getDDLSynchronism()->wakeupLearner();
+    safety_point_sync->broadcastSync("LOCK_PAXOS_STATUS_SYNC", 2);
+    /// TODO: 升级Paxos
+    context.getDDLSynchronism()->upgradeVersion(upgrade_query->origin_version, upgrade_query->upgrade_version);
+    safety_point_sync->broadcastSync("LOCK_UPGRADE_VERSION_FOR_PAXOS", 2);
+    const auto lock = context.getDDLSynchronism()->lock();
+//
+//
+//    safety_point_sync->broadcastSync("WAKEUP_PAXOS_LEARNER", 2);
+//
+//    safety_point_sync->broadcastSync("UPGRADE_PAXOS", 2);
 }
 
 UpgradeQueryBlockInputStream::UpgradeQueryBlockInputStream(

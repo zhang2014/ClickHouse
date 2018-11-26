@@ -13,7 +13,8 @@
 #include <Parsers/ParserQuery.h>
 #include <Interpreters/InterpreterFactory.h>
 #include <Common/getMultipleKeysFromConfig.h>
-#include "QingCloudPaxosLearner.h"
+#include <QingCloud/Parsers/ParserPaxosQuery.h>
+#include <QingCloud/Interpreters/InterpreterPaxosQuery.h>
 
 
 namespace DB
@@ -55,20 +56,16 @@ void QingCloudPaxosLearner::work()
 {
     CurrentThread::initializeQuery();
     setThreadName("QingCloudPaxosLearner");
-    std::unique_lock<std::mutex> lock{mutex};
+    std::lock_guard<std::recursive_mutex> state_lock(entity_state.mutex);
     const auto quit_requested = [this] { return quit.load(std::memory_order_relaxed); };
 
     while (!quit_requested())
     {
         try
         {
-            {
-                std::lock_guard<std::recursive_mutex> state_lock(entity_state.mutex);
-                learning();
-                applyDDLQueries();
-            }
-
-            cond.wait_for(lock, sleep_time, quit_requested);
+            learning();
+            applyDDLQueries();
+            entity_state.learning_cond.wait_for(state_lock, sleep_time, quit_requested);
         }
         catch (...)
         {
@@ -81,7 +78,7 @@ void QingCloudPaxosLearner::work()
 void QingCloudPaxosLearner::wakeup()
 {
     cond.notify_one();
-    std::unique_lock<std::mutex> lock{mutex};
+    std::lock_guard<std::recursive_mutex> state_lock(entity_state.mutex);
 }
 
 void QingCloudPaxosLearner::learning()
@@ -190,22 +187,44 @@ Block QingCloudPaxosLearner::sendQueryToPaxosProxy(const String &send_query, con
     Block header =  Block{};
     Settings settings = context.getSettingsRef();
 
+    BlockInputStreamPtr source;
     for (const auto & connection : connections)
     {
-        if (connection.first.host_name == from)
+        if (connection.first.host_name == from && connection.first.is_local)
+        {
+            ParserPaxos paxos_parser;
+            ASTPtr node = parseQuery(paxos_parser, send_query.data(), send_query.data() + send_query.size(), "", 0);
+            InterpreterPaxosQuery interpreter(node, context);
+            source = interpreter.execute().in;
+        }
+        else if (connection.first.host_name == from)
         {
             ConnectionPoolPtrs failover_connections;
             failover_connections.emplace_back(connection.second);
             ConnectionPoolWithFailoverPtr shard_pool = std::make_shared<ConnectionPoolWithFailover>(
                 failover_connections, SettingLoadBalancing(LoadBalancing::RANDOM), settings.connections_with_failover_max_tries);
 
-            return std::make_shared<SquashingBlockInputStream>(
-                std::make_shared<RemoteBlockInputStream>(shard_pool, send_query, header, context, &settings),
-                std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max())->read();
+            source = std::make_shared<RemoteBlockInputStream>(shard_pool, send_query, header, context, &settings);
         }
+
+        if (source)
+            return std::make_shared<SquashingBlockInputStream>(source, std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max())->read();
     }
 
     return {};
+}
+
+QingCloudPaxosLearner::~QingCloudPaxosLearner()
+{
+    if (!quit)
+    {
+        {
+            quit = true;
+            std::lock_guard<std::recursive_mutex> lock{entity_state.mutex};
+        }
+        entity_state.learning_cond.notify_one();
+        thread.join();
+    }
 }
 
 }

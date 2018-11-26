@@ -2,6 +2,7 @@
 
 #include <mutex>
 #include <Core/Types.h>
+#include <condition_variable>
 
 namespace DB
 {
@@ -18,6 +19,7 @@ public:
     UInt64 accepted_paxos_id = 0;
     UInt64 accepted_entity_id = 0;
     String accepted_entity_value = "";
+    std::condition_variable_any learning_cond;
 
     DDLEntity(const String & data_path);
 

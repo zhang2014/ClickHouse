@@ -58,6 +58,10 @@ private:
     Block validateQueryIsQuorum(const Block & block, size_t total_size);
 
     Block sendQueryToCluster(const Block &header, const String &query_string);
+
+    void cleanOutdatedCommit();
+
+    void maybeAcceptedCommit(const String &from, const String &origin_from, const UInt64 &accepted_paxos_id, const LogEntity &accepted_entity);
 };
 
 }

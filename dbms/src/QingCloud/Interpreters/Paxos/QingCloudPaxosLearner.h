@@ -18,6 +18,8 @@ public:
 
     void wakeup();
 
+    ~QingCloudPaxosLearner();
+
 private:
     const Context & context;
     const StoragePtr & state_machine_storage;
@@ -29,7 +31,7 @@ private:
 
     std::mutex mutex;
     std::atomic<bool> quit{false};
-    std::condition_variable cond;
+    std::condition_variable_any cond;
     String self_address;
     std::thread thread = std::thread{&QingCloudPaxosLearner::work, this};
 

@@ -106,40 +106,11 @@ Block QingCloudPaxos::acceptProposal(const String & from, const UInt64 & prepare
 
 Block QingCloudPaxos::acceptedProposal(const String & from, const String & origin_from, const UInt64 & accepted_paxos_id, const LogEntity & accepted_entity)
 {
+    cleanOutdatedCommit();
+    maybeAcceptedCommit(from, origin_from, accepted_paxos_id, accepted_entity);
+
+    entity_state.learning_cond.notify_one();
     std::lock_guard<std::recursive_mutex> lock(entity_state.mutex);
-
-    std::cout << "QingCloudPaxos::acceptedProposal \n";
-    if (accepted_paxos_id >= entity_state.accepted_paxos_id)
-    {
-        /// TODO: 设置wait最大值, 准备清除无用的
-        wait_commits[accepted_paxos_id].emplace_back(from);
-        if (wait_commits[accepted_paxos_id].size() == connections.size() ||
-            wait_commits[accepted_paxos_id].size() >= (connections.size() / 2 + 1))
-        {
-            BlockOutputStreamPtr output = state_machine_storage->write({}, context.getSettingsRef());
-            Block header = state_machine_storage->getSampleBlock();
-
-            MutableColumns mutable_columns = header.mutateColumns();
-            mutable_columns[0]->insert(accepted_entity.first);
-            mutable_columns[1]->insert(accepted_paxos_id);
-            mutable_columns[2]->insert(accepted_entity.second);
-            mutable_columns[3]->insert(origin_from);
-            header.setColumns(std::move(mutable_columns));
-            output->writePrefix(); output->write(header); output->writeSuffix();
-
-            entity_state.accepted_paxos_id = accepted_paxos_id;
-            entity_state.accepted_entity_id = accepted_entity.first;
-            entity_state.accepted_entity_value = accepted_entity.second;
-            entity_state.store();
-
-            for (auto iter = wait_commits.begin(); iter != wait_commits.end(); ++iter) {
-                if (iter->first < entity_state.accepted_paxos_id) {
-                    wait_commits.erase(iter);
-                }
-            }
-        }
-    }
-
     MutableColumns columns = accepted_header.cloneEmptyColumns();
     columns[0]->insert(UInt64(accepted_paxos_id >= entity_state.accepted_paxos_id));
     return accepted_header.cloneWithColumns(std::move(columns));
@@ -220,6 +191,49 @@ Block QingCloudPaxos::validateQueryIsQuorum(const Block & block, size_t total_si
     }
 
     return block;
+}
+
+void QingCloudPaxos::cleanOutdatedCommit()
+{
+    std::lock_guard<std::recursive_mutex> lock(entity_state.mutex);
+
+    for (auto iter = wait_commits.begin(); iter != wait_commits.end();) {
+        if (iter->first > entity_state.accepted_paxos_id)
+            ++iter;
+        else
+            iter = wait_commits.erase(iter);
+    }
+}
+
+void QingCloudPaxos::maybeAcceptedCommit(const String & from, const String &origin_from, const UInt64 &accepted_paxos_id,
+                                         const LogEntity &accepted_entity)
+{
+    std::lock_guard<std::recursive_mutex> lock(entity_state.mutex);
+
+    if (accepted_paxos_id < entity_state.accepted_paxos_id)
+        return;
+
+    wait_commits[accepted_paxos_id].emplace_back(from);
+
+    if (wait_commits[accepted_paxos_id].size() != connections.size() &&
+        wait_commits.size() < (connections.size()) / 2 + 1)
+        return;
+
+    BlockOutputStreamPtr output = state_machine_storage->write({}, context.getSettingsRef());
+    Block header = state_machine_storage->getSampleBlock();
+
+    MutableColumns mutable_columns = header.mutateColumns();
+    mutable_columns[0]->insert(accepted_entity.first);
+    mutable_columns[1]->insert(accepted_paxos_id);
+    mutable_columns[2]->insert(accepted_entity.second);
+    mutable_columns[3]->insert(origin_from);
+    header.setColumns(std::move(mutable_columns));
+    output->writePrefix(); output->write(header); output->writeSuffix();
+
+    entity_state.accepted_paxos_id = accepted_paxos_id;
+    entity_state.accepted_entity_id = accepted_entity.first;
+    entity_state.accepted_entity_value = accepted_entity.second;
+    entity_state.store();
 }
 
 
