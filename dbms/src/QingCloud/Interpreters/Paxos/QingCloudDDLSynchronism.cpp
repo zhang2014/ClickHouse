@@ -129,12 +129,12 @@ Block QingCloudDDLSynchronism::acceptedProposal(const String &from, const String
 
 void QingCloudDDLSynchronism::upgradeVersion(const String & /*origin_version*/, const String & upgrade_version)
 {
-    std::unique_lock<std::recursive_mutex> lock(entity.mutex);
 
     const ClusterPtr work_cluster = context.getCluster("Cluster_" + upgrade_version);
     paxos = std::make_shared<QingCloudPaxos>(entity, work_cluster, context, state_machine_storage);
     learner = std::make_shared<QingCloudPaxosLearner>(entity, state_machine_storage, work_cluster, context);
     current_cluster_node_size = getConnectionPoolsFromClusters({work_cluster}).size();
+    std::unique_lock<std::recursive_mutex> lock(entity.mutex);
 }
 
 void QingCloudDDLSynchronism::wakeupLearner()
