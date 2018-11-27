@@ -10,7 +10,7 @@ namespace DB
 
 
 UpgradeProgress::UpgradeProgress(const String &path, const MultiplexedClusterPtr &clusters)
-    : dir(path), data_path(dir + "upgrade.info"), write_version(clusters->getCurrentWritingVersion()), read_versions({write_version}),
+    : dir(path), data_path(dir + "upgrade.info"), write_version(clusters->getCurrentVersion()), read_versions({write_version}),
       retain_versions({write_version})
 {
     if (Poco::File(data_path).exists())

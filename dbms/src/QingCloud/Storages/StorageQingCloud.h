@@ -68,9 +68,9 @@ private:
     String table_data_path;
     UpgradeProgress version_info;
 
-    void migrateDataInLocal(bool move, const StoragePtr &origin_, const StoragePtr &upgrade_storage_);
+    void migrateDataInLocal(bool move, const StoragePtr & origin_, const StoragePtr & upgrade_storage_);
 
-    void migrateDataInCluster(const String &origin_version, const String &upgrade_version, size_t shard_number);
+    void migrateDataInCluster(const String & origin_version, const String & upgrade_version, size_t shard_number);
 
     void createTablesWithCluster(const String & version, const ClusterPtr & cluster, bool attach = false, bool has_force_restore_data_flag = false);
 

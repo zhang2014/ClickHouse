@@ -58,7 +58,7 @@ QingCloudDDLSynchronism::QingCloudDDLSynchronism(const Context & context, const 
     context(context), entity(context.getConfigRef().getString("path"))
 {
     state_machine_storage = createDDLQueue(context);
-    const String default_version = context.getMultiplexedVersion()->getCurrentWritingVersion();
+    const String default_version = context.getMultiplexedVersion()->getCurrentVersion();
 
     const ClusterPtr work_cluster = context.getCluster("Cluster_" + default_version);
 

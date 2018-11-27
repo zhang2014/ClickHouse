@@ -10,50 +10,28 @@ namespace DB
 class MultiplexedVersionCluster
 {
 public:
-    String getCurrentWritingVersion();
-
-    std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> getAddressesAndConnections();
+    String getCurrentVersion();
 
     ClusterPtr getCluster(const String & cluster_name);
 
     MultiplexedVersionCluster(const Poco::Util::AbstractConfiguration & configuration, const Settings & settings, const std::string & config_prefix);
 
-    template <typename T> T getPropertyOrChildValue(const Poco::Util::AbstractConfiguration & configuration, const std::string & configuration_key,
-                                                      String property_or_child_name);
-
-    template <typename T> T getPropertyOrChildValue(const Poco::Util::AbstractConfiguration & configuration, const std::string & configuration_key,
-                                                    String property_or_child_name,const T & default_value);
-
-    void setAddressAndConnections(Cluster::ShardInfo & shard_info,
-                                  const Poco::Util::AbstractConfiguration & configuration,
-                                  const std::string & replica_config_prefix,
-                                  const Settings & settings, Cluster::Addresses & addresses);
+    ConnectionPoolPtr getOrCreateConnectionPools(const Cluster::Address & address, const Settings & settings);
 
     void updateMultiplexedVersionCluster(const Poco::Util::AbstractConfiguration & configuration, const Settings & settings, const std::string & config_prefix);
 private:
+    String default_version;
     std::map<String, ClusterPtr> all_version_and_cluster;
     std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> address_and_connection_pool_cache;
-
-    Cluster::Address createAddress(const Poco::Util::AbstractConfiguration & configuration, const std::string & replica_config_prefix);
-
-    template <typename T> struct TypeToEnum {
-        inline static T & getValue(const Poco::Util::AbstractConfiguration &, const std::string &)
-        {
-            throw Exception("");
-        }
-    };
 };
 
 class DummyCluster : public Cluster
 {
 public:
-    bool is_readable;
-    bool is_writeable;
-
     ~DummyCluster() override = default;
 
     DummyCluster(const Poco::Util::AbstractConfiguration & configuration, const std::string & configuration_prefix,
-                 MultiplexedVersionCluster * multiplexed_version_cluster, const Settings & settings, bool is_readable, bool is_writeable);
+                 MultiplexedVersionCluster * multiplexed_version_cluster, const Settings & settings);
 
     const AddressesWithFailover & getShardsAddresses() const override;
 
@@ -74,41 +52,12 @@ public:
     size_t getLocalShardCount() const override;
 
     size_t getRemoteShardCount() const override;
-};
 
-template <> struct MultiplexedVersionCluster::TypeToEnum<String>  {
-    inline static String getValue(const Poco::Util::AbstractConfiguration & configuration, const std::string & key)
-    {
-        return configuration.getString(key);
-    }
-};
+    Cluster::Address createAddresses(const Poco::Util::AbstractConfiguration &configuration, const String &replica_key) const;
 
-template <> struct MultiplexedVersionCluster::TypeToEnum<UInt64>  {
-    inline static UInt64 getValue(const Poco::Util::AbstractConfiguration & configuration, const std::string & key)
-    {
-        return configuration.getUInt64(key);
-    }
-};
-
-template <> struct MultiplexedVersionCluster::TypeToEnum<UInt16>  {
-    inline static UInt16 getValue(const Poco::Util::AbstractConfiguration & configuration, const std::string & key)
-    {
-        return (UInt16) configuration.getUInt(key);
-    }
-};
-
-template <> struct MultiplexedVersionCluster::TypeToEnum<UInt32>  {
-    inline static UInt32 getValue(const Poco::Util::AbstractConfiguration & configuration, const std::string & key)
-    {
-        return configuration.getUInt(key);
-    }
-};
-
-template <> struct MultiplexedVersionCluster::TypeToEnum<bool>  {
-    inline static bool getValue(const Poco::Util::AbstractConfiguration & configuration, const std::string & key)
-    {
-        return configuration.getBool(key);
-    }
+    ShardInfo
+    createShardInfo(size_t shard_number, Addresses shard_addresses, Addresses shard_local_addresses, ConnectionPoolPtrs shard_connections,
+                        UInt32 i, const Settings &settings);
 };
 
 using MultiplexedClusterPtr = std::shared_ptr<MultiplexedVersionCluster>;

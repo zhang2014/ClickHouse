@@ -79,6 +79,7 @@ StorageWithLock InterpreterUpgradeQuery::selectAllUpgradeStorage(const String & 
             }
         }
     }
+    return res;
 }
 
 UpgradeQueryBlockInputStream::UpgradeQueryBlockInputStream(

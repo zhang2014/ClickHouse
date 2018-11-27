@@ -1,153 +1,61 @@
 #include <QingCloud/Interpreters/MultiplexedVersionCluster.h>
-#include <Poco/Util/AbstractConfiguration.h>
+#include <utility>
+#include <IO/ReadHelpers.h>
+#include <Storages/IStorage.h>
 #include <Common/DNSResolver.h>
 #include <Common/isLocalAddress.h>
-#include <Storages/IStorage.h>
-#include <IO/ReadHelpers.h>
-#include "MultiplexedVersionCluster.h"
+#include <Poco/Util/AbstractConfiguration.h>
+#include <QingCloud/Common/addressesEquals.h>
+#include <QingCloud/Common/getPropertyOrChildValue.h>
+#include <QingCloud/Common/visitorConfigurationKey.h>
 
 
 namespace DB
 {
 
-namespace ErrorCodes
-{
-    extern const int SHARD_HAS_NO_CONNECTIONS;
-}
-
-static inline bool addressEquals(Cluster::Address expect, Cluster::Address actual)
-{
-    if (expect.host_name != actual.host_name)
-        return false;
-    if (expect.port != actual.port)
-        return false;
-    if (expect.user != actual.user)
-        return false;
-    if (expect.password != actual.password)
-        return false;
-    if (expect.secure != actual.secure)
-        return false;
-
-    return expect.compression == actual.compression;
-}
-
-String MultiplexedVersionCluster::getCurrentWritingVersion()
-{
-    for (const auto & version_and_cluster : all_version_and_cluster)
-    {
-        ClusterPtr cluster = version_and_cluster.second;
-        if (static_cast<DummyCluster *>(cluster.get())->is_writeable)
-            return version_and_cluster.first;
-    }
-    throw Exception("Cannot fount writing cluster.", ErrorCodes::BAD_GET);
-}
-
-std::vector<std::pair<Cluster::Address, ConnectionPoolPtr>> MultiplexedVersionCluster::getAddressesAndConnections()
-{
-    return address_and_connection_pool_cache;
-}
-
-
-MultiplexedVersionCluster::MultiplexedVersionCluster(const Poco::Util::AbstractConfiguration &configuration, const Settings &settings,
-                                                     const std::string &config_prefix)
+MultiplexedVersionCluster::MultiplexedVersionCluster(
+    const Poco::Util::AbstractConfiguration & configuration, const Settings & settings, const std::string & config_prefix)
 {
     updateMultiplexedVersionCluster(configuration, settings, config_prefix);
 }
 
+
 void MultiplexedVersionCluster::updateMultiplexedVersionCluster(
     const Poco::Util::AbstractConfiguration & configuration, const Settings & settings, const std::string & config_prefix)
 {
-    Poco::Util::AbstractConfiguration::Keys versions_key;
-    configuration.keys(config_prefix, versions_key);
+    all_version_and_cluster.clear();
 
-    if (versions_key.empty())
-        throw Exception("No cluster elements (version) specified in config at path " + config_prefix, ErrorCodes::SHARD_HAS_NO_CONNECTIONS);
+    visitorConfigurationKey(configuration, config_prefix, "VERSION", [&, this](const String & version_key) {
+        const String version_id = getPropertyOrChildValue<String>(configuration, version_key, "id");
+        all_version_and_cluster[version_id] = std::make_shared<DummyCluster>(configuration,  version_key, this, settings);
+    });
 
-    /// TODO: clear unuse connection
-    std::map<String, ClusterPtr> new_all_version_and_cluster;
-
-    for (const auto & version_key : versions_key)
-    {
-        const String version_id = getPropertyOrChildValue<String>(configuration, config_prefix + "." + version_key, "id");
-        bool readable = getPropertyOrChildValue<bool>(configuration, config_prefix + "." + version_key, "readable");
-        bool writeable = getPropertyOrChildValue<bool>(configuration, config_prefix + "." + version_key, "writeable");
-
-        new_all_version_and_cluster[version_id] = std::make_shared<DummyCluster>(configuration, config_prefix + "." + version_key, this,
-                                                                                 settings, readable, writeable);
-    }
-    all_version_and_cluster = new_all_version_and_cluster;
+    /// TODO: 从文件中加载
+    default_version = !default_version.empty() ? default_version : getPropertyOrChildValue<String>(configuration, config_prefix + ".VERSION[0]", "id");
+    /// TODO: clean up old connections
 }
 
-void MultiplexedVersionCluster::setAddressAndConnections(
-    Cluster::ShardInfo & shard_info, const Poco::Util::AbstractConfiguration & configuration,
-    const std::string & replica_config_prefix, const Settings & settings, Cluster::Addresses & addresses)
+String MultiplexedVersionCluster::getCurrentVersion()
 {
-    auto address = createAddress(configuration, replica_config_prefix);
+    return default_version;
+}
 
-    ConnectionPoolPtr connections;
+ConnectionPoolPtr MultiplexedVersionCluster::getOrCreateConnectionPools(const Cluster::Address & address, const Settings & settings)
+{
     for (const auto & address_and_connection_pool : address_and_connection_pool_cache)
         if (addressEquals(address_and_connection_pool.first, address))
-            connections = address_and_connection_pool.second;
+            return address_and_connection_pool.second;
 
-    if (!connections)
-    {
-        /// CREATE new ConnectionPool
-        connections = std::make_shared<ConnectionPool>(
-            settings.distributed_connections_pool_size,
-            address.host_name, address.port,
-            address.default_database, address.user, address.password,
-            ConnectionTimeouts::getTCPTimeoutsWithoutFailover(settings).getSaturated(settings.max_execution_time),
-            "server", address.compression, address.secure);
+    ConnectionPoolPtr connections = std::make_shared<ConnectionPool>(
+        settings.distributed_connections_pool_size, address.host_name, address.port, address.default_database, address.user, address.password,
+        ConnectionTimeouts::getTCPTimeoutsWithoutFailover(settings).getSaturated(settings.max_execution_time), "server", address.compression, address.secure);
 
-        address_and_connection_pool_cache.emplace_back(std::pair(address, connections));
-    }
+    address_and_connection_pool_cache.emplace_back(std::pair(address, connections));
 
-    if (address.is_local)
-        shard_info.local_addresses.emplace_back(address);
-
-    addresses.emplace_back(address);
-    shard_info.per_replica_pools.emplace_back(connections);
+    return connections;
 }
 
-Cluster::Address MultiplexedVersionCluster::createAddress(const Poco::Util::AbstractConfiguration & configuration, const std::string & replica_config_prefix)
-{
-    Cluster::Address address;
-    UInt16 clickhouse_port = static_cast<UInt16>(configuration.getInt("tcp_port", 0));
-    address.host_name = getPropertyOrChildValue<String>(configuration, replica_config_prefix, "host");
-    address.port = getPropertyOrChildValue<UInt16>(configuration, replica_config_prefix, "port");
-    address.user = getPropertyOrChildValue<String>(configuration, replica_config_prefix, "user", "default");
-    address.password = getPropertyOrChildValue<String>(configuration, replica_config_prefix, "password", "");
-    address.secure = getPropertyOrChildValue<bool>(configuration, replica_config_prefix, "secure", false) ? Protocol::Secure::Enable : Protocol::Secure::Disable;
-    address.compression = getPropertyOrChildValue<bool>(configuration, replica_config_prefix, "compression", true) ? Protocol::Compression::Enable : Protocol::Compression::Disable;
-    const auto initially_resolved_address = DNSResolver::instance().resolveAddress(address.host_name, address.port);
-    address.is_local = isLocalAddress(initially_resolved_address, clickhouse_port);
-    address.default_database = getPropertyOrChildValue<String>(configuration, replica_config_prefix, "default_database", "");
-
-    return address;
-}
-
-template <typename T> T MultiplexedVersionCluster::getPropertyOrChildValue(
-    const Poco::Util::AbstractConfiguration & configuration, const std::string & configuration_key, String property_or_child_name)
-{
-    if (configuration.has(configuration_key + "[@" + property_or_child_name + "]"))
-        return MultiplexedVersionCluster::TypeToEnum<std::decay_t<T>>::getValue(configuration, configuration_key + "[@" + property_or_child_name + "]");
-
-    return MultiplexedVersionCluster::TypeToEnum<std::decay_t<T>>::getValue(configuration, configuration_key + "." + property_or_child_name);
-}
-
-template <typename T> T MultiplexedVersionCluster::getPropertyOrChildValue(
-    const Poco::Util::AbstractConfiguration & configuration, const std::string & configuration_key, String property_or_child_name, const T & default_value)
-{
-    if (configuration.has(configuration_key + "[@" + property_or_child_name + "]"))
-        return MultiplexedVersionCluster::TypeToEnum<std::decay_t<T>>::getValue(configuration, configuration_key + "[@" + property_or_child_name + "]");
-
-    if (configuration.has(configuration_key + "." + property_or_child_name))
-        return MultiplexedVersionCluster::TypeToEnum<std::decay_t<T>>::getValue(configuration, configuration_key + "." + property_or_child_name);
-
-    return default_value;
-}
-
-ClusterPtr MultiplexedVersionCluster::getCluster(const DB::String &cluster_name)
+ClusterPtr MultiplexedVersionCluster::getCluster(const DB::String & cluster_name)
 {
     if (startsWith(cluster_name, "Cluster_"))
     {
@@ -160,54 +68,68 @@ ClusterPtr MultiplexedVersionCluster::getCluster(const DB::String &cluster_name)
 }
 
 DummyCluster::DummyCluster(const Poco::Util::AbstractConfiguration & configuration, const std::string & configuration_prefix,
-                           MultiplexedVersionCluster *multiplexed_version_cluster, const Settings &settings, bool is_readable,
-                           bool is_writeable)
-    : is_readable(is_readable), is_writeable(is_writeable)
+                           MultiplexedVersionCluster * multiplexed_version_cluster, const Settings & settings)
 {
-    Poco::Util::AbstractConfiguration::Keys shard_keys;
-    configuration.keys(configuration_prefix, shard_keys);
-
-    if (shard_keys.empty())
-        throw Exception("No cluster elements (version) specified in config at path " + configuration_prefix, ErrorCodes::SHARD_HAS_NO_CONNECTIONS);
 
     size_t shard_idx = 0;
-    for (const auto & shard_key : shard_keys)
-    {
-        if (!startsWith(shard_key, "Shard"))
-            continue;
 
-        shard_idx++;
-        ShardInfo info;
+    visitorConfigurationKey(configuration, configuration_prefix, "Shard", [&](const String & shared_key){
+        Addresses shard_addresses;
+        Addresses shard_local_addresses;
+        ConnectionPoolPtrs shard_connections;
 
-        Poco::Util::AbstractConfiguration::Keys replica_keys;
-        configuration.keys(configuration_prefix + "." + shard_key, replica_keys);
-
-        Addresses addresses_pre_replica;
-        if (replica_keys.empty())
-            multiplexed_version_cluster->setAddressAndConnections(
-                info, configuration, configuration_prefix + "." + shard_key, settings, addresses_pre_replica);
-        else
+        visitorConfigurationKey(configuration, shared_key, "Replica", [&](const String & replica_key)
         {
-            for (const auto & replica_key : replica_keys)
-            {
-                if (startsWith(replica_key, "Replica"))
-                    multiplexed_version_cluster->setAddressAndConnections(
-                        info, configuration, configuration_prefix + "." + shard_key + "." + replica_key, settings, addresses_pre_replica);
-            }
-        }
-        info.shard_num = UInt32(shard_idx);
-        info.has_internal_replication = false;
-        addresses.emplace_back(addresses_pre_replica);
-        local_shard_count += info.isLocal() ? 1 : 0;
-        remote_shard_count += info.isLocal() ? 0 : 1;
-        info.weight = multiplexed_version_cluster->getPropertyOrChildValue<UInt32>(configuration, configuration_prefix + "." + shard_key, "weight", 1);
-        info.pool = std::make_shared<ConnectionPoolWithFailover>(info.per_replica_pools, settings.load_balancing, settings.connections_with_failover_max_tries);
-        shards_info.emplace_back(info);
+            Cluster::Address replica_address = createAddresses(configuration, replica_key);
+            ConnectionPoolPtr replica_connections = multiplexed_version_cluster->getOrCreateConnectionPools(replica_address, settings);
 
-        if (info.weight)
-            slot_to_shard.insert(std::end(slot_to_shard), info.weight, shards_info.size() - 1);
-    }
+            if (replica_address.is_local)
+                shard_local_addresses.emplace_back(replica_address);
 
+            shard_addresses.emplace_back(replica_address);
+            shard_connections.emplace_back(replica_connections);
+        });
+
+        auto shard_weight = getPropertyOrChildValue<UInt32>(configuration, shared_key, "weight", 1);
+        ShardInfo shard_info = createShardInfo(++shard_idx, shard_addresses, shard_local_addresses, shard_connections, shard_weight, settings);
+        shards_info.emplace_back(shard_info);
+    });
+}
+
+Cluster::Address DummyCluster::createAddresses(const Poco::Util::AbstractConfiguration &configuration, const String &replica_key) const
+{
+    Address address;
+    UInt16 clickhouse_port = static_cast<UInt16>(configuration.getInt("tcp_port", 0));
+    address.host_name = getPropertyOrChildValue<String>(configuration, replica_key, "host");
+    address.port = getPropertyOrChildValue<UInt16>(configuration, replica_key, "port");
+    address.user = getPropertyOrChildValue<String>(configuration, replica_key, "user", "default");
+    address.password = getPropertyOrChildValue<String>(configuration, replica_key, "password", "");
+    address.secure = getPropertyOrChildValue<bool>(configuration, replica_key, "secure", false) ? Protocol::Secure::Enable : Protocol::Secure::Disable;
+    address.compression = getPropertyOrChildValue<bool>(configuration, replica_key, "compression", true) ? Protocol::Compression::Enable : Protocol::Compression::Disable;
+    const auto initially_resolved_address = DNSResolver::instance().resolveAddress(address.host_name, address.port);
+    address.is_local = isLocalAddress(initially_resolved_address, clickhouse_port);
+    address.default_database = getPropertyOrChildValue<String>(configuration, replica_key, "default_database", "");
+    return address;
+}
+
+Cluster::ShardInfo DummyCluster::createShardInfo(
+    size_t shard_number, Addresses shard_addresses, Addresses shard_local_addresses, ConnectionPoolPtrs shard_connections, UInt32 weight,
+    const Settings & settings)
+{
+    ShardInfo shard_info;
+    shard_info.weight = weight;
+    shard_info.shard_num = UInt32(shard_number);
+    shard_info.has_internal_replication = false;
+    shard_info.per_replica_pools = std::move(shard_connections);
+    shard_info.pool = std::make_shared<ConnectionPoolWithFailover>(shard_info.per_replica_pools, settings.load_balancing, settings.connections_with_failover_max_tries);
+
+    addresses.emplace_back(shard_addresses);
+    local_shard_count += shard_local_addresses.empty() ? 0 : 1;
+    remote_shard_count += shard_local_addresses.empty() ? 1 : 0;
+    if (shard_info.weight)
+        slot_to_shard.insert(std::end(slot_to_shard), shard_info.weight, shards_info.size());
+
+    return shard_info;
 }
 
 const Cluster::AddressesWithFailover & DummyCluster::getShardsAddresses() const
@@ -232,7 +154,6 @@ const Cluster::SlotToShard & DummyCluster::getSlotToShard() const
 
 size_t DummyCluster::getLocalShardCount() const
 {
-    std::cout << "LocalShardCount " << toString(local_shard_count) << "\n";
     return local_shard_count;
 }
 
