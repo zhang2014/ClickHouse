@@ -43,7 +43,7 @@ public:
 
     void wakeupLearner();
 
-    void lock(std::function<void()> fun_with_lock);
+    void withLockPaxos(std::function<void()> fun_with_lock);
 
     void upgradeVersion(const String & origin_version, const String & upgrade_version);
 

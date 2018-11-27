@@ -145,7 +145,7 @@ void QingCloudDDLSynchronism::wakeupLearner()
     std::lock_guard<std::recursive_mutex> entity_lock(entity.mutex);
 }
 
-void QingCloudDDLSynchronism::lock(std::function<void()> fun_with_lock)
+void QingCloudDDLSynchronism::withLockPaxos(std::function<void()> fun_with_lock)
 {
     std::unique_lock<std::mutex> lock(mutex);
     std::unique_lock<std::mutex> prepare_lock(prepare_mutex);

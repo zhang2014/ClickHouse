@@ -49,7 +49,9 @@ StoragePtr StorageFactory::get(
     bool attach,
     bool has_force_restore_data_flag) const
 {
-    if (database_name != "system")
+    if (database_name != "system" &&
+        QingCloudStorageFactory::instance().checkSupportStorage(query, data_path, table_name, database_name, local_context, context,
+                                                                columns, attach, has_force_restore_data_flag))
         return QingCloudStorageFactory::instance().get(query, data_path, table_name, database_name, local_context, context, columns, attach,
                                                        has_force_restore_data_flag);
     else

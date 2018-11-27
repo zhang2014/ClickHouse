@@ -10,11 +10,12 @@
 
 namespace DB
 {
+using StorageWithLock = std::vector<std::pair<StoragePtr, TableStructureReadLockPtr>>;
 
 class UpgradeQueryBlockInputStream : public IProfilingBlockInputStream
 {
 public:
-    UpgradeQueryBlockInputStream(const SafetyPointWithClusterPtr &safety_point_sync, const std::vector<StoragePtr> &upgrade_storage,
+    UpgradeQueryBlockInputStream(const SafetyPointWithClusterPtr &safety_point_sync, const StorageWithLock & upgrade_storage,
                                  const String &origin_version, const String &upgrade_version);
 
     String getName() const override;
@@ -24,7 +25,8 @@ public:
 private:
     String origin_version;
     String upgrade_version;
-    std::vector<StoragePtr> upgrade_storages;
+    String tmp_upgrade_version;
+    StorageWithLock upgrade_storage;
     SafetyPointWithClusterPtr safety_point_sync;
 
     Block readImpl() override;
@@ -50,6 +52,7 @@ private:
     }
 };
 
+
 class InterpreterUpgradeQuery : public IInterpreter
 {
 public:
@@ -62,6 +65,8 @@ private:
     const Context & context;
 
     void upgradeVersionForPaxos(ASTUpgradeQuery *upgrade_query, const SafetyPointWithClusterPtr &safety_point_sync);
+
+    StorageWithLock selectAllUpgradeStorage(const String &origin_version, const String &upgrade_version);
 };
 
 }

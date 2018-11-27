@@ -7,6 +7,7 @@ namespace DB
 
 namespace ErrorCodes
 {
+    extern const int UNKNOWN_STORAGE;
     extern const int FUNCTION_CANNOT_HAVE_PARAMETERS;
 }
 
@@ -25,15 +26,18 @@ bool QingCloudStorageFactory::checkSupportStorage(ASTCreateQuery &query, const S
     if (query.is_view || query.is_materialized_view)
         return false;
 
-    /// TODO: check not support storage
     ASTStorage * storage_def = query.storage;
     const ASTFunction & engine_def = *storage_def->engine;
 
     if (engine_def.parameters)
-        throw Exception(
-            "Engine definition cannot take the form of a parametric function", ErrorCodes::FUNCTION_CANNOT_HAVE_PARAMETERS);
+        throw Exception("Engine definition cannot take the form of a parametric function", ErrorCodes::FUNCTION_CANNOT_HAVE_PARAMETERS);
 
-    return engine_def.name != "Null" && engine_def.name != "Kafka";
+    if (startsWith(engine_def.name, "Replicated") || engine_def.name == "Distributed" || engine_def.name == "Buffer" ||
+        engine_def.name == "File" || engine_def.name == "Log" || engine_def.name == "Memory" || engine_def.name == "Set" ||
+        engine_def.name == "StripeLog")
+        throw Exception("Unknown table engine " + engine_def.name, ErrorCodes::UNKNOWN_STORAGE);
+
+    return endsWith(engine_def.name, "MergeTree");
 }
 
 }

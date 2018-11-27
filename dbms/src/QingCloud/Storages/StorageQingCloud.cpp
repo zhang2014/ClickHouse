@@ -105,7 +105,6 @@ BlockInputStreams StorageQingCloud::read(const Names & column_names, const Selec
     {
         BlockInputStreams streams;
 
-        /// TODO Read and write lock
         for (const auto & readable_version : version_info.read_versions)
         {
             if (version_distributed.count(readable_version))
@@ -124,11 +123,14 @@ BlockInputStreams StorageQingCloud::read(const Names & column_names, const Selec
 
 void StorageQingCloud::flushVersionData(const String & version)
 {
+    const auto lock = version_lock->getLock(RWLockFIFO::Read, __PRETTY_FUNCTION__);
     dynamic_cast<StorageDistributed *>(version_distributed[version].get())->waitForFlushedOtherServer();
 }
 
 void StorageQingCloud::initializeVersions(std::initializer_list<String> versions)
 {
+    const auto lock = version_lock->getLock(RWLockFIFO::Write, __PRETTY_FUNCTION__);
+
     std::vector<String> & retain_version = version_info.retain_versions;
     for (auto iterator = versions.begin(); iterator != versions.end(); ++iterator)
     {
@@ -148,17 +150,18 @@ void StorageQingCloud::initializeVersions(std::initializer_list<String> versions
 
 void StorageQingCloud::initializeVersionInfo(std::initializer_list<String> readable_versions, const String & writable_version)
 {
-    /// TODO: LOCK
+    const auto lock = version_lock->getLock(RWLockFIFO::Write, __PRETTY_FUNCTION__);
     version_info.write_version = writable_version;
     version_info.read_versions.clear();
     version_info.read_versions.insert(version_info.read_versions.end(), readable_versions.begin(), readable_versions.end());
     version_info.store();
 }
 
-void StorageQingCloud::migrateDataBetweenVersions(const String &origin_version, const String &upgrade_version, bool move)
+void StorageQingCloud::migrateDataBetweenVersions(const String & origin_version, const String &upgrade_version, bool move)
 {
     const ClusterPtr origin_cluster = context.getCluster(wrapVersionName(origin_version));
     const ClusterPtr upgrade_cluster = context.getCluster(wrapVersionName(upgrade_version));
+    const auto lock = version_lock->getLock(RWLockFIFO::Read, __PRETTY_FUNCTION__);
 
     /// shard_number -> leader_address
     const auto diff_shards = differentClusters(origin_cluster, upgrade_cluster);
@@ -182,7 +185,8 @@ void StorageQingCloud::migrateDataBetweenVersions(const String &origin_version, 
 
 void StorageQingCloud::cleanupBeforeMigrate(const String &cleanup_version)
 {
-    for (const auto &local_storage : local_data_storage)
+    const auto lock = version_lock->getLock(RWLockFIFO::Read, __PRETTY_FUNCTION__);
+    for (const auto & local_storage : local_data_storage)
         if (local_storage.first.first == cleanup_version)
             local_storage.second->truncate({});     /// TODO: materialize view need query param
 }
@@ -214,7 +218,7 @@ void StorageQingCloud::migrateDataInLocal(bool move, const StoragePtr &origin_, 
     }
 }
 
-void StorageQingCloud::migrateDataInCluster(const String &origin_version, const String &upgrade_version, size_t shard_number)
+void StorageQingCloud::migrateDataInCluster(const String & origin_version, const String & upgrade_version, size_t shard_number)
 {
     Context query_context = context;
     query_context.getSettingsRef().query_version = origin_version;
@@ -231,6 +235,7 @@ void StorageQingCloud::createTablesWithCluster(const String & version, const Clu
     String version_table_data_path = table_data_path + version + "/";
 
     Poco::File(version_table_data_path).createDirectories();
+
     if (!version_distributed.count(version))
     {
         version_distributed[version] = StorageDistributed::create(database_name, "Distributed_" + table_name, columns, database_name,
@@ -238,7 +243,6 @@ void StorageQingCloud::createTablesWithCluster(const String & version, const Clu
                                                                   version_table_data_path, attach);
     }
 
-    /// TODO: 有些存储是不存储数据的 所以我们可以只创建一个
     Cluster::AddressesWithFailover shards_addresses = cluster->getShardsAddresses();
 
     for (size_t shard_number : ext::range(0, shards_addresses.size()))
@@ -255,6 +259,7 @@ void StorageQingCloud::createTablesWithCluster(const String & version, const Clu
 
 void StorageQingCloud::deleteOutdatedVersions(std::initializer_list<String> delete_versions)
 {
+    const auto lock = version_lock->getLock(RWLockFIFO::Write, __PRETTY_FUNCTION__);
     const auto drop_storage = [&] (const StoragePtr & storage)
     {
         storage->shutdown();
@@ -282,6 +287,7 @@ void StorageQingCloud::deleteOutdatedVersions(std::initializer_list<String> dele
 
 bool StorageQingCloud::checkNeedUpgradeVersion(const String & upgrade_version)
 {
+    const auto lock = version_lock->getLock(RWLockFIFO::Read, __PRETTY_FUNCTION__);
     return version_info.write_version == upgrade_version;
 }
 

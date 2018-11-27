@@ -18,7 +18,7 @@ void StorageQingCloudBase::drop()
         storage.second->drop();
 }
 
-void StorageQingCloudBase::truncate(const ASTPtr &truncate_query)
+void StorageQingCloudBase::truncate(const ASTPtr & truncate_query)
 {
     const auto lock = version_lock->getLock(RWLockFIFO::Read, __PRETTY_FUNCTION__);
     for (const auto & storage : version_distributed)
@@ -53,7 +53,7 @@ void StorageQingCloudBase::clearColumnInPartition(const ASTPtr &partition, const
         storage.second->clearColumnInPartition(partition, column_name, context);
 }
 
-void StorageQingCloudBase::replacePartitionFrom(const StoragePtr &source_table, const ASTPtr &partition, bool replace, const Context &context)
+void StorageQingCloudBase::replacePartitionFrom(const StoragePtr & source_table, const ASTPtr & partition, bool replace, const Context &context)
 {
     const auto lock = version_lock->getLock(RWLockFIFO::Read, __PRETTY_FUNCTION__);
 
@@ -103,7 +103,7 @@ bool StorageQingCloudBase::optimize(const ASTPtr &query, const ASTPtr &partition
     return true;
 }
 
-void StorageQingCloudBase::mutate(const MutationCommands &commands, const Context &context)
+void StorageQingCloudBase::mutate(const MutationCommands & commands, const Context & context)
 {
     const auto lock = version_lock->getLock(RWLockFIFO::Read, __PRETTY_FUNCTION__);
 
