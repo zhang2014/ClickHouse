@@ -33,8 +33,8 @@ public:
 public:
     String dir;
     String data_path;
-    ProgressEnum state = NORMAL;
     String write_version;
+    ProgressEnum state = NORMAL;
     std::vector<String> read_versions;
     std::vector<String> retain_versions;
 

@@ -75,7 +75,6 @@ BlockOutputStreamPtr StorageQingCloud::write(const ASTPtr & query, const Setting
 {
     const String writing_version = settings.writing_version;
     const UInt64 writing_shard_number = settings.writing_shard_index;
-    const auto lock = version_lock->getLock(RWLockFIFO::Read, __PRETTY_FUNCTION__);
 
     if (!writing_version.empty() && writing_shard_number)
         return local_data_storage[std::pair(writing_version, writing_shard_number)]->write(query, settings);
@@ -95,7 +94,6 @@ BlockInputStreams StorageQingCloud::read(const Names & column_names, const Selec
     Settings settings = context.getSettingsRef();
     const String query_version = settings.query_version;
     const UInt64 query_shard_number = settings.query_shard_index;
-    const auto lock = version_lock->getLock(RWLockFIFO::Read, __PRETTY_FUNCTION__);
 
     if (!query_version.empty() && query_shard_number)
         return local_data_storage[std::pair(query_version, query_shard_number)]->read(column_names, query_info, context, processed_stage, max_block_size, num_streams);
@@ -123,14 +121,11 @@ BlockInputStreams StorageQingCloud::read(const Names & column_names, const Selec
 
 void StorageQingCloud::flushVersionData(const String & version)
 {
-    const auto lock = version_lock->getLock(RWLockFIFO::Read, __PRETTY_FUNCTION__);
     dynamic_cast<StorageDistributed *>(version_distributed[version].get())->waitForFlushedOtherServer();
 }
 
 void StorageQingCloud::initializeVersions(std::initializer_list<String> versions)
 {
-    const auto lock = version_lock->getLock(RWLockFIFO::Write, __PRETTY_FUNCTION__);
-
     std::vector<String> & retain_version = version_info.retain_versions;
     for (auto iterator = versions.begin(); iterator != versions.end(); ++iterator)
     {
@@ -150,7 +145,6 @@ void StorageQingCloud::initializeVersions(std::initializer_list<String> versions
 
 void StorageQingCloud::initializeVersionInfo(std::initializer_list<String> readable_versions, const String & writable_version)
 {
-    const auto lock = version_lock->getLock(RWLockFIFO::Write, __PRETTY_FUNCTION__);
     version_info.write_version = writable_version;
     version_info.read_versions.clear();
     version_info.read_versions.insert(version_info.read_versions.end(), readable_versions.begin(), readable_versions.end());
@@ -161,7 +155,6 @@ void StorageQingCloud::migrateDataBetweenVersions(const String & origin_version,
 {
     const ClusterPtr origin_cluster = context.getCluster(wrapVersionName(origin_version));
     const ClusterPtr upgrade_cluster = context.getCluster(wrapVersionName(upgrade_version));
-    const auto lock = version_lock->getLock(RWLockFIFO::Read, __PRETTY_FUNCTION__);
 
     /// shard_number -> leader_address
     const auto diff_shards = differentClusters(origin_cluster, upgrade_cluster);
@@ -185,7 +178,6 @@ void StorageQingCloud::migrateDataBetweenVersions(const String & origin_version,
 
 void StorageQingCloud::cleanupBeforeMigrate(const String &cleanup_version)
 {
-    const auto lock = version_lock->getLock(RWLockFIFO::Read, __PRETTY_FUNCTION__);
     for (const auto & local_storage : local_data_storage)
         if (local_storage.first.first == cleanup_version)
             local_storage.second->truncate({});     /// TODO: materialize view need query param
@@ -259,7 +251,6 @@ void StorageQingCloud::createTablesWithCluster(const String & version, const Clu
 
 void StorageQingCloud::deleteOutdatedVersions(std::initializer_list<String> delete_versions)
 {
-    const auto lock = version_lock->getLock(RWLockFIFO::Write, __PRETTY_FUNCTION__);
     const auto drop_storage = [&] (const StoragePtr & storage)
     {
         storage->shutdown();
@@ -287,7 +278,6 @@ void StorageQingCloud::deleteOutdatedVersions(std::initializer_list<String> dele
 
 bool StorageQingCloud::checkNeedUpgradeVersion(const String & upgrade_version)
 {
-    const auto lock = version_lock->getLock(RWLockFIFO::Read, __PRETTY_FUNCTION__);
     return version_info.write_version == upgrade_version;
 }
 

@@ -105,7 +105,7 @@ Block UpgradeQueryBlockInputStream::getHeader() const
     };
 }
 
-#define DECLARE(ENUM, STAGE_BLOCK) \
+#define DECLARE(ENUM, WRITE_LOCK, STAGE_BLOCK) \
     STAGE_BLOCK; \
     safety_point_sync->broadcastSync(progressToString(ENUM), 2); \
 
@@ -117,8 +117,8 @@ Block UpgradeQueryBlockInputStream::readImpl()
         {
             if (const auto storage = dynamic_cast<StorageQingCloud *>(storage_with_lock.first.get()))
             {
-                DECLARE(ProgressEnum::INITIALIZE_UPGRADE_VERSION, storage->initializeVersions({origin_version, tmp_upgrade_version, upgrade_version}));
-                DECLARE(ProgressEnum::REDIRECT_VERSIONS_BEFORE_MIGRATE, storage->initializeVersionInfo({origin_version, tmp_upgrade_version}, tmp_upgrade_version));
+                DECLARE(ProgressEnum::INITIALIZE_UPGRADE_VERSION, true, storage->initializeVersions({origin_version, tmp_upgrade_version, upgrade_version}));
+                DECLARE(ProgressEnum::REDIRECT_VERSIONS_BEFORE_MIGRATE, true, storage->initializeVersionInfo({origin_version, tmp_upgrade_version}, tmp_upgrade_version));
             }
         }
 
@@ -126,14 +126,14 @@ Block UpgradeQueryBlockInputStream::readImpl()
         {
             if (const auto storage = dynamic_cast<StorageQingCloud *>(storage_with_lock.first.get()))
             {
-                DECLARE(FLUSH_OLD_VERSION_DATA, storage->flushVersionData(origin_version))
-                DECLARE(CLEANUP_UPGRADE_VERSION, storage->cleanupBeforeMigrate(upgrade_version))
-                DECLARE(MIGRATE_OLD_VERSION_DATA, storage->migrateDataBetweenVersions(origin_version, upgrade_version, true))
-                DECLARE(FLUSH_UPGRADE_VERSION_DATA, storage->flushVersionData(upgrade_version))
-                DECLARE(REDIRECT_VERSIONS_AFTER_MIGRATE, storage->initializeVersionInfo({tmp_upgrade_version, upgrade_version}, upgrade_version))
-                DECLARE(MIGRATE_TMP_VERSION_DATA, storage->migrateDataBetweenVersions(tmp_upgrade_version, upgrade_version, false))
-                DECLARE(REDIRECT_VERSION_AFTER_ALL_MIGRATE, storage->initializeVersionInfo({upgrade_version}, upgrade_version))
-                DECLARE(NORMAL, storage->deleteOutdatedVersions({origin_version, tmp_upgrade_version}))
+                DECLARE(FLUSH_OLD_VERSION_DATA, false, storage->flushVersionData(origin_version))
+                DECLARE(CLEANUP_UPGRADE_VERSION, false, storage->cleanupBeforeMigrate(upgrade_version))
+                DECLARE(MIGRATE_OLD_VERSION_DATA, false, storage->migrateDataBetweenVersions(origin_version, upgrade_version, true))
+                DECLARE(FLUSH_UPGRADE_VERSION_DATA, false, storage->flushVersionData(upgrade_version))
+                DECLARE(REDIRECT_VERSIONS_AFTER_MIGRATE, true, storage->initializeVersionInfo({tmp_upgrade_version, upgrade_version}, upgrade_version))
+                DECLARE(MIGRATE_TMP_VERSION_DATA, false, storage->migrateDataBetweenVersions(tmp_upgrade_version, upgrade_version, false))
+                DECLARE(REDIRECT_VERSION_AFTER_ALL_MIGRATE, true, storage->initializeVersionInfo({upgrade_version}, upgrade_version))
+                DECLARE(NORMAL, true, storage->deleteOutdatedVersions({origin_version, tmp_upgrade_version}))
             }
         }
 
