@@ -276,13 +276,6 @@ void StorageQingCloud::deleteOutdatedVersions(std::initializer_list<String> dele
     }
 }
 
-bool StorageQingCloud::checkNeedUpgradeVersion(const String &origin_version, const String & upgrade_version, ProgressEnum progress_enum)
-{
-//    (version_info.state == NORMAL && version_info.write_version == origin_version && version_info)
-    /// TODO: 同时处于这个版本
-    return version_info.write_version == upgrade_version;
-}
-
 void StorageQingCloud::updateUpgradeState(ProgressEnum progress_enum)
 {
     version_info.state = progress_enum;

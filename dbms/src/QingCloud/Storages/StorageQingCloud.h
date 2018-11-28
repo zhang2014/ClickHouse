@@ -50,8 +50,6 @@ public:
 
     void migrateDataBetweenVersions(const String &origin_version, const String &upgrade_version, bool move);
 
-    bool checkNeedUpgradeVersion(const String &origin_version, const String & upgrade_version, ProgressEnum progress_enum = NORMAL);
-
     void deleteOutdatedVersions(std::initializer_list<String> delete_versions);
 
     void updateUpgradeState(ProgressEnum progress_enum);
