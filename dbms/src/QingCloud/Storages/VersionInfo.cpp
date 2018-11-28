@@ -1,7 +1,8 @@
 #include <QingCloud/Storages/VersionInfo.h>
 #include <Poco/File.h>
-#include <IO/ReadBufferFromFile.h>
 #include <IO/ReadHelpers.h>
+#include <IO/WriteHelpers.h>
+#include <IO/ReadBufferFromFile.h>
 #include <IO/WriteBufferFromFile.h>
 
 

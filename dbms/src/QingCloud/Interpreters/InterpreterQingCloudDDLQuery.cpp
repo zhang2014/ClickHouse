@@ -39,7 +39,6 @@ Block QingCloudDDLBlockInputStream::readImpl()
             const auto wait_res_ptr = synchronism->getWaitApplyRes(entity_id);
             synchronism->getWaitApplyRes(entity_id)->wait(std::chrono::milliseconds(180000));
             synchronism->releaseApplyRes(entity_id);
-//            std::pair<bool, QingCloudDDLSynchronism::WaitApplyResPtr> wait_results = synchronism->waitNotify(entity_id, [this](){ return isCancelled();});
 
             Block res = getHeader();
 
@@ -54,13 +53,6 @@ Block QingCloudDDLBlockInputStream::readImpl()
                 columns[1]->insert(res_state ? "failure" : "success");
                 columns[2]->insert(exception_message);
             }
-
-//            if (!wait_results.first)
-//            {
-//                columns[0]->insert(String("other"));
-//                columns[1]->insert(String("timeout"));
-//                columns[2]->insert(String("unknow"));
-//            }
 
             return res.cloneWithColumns(std::move(columns));
         }

@@ -51,17 +51,17 @@ BlockIO InterpreterUpgradeQuery::execute()
 
 std::vector<DatabaseAndTableName> InterpreterUpgradeQuery::upgradeVersionForPaxos(ASTUpgradeQuery * upgrade_query, const SafetyPointWithClusterPtr & safety_point_sync)
 {
-    return context.getDDLSynchronism()->withLockPaxos([&safety_point_sync, this, &upgrade_query]() -> std::vector<DatabaseAndTableName>
+    std::function<std::vector<DatabaseAndTableName>()> func = [&safety_point_sync, this, &upgrade_query]()
     {
         safety_point_sync->broadcastSync("LOCK_NEW_PAXOS_QUERIES", 2);
         context.getDDLSynchronism()->wakeupLearner();
         safety_point_sync->broadcastSync("LOCK_PAXOS_STATUS_SYNC", 2);
         context.getDDLSynchronism()->upgradeVersion(upgrade_query->origin_version, upgrade_query->upgrade_version);
         safety_point_sync->broadcastSync("LOCK_UPGRADE_VERSION_FOR_PAXOS", 2);
-//        context.getMultiplexedVersion()->setCurrentVersion(upgrade_query->upgrade_version);
-//        safety_point_sync->broadcastSync("LOCK_UPGRADE_CONTEXT_VERSION", 2);
         return selectAllUpgradeStorage(upgrade_query->origin_version, upgrade_query->upgrade_version);
-    });
+    };
+
+    return context.getDDLSynchronism()->withLockPaxos(func);
 }
 
 std::vector<DatabaseAndTableName> InterpreterUpgradeQuery::selectAllUpgradeStorage(const String & origin_version, const String & upgrade_version)
