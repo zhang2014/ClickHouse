@@ -68,6 +68,8 @@ static ProgressEnum stringToProgress(const String & string)
         return ProgressEnum::REDIRECT_VERSIONS_BEFORE_MIGRATE;
     else if (string == "REDIRECT_VERSION_AFTER_ALL_MIGRATE")
         return ProgressEnum::REDIRECT_VERSION_AFTER_ALL_MIGRATE;
+
+    throw Exception("Cannot fromString with " + toString(string), ErrorCodes::LOGICAL_ERROR);
 }
 
 MultiplexedVersionCluster::MultiplexedVersionCluster(

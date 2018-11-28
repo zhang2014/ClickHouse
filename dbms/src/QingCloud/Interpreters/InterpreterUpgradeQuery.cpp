@@ -64,7 +64,7 @@ std::vector<DatabaseAndTableName> InterpreterUpgradeQuery::upgradeVersionForPaxo
     return context.getDDLSynchronism()->withLockPaxos(func);
 }
 
-std::vector<DatabaseAndTableName> InterpreterUpgradeQuery::selectAllUpgradeStorage(const String & origin_version, const String & upgrade_version)
+std::vector<DatabaseAndTableName> InterpreterUpgradeQuery::selectAllUpgradeStorage(const String & /*origin_version*/, const String & /*upgrade_version*/)
 {
     std::vector<DatabaseAndTableName> databases_and_tables_name;
     for (auto & database_element : context.getDatabases())
@@ -74,10 +74,7 @@ std::vector<DatabaseAndTableName> InterpreterUpgradeQuery::selectAllUpgradeStora
         for (auto iterator = database->getIterator(context); iterator->isValid(); iterator->next())
         {
             if (auto storage = dynamic_cast<StorageQingCloud *>(iterator->table().get()))
-            {
-                if (storage->checkNeedUpgradeVersion(origin_version, upgrade_version))
-                    databases_and_tables_name.emplace_back(std::pair(database->getDatabaseName(), iterator->name()));
-            }
+                databases_and_tables_name.emplace_back(std::pair(database->getDatabaseName(), iterator->name()));
         }
     }
     return databases_and_tables_name;
