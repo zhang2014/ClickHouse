@@ -176,11 +176,11 @@ void StorageQingCloud::migrateDataBetweenVersions(const String & origin_version,
     }
 }
 
-void StorageQingCloud::cleanupBeforeMigrate(const String &cleanup_version)
+void StorageQingCloud::cleanupBeforeMigrate(const String & cleanup_version)
 {
     for (const auto & local_storage : local_data_storage)
         if (local_storage.first.first == cleanup_version)
-            local_storage.second->truncate({});     /// TODO: materialize view need query param
+            local_storage.second->truncate({});
 }
 
 void StorageQingCloud::migrateDataInLocal(bool move, const StoragePtr &origin_, const StoragePtr &upgrade_storage_)
@@ -204,7 +204,7 @@ void StorageQingCloud::migrateDataInLocal(bool move, const StoragePtr &origin_, 
                 ast_partition->id = partition_id;
                 processed_partition_id.emplace(partition_id);
                 upgrade->replacePartitionFrom(origin_, ast_partition, false, context);
-                if (move) origin->dropPartition({}, ast_partition, false, context);
+                if (move) origin->dropPartition({}, ast_partition, true, context);
             }
         }
     }
@@ -276,9 +276,17 @@ void StorageQingCloud::deleteOutdatedVersions(std::initializer_list<String> dele
     }
 }
 
-bool StorageQingCloud::checkNeedUpgradeVersion(const String & upgrade_version)
+bool StorageQingCloud::checkNeedUpgradeVersion(const String &origin_version, const String & upgrade_version, ProgressEnum progress_enum)
 {
+//    (version_info.state == NORMAL && version_info.write_version == origin_version && version_info)
+    /// TODO: 同时处于这个版本
     return version_info.write_version == upgrade_version;
+}
+
+void StorageQingCloud::updateUpgradeState(ProgressEnum progress_enum)
+{
+    version_info.state = progress_enum;
+    version_info.store();
 }
 
 StorageQingCloud::~StorageQingCloud() = default;

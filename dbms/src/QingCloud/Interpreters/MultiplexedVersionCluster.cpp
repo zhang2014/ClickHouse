@@ -8,36 +8,94 @@
 #include <QingCloud/Common/addressesEquals.h>
 #include <QingCloud/Common/getPropertyOrChildValue.h>
 #include <QingCloud/Common/visitorConfigurationKey.h>
+#include <IO/WriteBufferFromFile.h>
+#include <Poco/File.h>
+#include <IO/ReadBufferFromFile.h>
+#include <QingCloud/Storages/StorageQingCloud.h>
+#include "MultiplexedVersionCluster.h"
+#include <QingCloud/Common/UpgradeStorageMacro.h>
 
 
 namespace DB
 {
 
+namespace ErrorCodes
+{
+    extern const int ALREADY_UPGRADE_VERSION;
+}
+
+static String progressToString(ProgressEnum progress_enum)
+{
+    switch(progress_enum)
+    {
+        case NORMAL : return "NORMAL";
+        case FLUSH_OLD_VERSION_DATA: return "FLUSH_OLD_VERSION_DATA";
+        case CLEANUP_UPGRADE_VERSION: return "CLEANUP_UPGRADE_VERSION";
+        case MIGRATE_OLD_VERSION_DATA: return "MIGRATE_OLD_VERSION_DATA";
+        case MIGRATE_TMP_VERSION_DATA: return "MIGRATE_TMP_VERSION_DATA";
+        case DELETE_OUTDATED_VERSIONS: return "DELETE_OUTDATED_VERSIONS";
+        case FLUSH_UPGRADE_VERSION_DATA: return "FLUSH_UPGRADE_VERSION_DATA";
+        case INITIALIZE_UPGRADE_VERSION: return "INITIALIZE_UPGRADE_VERSION";
+        case REDIRECT_VERSIONS_AFTER_MIGRATE: return "REDIRECT_VERSIONS_AFTER_MIGRATE";
+        case REDIRECT_VERSIONS_BEFORE_MIGRATE: return "REDIRECT_VERSIONS_BEFORE_MIGRATE";
+        case REDIRECT_VERSION_AFTER_ALL_MIGRATE: return "REDIRECT_VERSION_AFTER_ALL_MIGRATE";
+    }
+
+    throw Exception("Cannot toString with " + toString(int(progress_enum)), ErrorCodes::LOGICAL_ERROR);
+}
+
+static ProgressEnum stringToProgress(const String & string)
+{
+    if (string == "NORMAL")
+        return ProgressEnum::NORMAL;
+    else if (string == "FLUSH_OLD_VERSION_DATA")
+        return ProgressEnum::FLUSH_OLD_VERSION_DATA;
+    else if (string == "CLEANUP_UPGRADE_VERSION")
+        return ProgressEnum::CLEANUP_UPGRADE_VERSION;
+    else if (string == "MIGRATE_OLD_VERSION_DATA")
+        return ProgressEnum::MIGRATE_OLD_VERSION_DATA;
+    else if (string == "MIGRATE_TMP_VERSION_DATA")
+        return ProgressEnum::MIGRATE_TMP_VERSION_DATA;
+    else if (string == "DELETE_OUTDATED_VERSIONS")
+        return ProgressEnum::DELETE_OUTDATED_VERSIONS;
+    else if (string == "FLUSH_UPGRADE_VERSION_DATA")
+        return ProgressEnum::FLUSH_UPGRADE_VERSION_DATA;
+    else if (string == "INITIALIZE_UPGRADE_VERSION")
+        return ProgressEnum::INITIALIZE_UPGRADE_VERSION;
+    else if (string == "REDIRECT_VERSIONS_AFTER_MIGRATE")
+        return ProgressEnum::REDIRECT_VERSIONS_AFTER_MIGRATE;
+    else if (string == "REDIRECT_VERSIONS_BEFORE_MIGRATE")
+        return ProgressEnum::REDIRECT_VERSIONS_BEFORE_MIGRATE;
+    else if (string == "REDIRECT_VERSION_AFTER_ALL_MIGRATE")
+        return ProgressEnum::REDIRECT_VERSION_AFTER_ALL_MIGRATE;
+}
+
 MultiplexedVersionCluster::MultiplexedVersionCluster(
     const Poco::Util::AbstractConfiguration & configuration, const Settings & settings, const std::string & config_prefix)
+    : upgrade_job_info(configuration.getString("path") + "/version.info",
+                       getPropertyOrChildValue<String>(configuration, config_prefix + ".Version", "id"))
 {
     updateMultiplexedVersionCluster(configuration, settings, config_prefix);
 }
 
 
-void MultiplexedVersionCluster::updateMultiplexedVersionCluster(
-    const Poco::Util::AbstractConfiguration & configuration, const Settings & settings, const std::string & config_prefix)
-{
-    all_version_and_cluster.clear();
-
-    visitorConfigurationKey(configuration, config_prefix, "VERSION", [&, this](const String & version_key) {
-        const String version_id = getPropertyOrChildValue<String>(configuration, version_key, "id");
-        all_version_and_cluster[version_id] = std::make_shared<DummyCluster>(configuration,  version_key, this, settings);
-    });
-
-    /// TODO: 从文件中加载
-    default_version = !default_version.empty() ? default_version : getPropertyOrChildValue<String>(configuration, config_prefix + ".VERSION[0]", "id");
-    /// TODO: clean up old connections
-}
-
 String MultiplexedVersionCluster::getCurrentVersion()
 {
-    return default_version;
+    std::unique_lock<std::mutex> lock(upgrade_job_info.mutex);
+    return upgrade_job_info.version_info.second;
+}
+
+ClusterPtr MultiplexedVersionCluster::getCluster(const DB::String & cluster_name)
+{
+    if (startsWith(cluster_name, "Cluster_"))
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        String version = String(cluster_name.data() + 8);
+        if (all_version_and_cluster.count(version))
+            return all_version_and_cluster[version];
+    }
+
+    return {};
 }
 
 ConnectionPoolPtr MultiplexedVersionCluster::getOrCreateConnectionPools(const Cluster::Address & address, const Settings & settings)
@@ -55,16 +113,132 @@ ConnectionPoolPtr MultiplexedVersionCluster::getOrCreateConnectionPools(const Cl
     return connections;
 }
 
-ClusterPtr MultiplexedVersionCluster::getCluster(const DB::String & cluster_name)
+void MultiplexedVersionCluster::updateMultiplexedVersionCluster(
+    const Poco::Util::AbstractConfiguration & configuration, const Settings & settings, const std::string & config_prefix)
 {
-    if (startsWith(cluster_name, "Cluster_"))
+    std::unique_lock<std::mutex> lock(mutex);
+    all_version_and_cluster.clear();
+
+    visitorConfigurationKey(configuration, config_prefix, "Version", [&, this](const String & version_key) {
+        const String version_id = getPropertyOrChildValue<String>(configuration, version_key, "id");
+        all_version_and_cluster[version_id] = std::make_shared<DummyCluster>(configuration, version_key, this, settings);
+    });
+    /// TODO: clean up old connections
+}
+
+void MultiplexedVersionCluster::checkBeforeUpgrade(const String & origin_version, const String & upgrade_version)
+{
+    std::unique_lock<std::mutex> lock(upgrade_job_info.mutex);
+
+    if (is_running || (upgrade_job_info.version_info.first != origin_version ||
+                       (upgrade_job_info.version_info.second != origin_version && upgrade_job_info.version_info.second != upgrade_version)))
+        throw Exception("In the process of upgrading, two upgrade tasks cannot be performed simultaneously",
+                        ErrorCodes::ALREADY_UPGRADE_VERSION);
+}
+
+void MultiplexedVersionCluster::executionUpgradeVersion(const String &origin_version, const String &upgrade_version,
+                                                        const std::vector<DatabaseAndTableName> &databases_and_tables_name,
+                                                        const Context &context, const SafetyPointWithClusterPtr & safety_point_sync)
+{
+    if (upgrade_job_info.databases_with_progress.empty())
+        upgrade_job_info.initializeDatabaseAndProgress(databases_and_tables_name);
+
+    redirect(origin_version, upgrade_version, context, safety_point_sync);
+    rebalance(origin_version, upgrade_version, context, safety_point_sync);
+
+    upgrade_job_info.buffer = std::make_shared<WriteBufferFromFile>(upgrade_job_info.data_path);
+    writeStringBinary(upgrade_version, *upgrade_job_info.buffer);
+    writeStringBinary(upgrade_version, *upgrade_job_info.buffer);
+    upgrade_job_info.buffer->sync();
+
+    upgrade_job_info.databases_with_progress.clear();
+    upgrade_job_info.version_info = std::pair(upgrade_version, upgrade_version);
+}
+
+void MultiplexedVersionCluster::redirect(const String &origin_version, const String &upgrade_version, const Context &context, const SafetyPointWithClusterPtr &safety_point_sync)
+{
+    const String tmp_upgrade_version = "tmp_" + upgrade_version;
+
+    /// TODO: 排序
+    for (const auto & table_and_progress : upgrade_job_info.databases_with_progress)
     {
-        String version = String(cluster_name.data() + 8);
-        if (all_version_and_cluster.count(version))
-            return all_version_and_cluster[version];
+        BEGIN_WITH(INITIALIZE_UPGRADE_VERSION, FLUSH_OLD_VERSION_DATA)
+        CASE_WITH_ALTER_LOCK(INITIALIZE_UPGRADE_VERSION, REDIRECT_VERSIONS_BEFORE_MIGRATE, initializeVersions, {origin_version, tmp_upgrade_version, upgrade_version})
+        CASE_WITH_ALTER_LOCK(REDIRECT_VERSIONS_BEFORE_MIGRATE, FLUSH_OLD_VERSION_DATA, initializeVersionInfo,  {origin_version, tmp_upgrade_version}, tmp_upgrade_version)
+        END_WITH(INITIALIZE_UPGRADE_VERSION, FLUSH_OLD_VERSION_DATA)
+    }
+}
+
+void MultiplexedVersionCluster::rebalance(const String &origin_version, const String &upgrade_version, const Context &context, const SafetyPointWithClusterPtr &safety_point_sync)
+{
+    const String tmp_upgrade_version = "tmp_" + upgrade_version;
+
+    /// TODO: 排序
+    for (const auto & table_and_progress : upgrade_job_info.databases_with_progress)
+    {
+        BEGIN_WITH(FLUSH_OLD_VERSION_DATA, NORMAL)
+        CASE_WITH_ALTER_LOCK(DELETE_OUTDATED_VERSIONS, NORMAL, deleteOutdatedVersions, {origin_version, tmp_upgrade_version})
+        CASE_WITH_ALTER_LOCK(REDIRECT_VERSION_AFTER_ALL_MIGRATE, DELETE_OUTDATED_VERSIONS, initializeVersionInfo, {upgrade_version}, upgrade_version)
+        CASE_WITH_ALTER_LOCK(REDIRECT_VERSIONS_AFTER_MIGRATE, MIGRATE_TMP_VERSION_DATA, initializeVersionInfo, {tmp_upgrade_version, upgrade_version}, upgrade_version)
+
+        CASE_WITH_STRUCT_LOCK(FLUSH_OLD_VERSION_DATA, CLEANUP_UPGRADE_VERSION, flushVersionData, origin_version)
+        CASE_WITH_STRUCT_LOCK(CLEANUP_UPGRADE_VERSION, MIGRATE_OLD_VERSION_DATA, cleanupBeforeMigrate, upgrade_version)
+        CASE_WITH_STRUCT_LOCK(FLUSH_UPGRADE_VERSION_DATA, REDIRECT_VERSIONS_AFTER_MIGRATE, flushVersionData, upgrade_version)
+        CASE_WITH_STRUCT_LOCK(MIGRATE_OLD_VERSION_DATA, FLUSH_UPGRADE_VERSION_DATA, migrateDataBetweenVersions, origin_version, upgrade_version, true)
+        CASE_WITH_STRUCT_LOCK(MIGRATE_TMP_VERSION_DATA, REDIRECT_VERSION_AFTER_ALL_MIGRATE, migrateDataBetweenVersions, tmp_upgrade_version, upgrade_version, false)
+        END_WITH(FLUSH_OLD_VERSION_DATA, NORMAL)
+    }
+}
+
+MultiplexedVersionCluster::UpgradeJobInfo::UpgradeJobInfo(const String & path, const String & default_version)
+    : data_path(path), version_info(std::pair(default_version, default_version))
+{
+    if (!Poco::File(data_path).exists())
+    {
+        buffer = std::make_shared<WriteBufferFromFile>(data_path);
+        writeStringBinary(default_version, *buffer);
+        writeStringBinary(default_version, *buffer);
+        buffer->sync();
     }
 
-    return {};
+    if (Poco::File(data_path).exists())
+    {
+        buffer = std::make_shared<WriteBufferFromFile>(data_path);
+        buffer->seek(0, SEEK_END);
+
+        ReadBufferFromFile read_buffer = ReadBufferFromFile(data_path);
+        readStringBinary(version_info.first, read_buffer);
+        readStringBinary(version_info.second, read_buffer);
+
+        while(!read_buffer.eof())
+        {
+            String progress_enum_string;
+            std::pair<String, String> database_and_table_name;
+            readStringBinary(database_and_table_name.first, read_buffer);
+            readStringBinary(database_and_table_name.second, read_buffer);
+            readStringBinary(progress_enum_string, read_buffer);
+
+            databases_with_progress[database_and_table_name] = stringToProgress(progress_enum_string);
+        }
+    }
+}
+
+void MultiplexedVersionCluster::UpgradeJobInfo::initializeDatabaseAndProgress(const std::vector<DatabaseAndTableName> & databases_and_tables_name)
+{
+    std::unique_lock<std::mutex> lock(mutex);
+    /// TODO: 写到临时文件中, 然后做替换, 防止中途宕机
+    for (const auto & database_and_table_name : databases_and_tables_name)
+        recordUpgradeStatus(database_and_table_name.first, database_and_table_name.second, INITIALIZE_UPGRADE_VERSION);
+}
+
+void MultiplexedVersionCluster::UpgradeJobInfo::recordUpgradeStatus(const String & database_name, const String & table_name, ProgressEnum progress_enum)
+{
+    std::unique_lock<std::mutex> lock(mutex);
+    databases_with_progress[std::pair(database_name, table_name)] = progress_enum;
+    writeStringBinary(database_name, *buffer);
+    writeStringBinary(table_name, *buffer);
+    writeStringBinary(progressToString(progress_enum), *buffer);
+    buffer->sync();
 }
 
 DummyCluster::DummyCluster(const Poco::Util::AbstractConfiguration & configuration, const std::string & configuration_prefix,
@@ -120,7 +294,8 @@ Cluster::ShardInfo DummyCluster::createShardInfo(
     shard_info.weight = weight;
     shard_info.shard_num = UInt32(shard_number);
     shard_info.has_internal_replication = false;
-    shard_info.per_replica_pools = std::move(shard_connections);
+    shard_info.per_replica_pools.insert(shard_info.per_replica_pools.end(), shard_connections.begin(), shard_connections.end());
+    shard_info.local_addresses.insert(shard_info.local_addresses.end(), shard_local_addresses.begin(), shard_local_addresses.end());
     shard_info.pool = std::make_shared<ConnectionPoolWithFailover>(shard_info.per_replica_pools, settings.load_balancing, settings.connections_with_failover_max_tries);
 
     addresses.emplace_back(shard_addresses);

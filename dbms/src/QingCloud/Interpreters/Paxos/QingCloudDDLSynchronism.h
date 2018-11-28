@@ -43,7 +43,8 @@ public:
 
     void wakeupLearner();
 
-    void withLockPaxos(std::function<void()> fun_with_lock);
+    template <typename T>
+    T withLockPaxos(std::function<T()> fun_with_lock);
 
     void upgradeVersion(const String & origin_version, const String & upgrade_version);
 
