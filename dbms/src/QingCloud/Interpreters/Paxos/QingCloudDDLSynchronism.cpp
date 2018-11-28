@@ -145,26 +145,26 @@ void QingCloudDDLSynchronism::wakeupLearner()
     std::lock_guard<std::recursive_mutex> entity_lock(entity.mutex);
 }
 
-template <typename T>
-T QingCloudDDLSynchronism::withLockPaxos(std::function<T()> fun_with_lock)
-{
-    std::unique_lock<std::mutex> lock(mutex);
-    std::unique_lock<std::mutex> prepare_lock(prepare_mutex);
-    std::unique_lock<std::mutex> acceptor_lock(acceptor_mutex);
-    std::unique_lock<std::mutex> final_acceptor_lock(final_acceptor_mutex);
-
-    for (size_t retries = 0; true; ++retries)
-    {
-        std::unique_lock<std::mutex> wait_apply_lock(wait_apply_res_mutex);
-
-        if (!wait_apply_res.empty())
-            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-        else
-            break;
-    }
-
-    return fun_with_lock();
-}
+//template <typename T>
+//T QingCloudDDLSynchronism::withLockPaxos(typename std::function<T()> fun_with_lock)
+//{
+//    std::unique_lock<std::mutex> lock(mutex);
+//    std::unique_lock<std::mutex> prepare_lock(prepare_mutex);
+//    std::unique_lock<std::mutex> acceptor_lock(acceptor_mutex);
+//    std::unique_lock<std::mutex> final_acceptor_lock(final_acceptor_mutex);
+//
+//    for (size_t retries = 0; true; ++retries)
+//    {
+//        std::unique_lock<std::mutex> wait_apply_lock(wait_apply_res_mutex);
+//
+//        if (!wait_apply_res.empty())
+//            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+//        else
+//            break;
+//    }
+//
+//    return fun_with_lock();
+//}
 
 void QingCloudDDLSynchronism::WaitApplyRes::wait(const std::chrono::duration<long long int, std::milli> &timeout)
 {

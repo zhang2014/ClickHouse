@@ -44,7 +44,25 @@ public:
     void wakeupLearner();
 
     template <typename T>
-    T withLockPaxos(typename std::function<T()> fun_with_lock);
+    T withLockPaxos(typename std::function<T()> fun_with_lock)
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        std::unique_lock<std::mutex> prepare_lock(prepare_mutex);
+        std::unique_lock<std::mutex> acceptor_lock(acceptor_mutex);
+        std::unique_lock<std::mutex> final_acceptor_lock(final_acceptor_mutex);
+
+        for (size_t retries = 0; true; ++retries)
+        {
+            std::unique_lock<std::mutex> wait_apply_lock(wait_apply_res_mutex);
+
+            if (!wait_apply_res.empty())
+                std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+            else
+                break;
+        }
+
+        return fun_with_lock();
+    }
 
     void upgradeVersion(const String & origin_version, const String & upgrade_version);
 

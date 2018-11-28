@@ -197,31 +197,34 @@ MultiplexedVersionCluster::UpgradeJobInfo::UpgradeJobInfo(const String & path, c
 {
     if (!Poco::File(data_path).exists())
     {
+        std::cout << "Default Version " << default_version << "\n";
         buffer = std::make_shared<WriteBufferFromFile>(data_path);
         writeStringBinary(default_version, *buffer);
         writeStringBinary(default_version, *buffer);
         buffer->sync();
     }
 
+    std::cout << "Default Version - 1  " << default_version << "\n";
     if (Poco::File(data_path).exists())
     {
-        buffer = std::make_shared<WriteBufferFromFile>(data_path);
-        buffer->seek(0, SEEK_END);
-
-        ReadBufferFromFile read_buffer = ReadBufferFromFile(data_path);
-        readStringBinary(version_info.first, read_buffer);
-        readStringBinary(version_info.second, read_buffer);
-
-        while(!read_buffer.eof())
         {
-            String progress_enum_string;
-            std::pair<String, String> database_and_table_name;
-            readStringBinary(database_and_table_name.first, read_buffer);
-            readStringBinary(database_and_table_name.second, read_buffer);
-            readStringBinary(progress_enum_string, read_buffer);
+            ReadBufferFromFile read_buffer = ReadBufferFromFile(data_path);
+            readStringBinary(version_info.first, read_buffer);
+            readStringBinary(version_info.second, read_buffer);
 
-            databases_with_progress[database_and_table_name] = stringToProgress(progress_enum_string);
+            while(!read_buffer.eof())
+            {
+                String progress_enum_string;
+                std::pair<String, String> database_and_table_name;
+                readStringBinary(database_and_table_name.first, read_buffer);
+                readStringBinary(database_and_table_name.second, read_buffer);
+                readStringBinary(progress_enum_string, read_buffer);
+
+                databases_with_progress[database_and_table_name] = stringToProgress(progress_enum_string);
+            }
         }
+
+        buffer = std::make_shared<WriteBufferFromFile>(data_path, DBMS_DEFAULT_BUFFER_SIZE, O_APPEND);
     }
 }
 
