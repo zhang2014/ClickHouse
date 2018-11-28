@@ -408,6 +408,7 @@ namespace ErrorCodes
     extern const int PAXOS_EXCEPTION = 3001;
     extern const int SAFETY_TIMEOUT = 3002;
     extern const int SAFETY_UNEXPECTED = 3003;
+    extern const int ALREADY_UPGRADE_VERSION = 3004;
 }
 
 }
