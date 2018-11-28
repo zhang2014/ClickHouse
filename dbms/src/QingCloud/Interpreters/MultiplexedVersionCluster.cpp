@@ -10,9 +10,9 @@
 #include <QingCloud/Common/visitorConfigurationKey.h>
 #include <IO/WriteBufferFromFile.h>
 #include <Poco/File.h>
+#include <Interpreters/Context.h>
 #include <IO/ReadBufferFromFile.h>
 #include <QingCloud/Storages/StorageQingCloud.h>
-#include "MultiplexedVersionCluster.h"
 #include <QingCloud/Common/UpgradeStorageMacro.h>
 
 

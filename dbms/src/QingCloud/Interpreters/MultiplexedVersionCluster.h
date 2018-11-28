@@ -3,13 +3,15 @@
 #include <Interpreters/Cluster.h>
 #include <Poco/Util/AbstractConfiguration.h>
 #include <Common/RWLockFIFO.h>
-#include <Interpreters/Context.h>
 #include <IO/WriteBufferFromFile.h>
 #include <QingCloud/Storages/VersionInfo.h>
 #include <QingCloud/Interpreters/SafetyPointFactory.h>
 
 namespace DB
 {
+
+class Context;
+using DatabaseAndTableName = std::pair<String, String>;
 
 class MultiplexedVersionCluster
 {
