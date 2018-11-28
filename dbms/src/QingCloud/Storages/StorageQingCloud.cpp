@@ -51,7 +51,7 @@ StorageQingCloud::StorageQingCloud(
     bool has_force_restore_data_flag) : StorageQingCloudBase{columns}, context(context), data_path(data_path), table_name(table_name),
                                         database_name(database_name), local_context(local_context), columns(columns), create_query(query),
                                         table_data_path(data_path + escapeForFileName(table_name) + '/'),
-                                        version_info(table_data_path, context.getMultiplexedVersion())
+                                        version_info(table_data_path, context.getMultiplexedVersion()->getCurrentVersion())
 {
     if (!create_query.storage)
         throw Exception("Incorrect CREATE query: ENGINE required", ErrorCodes::ENGINE_REQUIRED);

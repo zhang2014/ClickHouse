@@ -15,7 +15,7 @@
 #include <QingCloud/Interpreters/MultiplexedVersionCluster.h>
 #include <Parsers/ASTCreateQuery.h>
 #include "StorageQingCloudBase.h"
-#include "UpgradeProgress.h"
+#include "VersionInfo.h"
 
 namespace DB
 {
@@ -68,7 +68,7 @@ private:
 private:
     ASTPtr sharding_key;
     String table_data_path;
-    UpgradeProgress version_info;
+    VersionInfo version_info;
 
     void migrateDataInLocal(bool move, const StoragePtr & origin_, const StoragePtr & upgrade_storage_);
 

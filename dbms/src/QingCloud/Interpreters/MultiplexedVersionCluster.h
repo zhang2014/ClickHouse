@@ -5,7 +5,7 @@
 #include <Common/RWLockFIFO.h>
 #include <Interpreters/Context.h>
 #include <IO/WriteBufferFromFile.h>
-#include <QingCloud/Storages/UpgradeProgress.h>
+#include <QingCloud/Storages/VersionInfo.h>
 #include <QingCloud/Interpreters/SafetyPointFactory.h>
 
 namespace DB

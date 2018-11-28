@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Core/Types.h>
-#include <QingCloud/Interpreters/MultiplexedVersionCluster.h>
 
 namespace DB
 {
@@ -24,10 +23,10 @@ enum ProgressEnum
 
 };
 
-class UpgradeProgress
+class VersionInfo
 {
 public:
-    UpgradeProgress(const String &path, const MultiplexedClusterPtr &clusters);
+    VersionInfo(const String &path, const String & current_version);
 
     void store();
 public:
