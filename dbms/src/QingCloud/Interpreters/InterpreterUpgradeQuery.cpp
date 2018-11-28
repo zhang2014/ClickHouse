@@ -72,11 +72,10 @@ std::vector<DatabaseAndTableName> InterpreterUpgradeQuery::selectAllUpgradeStora
         const DatabasePtr & database = database_element.second;
 
         for (auto iterator = database->getIterator(context); iterator->isValid(); iterator->next())
-        {
-            if (auto storage = dynamic_cast<StorageQingCloud *>(iterator->table().get()))
+            if (dynamic_cast<StorageQingCloud *>(iterator->table().get()))
                 databases_and_tables_name.emplace_back(std::pair(database->getDatabaseName(), iterator->name()));
-        }
     }
+
     return databases_and_tables_name;
 }
 
