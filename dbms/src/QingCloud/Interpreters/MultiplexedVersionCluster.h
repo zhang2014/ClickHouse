@@ -5,7 +5,7 @@
 #include <Common/RWLockFIFO.h>
 #include <IO/WriteBufferFromFile.h>
 #include <QingCloud/Storages/VersionInfo.h>
-#include <QingCloud/Interpreters/SafetyPointFactory.h>
+#include <QingCloud/Interpreters/SafetyPoint/SafetyPointFactory.h>
 
 namespace DB
 {
@@ -53,7 +53,7 @@ private:
         void recordUpgradeStatus(const String & database_name, const String & table_name, ProgressEnum progress_enum);
 
         String data_path;
-        std::mutex mutex;
+        std::recursive_mutex mutex;
         std::pair<String, String> version_info;
         std::shared_ptr<WriteBufferFromFile> buffer;
         std::map<DatabaseAndTableName, ProgressEnum> databases_with_progress;

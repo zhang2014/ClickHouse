@@ -83,7 +83,7 @@ MultiplexedVersionCluster::MultiplexedVersionCluster(
 
 String MultiplexedVersionCluster::getCurrentVersion()
 {
-    std::unique_lock<std::mutex> lock(upgrade_job_info.mutex);
+    std::unique_lock<std::recursive_mutex> lock(upgrade_job_info.mutex);
     return upgrade_job_info.version_info.second;
 }
 
@@ -130,10 +130,9 @@ void MultiplexedVersionCluster::updateMultiplexedVersionCluster(
 
 void MultiplexedVersionCluster::checkBeforeUpgrade(const String & origin_version, const String & upgrade_version)
 {
-    std::unique_lock<std::mutex> lock(upgrade_job_info.mutex);
+    std::unique_lock<std::recursive_mutex> lock(upgrade_job_info.mutex);
 
-    if (is_running || (upgrade_job_info.version_info.first != origin_version ||
-                       (upgrade_job_info.version_info.second != origin_version && upgrade_job_info.version_info.second != upgrade_version)))
+    if ((upgrade_job_info.version_info.first != origin_version || (upgrade_job_info.version_info.second != origin_version && upgrade_job_info.version_info.second != upgrade_version)))
         throw Exception("In the process of upgrading, two upgrade tasks cannot be performed simultaneously",
                         ErrorCodes::ALREADY_UPGRADE_VERSION);
 }
@@ -142,6 +141,9 @@ void MultiplexedVersionCluster::executionUpgradeVersion(const String &origin_ver
                                                         const std::vector<DatabaseAndTableName> &databases_and_tables_name,
                                                         const Context &context, const SafetyPointWithClusterPtr & safety_point_sync)
 {
+    std::unique_lock<std::recursive_mutex> lock(upgrade_job_info.mutex);
+
+    std::cout  << "Size " << databases_and_tables_name.size() << "\n";
     if (upgrade_job_info.databases_with_progress.empty())
         upgrade_job_info.initializeDatabaseAndProgress(databases_and_tables_name);
 
@@ -161,7 +163,7 @@ void MultiplexedVersionCluster::redirect(const String &origin_version, const Str
 {
     const String tmp_upgrade_version = "tmp_" + upgrade_version;
 
-    /// TODO: 排序
+    /// TODO: 排序, 分别控制超时时间
     for (const auto & table_and_progress : upgrade_job_info.databases_with_progress)
     {
         BEGIN_WITH(INITIALIZE_UPGRADE_VERSION, FLUSH_OLD_VERSION_DATA)
@@ -175,7 +177,7 @@ void MultiplexedVersionCluster::rebalance(const String &origin_version, const St
 {
     const String tmp_upgrade_version = "tmp_" + upgrade_version;
 
-    /// TODO: 排序
+    /// TODO: 排序, 分别控制超时时间
     for (const auto & table_and_progress : upgrade_job_info.databases_with_progress)
     {
         BEGIN_WITH(FLUSH_OLD_VERSION_DATA, NORMAL)
@@ -197,14 +199,12 @@ MultiplexedVersionCluster::UpgradeJobInfo::UpgradeJobInfo(const String & path, c
 {
     if (!Poco::File(data_path).exists())
     {
-        std::cout << "Default Version " << default_version << "\n";
         buffer = std::make_shared<WriteBufferFromFile>(data_path);
         writeStringBinary(default_version, *buffer);
         writeStringBinary(default_version, *buffer);
         buffer->sync();
     }
 
-    std::cout << "Default Version - 1  " << default_version << "\n";
     if (Poco::File(data_path).exists())
     {
         {
@@ -224,13 +224,13 @@ MultiplexedVersionCluster::UpgradeJobInfo::UpgradeJobInfo(const String & path, c
             }
         }
 
-        buffer = std::make_shared<WriteBufferFromFile>(data_path, DBMS_DEFAULT_BUFFER_SIZE, O_APPEND);
+        buffer = std::make_shared<WriteBufferFromFile>(data_path, DBMS_DEFAULT_BUFFER_SIZE, O_APPEND | O_WRONLY);
     }
 }
 
 void MultiplexedVersionCluster::UpgradeJobInfo::initializeDatabaseAndProgress(const std::vector<DatabaseAndTableName> & databases_and_tables_name)
 {
-    std::unique_lock<std::mutex> lock(mutex);
+    std::unique_lock<std::recursive_mutex> lock(mutex);
     /// TODO: 写到临时文件中, 然后做替换, 防止中途宕机
     for (const auto & database_and_table_name : databases_and_tables_name)
         recordUpgradeStatus(database_and_table_name.first, database_and_table_name.second, INITIALIZE_UPGRADE_VERSION);
@@ -238,7 +238,7 @@ void MultiplexedVersionCluster::UpgradeJobInfo::initializeDatabaseAndProgress(co
 
 void MultiplexedVersionCluster::UpgradeJobInfo::recordUpgradeStatus(const String & database_name, const String & table_name, ProgressEnum progress_enum)
 {
-    std::unique_lock<std::mutex> lock(mutex);
+    std::unique_lock<std::recursive_mutex> lock(mutex);
     databases_with_progress[std::pair(database_name, table_name)] = progress_enum;
     writeStringBinary(database_name, *buffer);
     writeStringBinary(table_name, *buffer);

@@ -2,7 +2,7 @@
 #include <QingCloud/Parsers/ASTActionQuery.h>
 #include <Common/typeid_cast.h>
 #include <QingCloud/Storages/StorageQingCloud.h>
-#include <QingCloud/Interpreters/SafetyPointFactory.h>
+#include <QingCloud/Interpreters/SafetyPoint/SafetyPointFactory.h>
 
 
 namespace DB

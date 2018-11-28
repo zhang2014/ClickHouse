@@ -23,7 +23,7 @@
 #include <Storages/StorageMergeTree.h>
 #include <Parsers/ASTPartition.h>
 #include <Storages/MergeTree/MergeTreeData.h>
-#include <QingCloud/Interpreters/SafetyPointFactory.h>
+#include <QingCloud/Interpreters/SafetyPoint/SafetyPointFactory.h>
 #include "StorageQingCloud.h"
 
 
@@ -274,12 +274,6 @@ void StorageQingCloud::deleteOutdatedVersions(std::initializer_list<String> dele
         if (Poco::File(version_table_data_path).exists())
             Poco::File(version_table_data_path).remove(true);
     }
-}
-
-void StorageQingCloud::updateUpgradeState(ProgressEnum progress_enum)
-{
-    version_info.state = progress_enum;
-    version_info.store();
 }
 
 StorageQingCloud::~StorageQingCloud() = default;

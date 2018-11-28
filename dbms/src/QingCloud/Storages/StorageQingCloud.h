@@ -46,13 +46,11 @@ public:
 
     void initializeVersions(std::initializer_list<String> versions);
 
+    void deleteOutdatedVersions(std::initializer_list<String> delete_versions);
+
     void initializeVersionInfo(std::initializer_list<String> readable_versions, const String & writable_version);
 
     void migrateDataBetweenVersions(const String &origin_version, const String &upgrade_version, bool move);
-
-    void deleteOutdatedVersions(std::initializer_list<String> delete_versions);
-
-    void updateUpgradeState(ProgressEnum progress_enum);
 
 private:
     Context & context;

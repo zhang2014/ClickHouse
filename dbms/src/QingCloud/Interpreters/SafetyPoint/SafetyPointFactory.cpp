@@ -1,4 +1,4 @@
-#include <QingCloud/Interpreters/SafetyPointFactory.h>
+#include <QingCloud/Interpreters/SafetyPoint/SafetyPointFactory.h>
 #include <QingCloud/Common/differentClusters.h>
 #include <Interpreters/Context.h>
 #include <DataStreams/UnionBlockInputStream.h>

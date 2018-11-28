@@ -5,7 +5,7 @@
 #include <Interpreters/IInterpreter.h>
 #include <DataStreams/IProfilingBlockInputStream.h>
 #include <QingCloud/Storages/StorageQingCloud.h>
-#include <QingCloud/Interpreters/SafetyPointFactory.h>
+#include <QingCloud/Interpreters/SafetyPoint/SafetyPointFactory.h>
 #include <QingCloud/Parsers/ASTUpgradeQuery.h>
 
 namespace DB

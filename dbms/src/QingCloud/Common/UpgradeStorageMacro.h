@@ -6,7 +6,7 @@
     \
     const auto & table_name = database_and_table_name.second; \
     const auto & database_name = database_and_table_name.first; \
-    for (ProgressEnum enum_it = BEGIN_ENUM; enum_it < BEGIN_ENUM;) \
+    for (ProgressEnum enum_it = BEGIN_ENUM; enum_it < END_ENUM;) \
         switch(enum_it) \
         { \
             default: throw Exception("LOGICAL ERROR: Progress Enum Cannot find in one stage.", ErrorCodes::LOGICAL_ERROR);
