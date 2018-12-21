@@ -214,6 +214,9 @@ void AlterCommand::apply(ColumnsDescription & columns_description, ASTPtr & orde
     }
     else if (type == MODIFY_COLUMN)
     {
+        if (codec)
+            columns_description.codecs[column_name] = codec;
+
         if (!is_mutable())
         {
             auto & comments = columns_description.comments;
@@ -281,9 +284,6 @@ void AlterCommand::apply(ColumnsDescription & columns_description, ASTPtr & orde
         else if (had_default_expr)
             /// both old and new columns have default expression, update it
             columns_description.defaults[column_name].expression = default_expression;
-
-        if (codec)
-            columns_description.codecs[column_name] = codec;
     }
     else if (type == MODIFY_PRIMARY_KEY)
     {
