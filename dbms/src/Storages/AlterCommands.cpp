@@ -14,6 +14,7 @@
 #include <Parsers/ASTAlterQuery.h>
 #include <Parsers/ASTColumnDeclaration.h>
 #include <Common/typeid_cast.h>
+#include <Compression/CompressionFactory.h>
 
 
 namespace DB
@@ -30,6 +31,7 @@ namespace ErrorCodes
 std::optional<AlterCommand> AlterCommand::parse(const ASTAlterCommand * command_ast)
 {
     const DataTypeFactory & data_type_factory = DataTypeFactory::instance();
+    const CompressionCodecFactory & compression_codec_factory = CompressionCodecFactory::instance();
 
     if (command_ast->type == ASTAlterCommand::ADD_COLUMN)
     {
@@ -48,6 +50,9 @@ std::optional<AlterCommand> AlterCommand::parse(const ASTAlterCommand * command_
             command.default_kind = columnDefaultKindFromString(ast_col_decl.default_specifier);
             command.default_expression = ast_col_decl.default_expression;
         }
+
+        if (ast_col_decl.codec)
+            command.codec = compression_codec_factory.get(ast_col_decl.codec);
 
         if (command_ast->column)
             command.after_column = typeid_cast<const ASTIdentifier &>(*command_ast->column).name;
@@ -82,6 +87,9 @@ std::optional<AlterCommand> AlterCommand::parse(const ASTAlterCommand * command_
             command.default_kind = columnDefaultKindFromString(ast_col_decl.default_specifier);
             command.default_expression = ast_col_decl.default_expression;
         }
+
+        if (ast_col_decl.codec)
+            command.codec = ast_col_decl.codec;
 
         if (ast_col_decl.comment)
         {
@@ -170,6 +178,9 @@ void AlterCommand::apply(ColumnsDescription & columns_description, ASTPtr & orde
 
         if (default_expression)
             columns_description.defaults.emplace(column_name, ColumnDefault{default_kind, default_expression});
+
+        if (codec)
+            columns_description.codecs.emplace(column_name, codec);
 
         /// Slow, because each time a list is copied
         columns_description.ordinary = Nested::flatten(columns_description.ordinary);
@@ -270,6 +281,9 @@ void AlterCommand::apply(ColumnsDescription & columns_description, ASTPtr & orde
         else if (had_default_expr)
             /// both old and new columns have default expression, update it
             columns_description.defaults[column_name].expression = default_expression;
+
+        if (codec)
+            columns_description.codecs[column_name] = codec;
     }
     else if (type == MODIFY_PRIMARY_KEY)
     {

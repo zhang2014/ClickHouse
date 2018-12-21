@@ -19,6 +19,10 @@ SELECT count(*) FROM test.compression_codec WHERE id = 2 GROUP BY id;
 DETACH TABLE IF EXISTS test.compression_codec;
 ATTACH TABLE IF NOT EXISTS test.compression_codec;
 
+INSERT INTO test.compression_codec VALUES(2, '', toDate('2018-12-12'), 5.5, 5);
+
+SELECT count(*) FROM test.compression_codec WHERE id = 2 GROUP BY id;
+
 DROP TABLE IF EXISTS test.compression_codec;
 
 DROP TABLE IF EXISTS test.bad_codec;
@@ -97,3 +101,23 @@ INSERT INTO test.compression_codec_multiple_with_key SELECT toDate('2018-10-12')
 SELECT COUNT(DISTINCT data) FROM test.compression_codec_multiple_with_key WHERE id < 222;
 
 DROP TABLE IF EXISTS test.compression_codec_multiple_with_key;
+
+CREATE TABLE test.alter_compression_codec (
+    somedate Date CODEC(LZ4),
+    id UInt64 CODEC(NONE)
+) ENGINE = MergeTree() PARTITION BY somedata ORDER BY id;
+
+INSERT INTO test.alter_compression_codec VALUES('2018-01-01', 1);
+INSERT INTO test.alter_compression_codec VALUES('2018-01-01', 2);
+
+SELECT * FROM test.alter_compression_codec;
+
+ALTER TABLE ADD COLUMN data_one String DEFAULT 'default_one';
+ALTER TABLE ADD COLUMN data_two String DEFAULT 'default_two' CODEC(LZ4);
+
+INSERT INTO test.alter_compression_codec VALUES('2018-01-01', 3, '3', '3');
+INSERT INTO test.alter_compression_codec VALUES('2018-01-01', 4, '4', '4');
+
+SELECT * FROM test.alter_compression_codec;
+
+ALTER TABLE MO
