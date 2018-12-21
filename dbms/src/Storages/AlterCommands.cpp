@@ -89,7 +89,7 @@ std::optional<AlterCommand> AlterCommand::parse(const ASTAlterCommand * command_
         }
 
         if (ast_col_decl.codec)
-            command.codec = ast_col_decl.codec;
+            command.codec = compression_codec_factory.get(ast_col_decl.codec);
 
         if (ast_col_decl.comment)
         {
