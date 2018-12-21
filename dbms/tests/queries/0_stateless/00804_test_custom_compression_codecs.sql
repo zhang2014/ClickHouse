@@ -105,19 +105,34 @@ DROP TABLE IF EXISTS test.compression_codec_multiple_with_key;
 CREATE TABLE test.alter_compression_codec (
     somedate Date CODEC(LZ4),
     id UInt64 CODEC(NONE)
-) ENGINE = MergeTree() PARTITION BY somedata ORDER BY id;
+) ENGINE = MergeTree() PARTITION BY somedate ORDER BY id;
 
 INSERT INTO test.alter_compression_codec VALUES('2018-01-01', 1);
 INSERT INTO test.alter_compression_codec VALUES('2018-01-01', 2);
 
 SELECT * FROM test.alter_compression_codec;
 
-ALTER TABLE ADD COLUMN data_one String DEFAULT 'default_one';
-ALTER TABLE ADD COLUMN data_two String DEFAULT 'default_two' CODEC(LZ4);
+ALTER TABLE test.alter_compression_codec ADD COLUMN data_one String DEFAULT 'default_one';
+ALTER TABLE test.alter_compression_codec ADD COLUMN data_two String DEFAULT 'default_two' CODEC(ZSTD);
 
 INSERT INTO test.alter_compression_codec VALUES('2018-01-01', 3, '3', '3');
 INSERT INTO test.alter_compression_codec VALUES('2018-01-01', 4, '4', '4');
 
-SELECT * FROM test.alter_compression_codec;
+SELECT * FROM test.alter_compression_codec ORDER BY id;
+
+OPTIMIZE TABLE test.alter_compression_codec FINAL;
+
+SELECT * FROM test.alter_compression_codec ORDER BY id;
+
+ALTER TABLE test.alter_compression_codec data_one CODEC(NONE);
+
+INSERT INTO test.alter_compression_codec VALUES('2018-01-01', 5, '5', '5');
+INSERT INTO test.alter_compression_codec VALUES('2018-01-01', 6, '6', '6');
+
+SELECT * FROM test.alter_compression_codec ORDER BY id;
+
+OPTIMIZE TABLE test.alter_compression_codec FINAL;
+
+SELECT * FROM test.alter_compression_codec ORDER BY id;
 
 ALTER TABLE MO
