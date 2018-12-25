@@ -92,6 +92,45 @@ CREATE TABLE {}(id UInt32, name String, age UInt32, money UInt32) ENGINE = MySQL
     assert node1.query("SELECT count() FROM {} WHERE name LIKE concat('name_', toString(1))".format(table_name)).rstrip() == '1'
     conn.close()
 
+def test_create_storage_with_settings(started_cluster):
+    table_name = 'test_mysql_setting'
+    conn = get_mysql_conn()
+    create_mysql_table(conn, table_name)
+    node1.query('''
+CREATE TABLE {}(id UInt32, name String, age UInt32, money UInt32) ENGINE = MySQL() SETTINGS remote_address = 'mysql1:3306', remote_database = 'clickhouse', remote_table_name = '{}', user = 'root', password = 'clickhouse';
+'''.format(table_name, table_name))
+    node1.query("INSERT INTO {}(id, name, money) SELECT number, concat('name_', toString(number)), 3 FROM numbers(10000) ".format(table_name))
+    assert node1.query("SELECT count() FROM {}".format(table_name)).rstrip() == '10000'
+
+def test_mapping_database_and_table_name(started_cluster):
+    table_name = 'test_mapping_database_and_table_name'
+    conn = get_mysql_conn()
+    create_mysql_table(conn, table_name)
+    node1.query("CREATE DATABASE clickhouse;")
+    node1.query('''CREATE TABLE clickhouse.{}(id UInt32, name String, age UInt32, money UInt32) ENGINE = MySQL() SETTINGS remote_address = 'mysql1:3306', user = 'root', password = 'clickhouse';'''.format(table_name))
+    node1.query("INSERT INTO clickhouse.{}(id, name, money) SELECT number, concat('name_', toString(number)), 3 FROM numbers(10000) ".format(table_name))
+    assert node1.query("SELECT count() FROM clickhouse.{}".format(table_name)).rstrip() == '10000'
+
+def test_use_mysql_session_variables(started_cluster):
+    table_name = 'test_use_mysql_session_variables'
+    conn = get_mysql_conn()
+    create_mysql_table(conn, table_name)
+    node1.query('''
+CREATE TABLE {}(id UInt32, name String, age UInt32, money UInt32) ENGINE = MySQL() SETTINGS remote_address = 'mysql1:3306', remote_database = 'clickhouse', remote_table_name = '{}', user = 'root', password = 'clickhouse', mysql_variable_bulk_insert_buffer_size = 8388608;
+'''.format(table_name, table_name))
+    assert node1.query("SELECT count() FROM {}".format(table_name)).rstrip() == '0'
+
+    try:
+        node1.query("DROP TABLE {}".format(table_name))
+        node1.query('''
+CREATE TABLE {}(id UInt32, name String, age UInt32, money UInt32) ENGINE = MySQL() SETTINGS remote_address = 'mysql1:3306', remote_database = 'clickhouse', remote_table_name = '{}', user = 'root', password = 'clickhouse', mysql_variable_xxx = 'AAA';
+'''.format(table_name, table_name))
+        node1.query("SELECT count() FROM {}".format(table_name))
+        assert False
+    except:
+        assert True
+
+
 def get_mysql_conn():
     conn = pymysql.connect(user='root', password='clickhouse', host='127.0.0.1', port=3308)
     return conn
