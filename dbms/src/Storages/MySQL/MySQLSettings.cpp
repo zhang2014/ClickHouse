@@ -30,74 +30,28 @@ static void getFieldWithLiteralQueryString(Field & field, const String & literal
     field = literal_node ? static_cast<ASTLiteral *>(literal_node.get())->value : Field(literal_query_string);
 }
 
-static void getFieldWithIdentifierOrLiteral(Field & field, ASTPtr & argument, const Context & context)
-{
-    ASTPtr evaluated_argument = evaluateConstantExpressionOrIdentifierAsLiteral(argument, context);
-    field = static_cast<const ASTLiteral &>(*evaluated_argument).value;
-}
-
-void MySQLSettings::loadFromQuery(const ASTStorage & storage_def)
+MySQLSettings::MySQLSettings(const ASTStorage & storage_def, const Context & context, const Poco::Util::AbstractConfiguration & config,
+                             const String & default_database, const String & default_table)
 {
     if (storage_def.settings)
-        loadFromQuery(storage_def.settings);
+        evaluateSetQuery(storage_def.settings);
+
+    if (!storage_def.engine->arguments->children.empty())
+        evaluateEngineArguments(storage_def.engine->arguments->children, context);
+
+    if (!remote_database.changed || remote_table_name.changed)
+        fillDefaultDatabaseAndTableName(default_database, default_table);
+
+    const auto & set_query = convertConfigToSetQuery(config, "mysql");
+    evaluateSetQuery(static_cast<const ASTSetQuery *>(set_query.get()));
 }
 
-void MySQLSettings::loadFromEngineArguments(ASTs & arguments, const Context & context)
-{
-    size_t index = 0;
-    const auto set_query = std::make_shared<ASTSetQuery>();
-
-#define APPLY_ARGUMENTS(TYPE, NAME, DEFAULT, DESCRIPTION) \
-    if (arguments.size() >= ++index) \
-    { \
-        set_query->changes.push_back(ASTSetQuery::Change()); \
-        set_query->changes.back().name = #NAME; \
-        getFieldWithIdentifierOrLiteral(set_query->changes.back().value, arguments[index - 1], context); \
-    }
-
-    APPLY_FOR_MySQL_SETTINGS(APPLY_ARGUMENTS)
-    loadFromQuery(set_query.get());
-
-#undef APPLY_ARGUMENTS
-}
-
-void MySQLSettings::loadFromConfig(const Poco::Util::AbstractConfiguration & config, const String & clickhouse_database,
-                                   const String & clickhouse_table_name)
-{
-    if (!remote_database.changed && remote_database.value.empty())
-        remote_database.set(clickhouse_database);
-
-    if (!remote_table_name.changed && remote_table_name.value.empty())
-        remote_table_name.set(clickhouse_table_name);
-
-    const auto set_query = std::make_shared<ASTSetQuery>();
-
-    loadSettingsFromConfig(set_query, config, "mysql");
-    loadSettingsFromConfig(set_query, config, "mysql_" + remote_database.value);
-    loadSettingsFromConfig(set_query, config, "mysql_" + remote_database.value + "_" + remote_table_name.value);
-    loadFromQuery(set_query.get());
-}
-
-void MySQLSettings::loadSettingsFromConfig(const ASTSetQueryPtr & set_query, const Poco::Util::AbstractConfiguration & config,
-                                           const String & config_prefix)
-{
-    Poco::Util::AbstractConfiguration::Keys config_keys;
-    config.keys(config_prefix, config_keys);
-
-    for (const auto & config_key : config_keys)
-    {
-        set_query->changes.push_back(ASTSetQuery::Change());
-        set_query->changes.back().name = startsWith(config_key, VARIABLE_PREFIX) ? "@@SESSION." + config_key : config_key;
-        getFieldWithLiteralQueryString(set_query->changes.back().value, config.getRawString(config_prefix + "." + config_key));
-    }
-}
-
-void MySQLSettings::loadFromQuery(const ASTSetQuery * set_query)
+void MySQLSettings::evaluateSetQuery(const ASTSetQuery * set_query)
 {
     for (const ASTSetQuery::Change & setting : set_query->changes)
     {
 #define MATCH_MySQL_SETTING(TYPE, NAME, DEFAULT, DESCRIPTION) \
-            else if (setting.name == #NAME) NAME.set(setting.value);
+        else if (setting.name == #NAME) NAME.set(setting.value);
 
         if (startsWith(setting.name, VARIABLE_PREFIX))
         {
@@ -111,6 +65,74 @@ void MySQLSettings::loadFromQuery(const ASTSetQuery * set_query)
             throw Exception("Unknown setting " + setting.name + " for storage MySQL.", ErrorCodes::BAD_ARGUMENTS);
 #undef MATCH_MySQL_SETTING
     }
+}
+
+void MySQLSettings::evaluateEngineArguments(const ASTs & arguments, const Context & context)
+{
+#define MATCH_ENGINE_ARGUMENT(TYPE, NAME, DEFAULT, DESCRIPTION) \
+    if (arguments.size() >= ++args_index) \
+        evaluateEngineArguments(#NAME, NAME, arguments[args_index - 1], context);
+
+    size_t args_index = 0;
+    APPLY_FOR_MySQL_SETTINGS(MATCH_ENGINE_ARGUMENT)
+
+#undef MATCH_ENGINE_ARGUMENT
+}
+
+void MySQLSettings::fillDefaultDatabaseAndTableName(const String & default_database, const String & default_table_name)
+{
+    if (!remote_database.changed)
+        remote_database.set(default_database);
+
+    if (!remote_table_name.changed)
+        remote_table_name.set(default_table_name);
+}
+
+ASTPtr MySQLSettings::convertConfigToSetQuery(const Poco::Util::AbstractConfiguration & config, const String & config_prefix) const
+{
+    const auto set_query = std::make_shared<ASTSetQuery>();
+
+    const auto load_config_to_query = [&set_query, &config](const String & config_prefix)
+    {
+        Poco::Util::AbstractConfiguration::Keys config_keys;
+        config.keys(config_prefix, config_keys);
+
+        for (const auto & config_key : config_keys)
+        {
+            set_query->changes.push_back(ASTSetQuery::Change());
+            set_query->changes.back().name = startsWith(config_key, VARIABLE_PREFIX) ? "@@SESSION." + config_key : config_key;
+            getFieldWithLiteralQueryString(set_query->changes.back().value, config.getRawString(config_prefix + "." + config_key));
+        }
+    };
+
+    load_config_to_query(config_prefix);
+    load_config_to_query(config_prefix + "_" + remote_database.value);
+    load_config_to_query(config_prefix + "_" + remote_database.value + "_" + remote_table_name.value);
+    return set_query;
+}
+
+template<typename SettingType>
+void MySQLSettings::evaluateEngineArguments(const String & name, SettingType & setting, const ASTPtr & argument, const Context & context)
+{
+    if (setting.changed)
+        throw Exception("There is a duplicate " + name + " definition in the engine parameters.", ErrorCodes::BAD_ARGUMENTS);
+
+    ASTPtr evaluated_argument = evaluateConstantExpressionOrIdentifierAsLiteral(argument, context);
+    setting.set(static_cast<const ASTLiteral &>(*evaluated_argument).value);
+}
+
+String MySQLSettings::genSessionVariablesQuery()
+{
+    if (set_variables_query->changes.empty())
+        return  "";
+
+    std::stringstream initialize_query_stream;
+    IAST::FormatSettings format_settings(initialize_query_stream, true);
+    format_settings.always_quote_identifiers = true;
+    format_settings.identifier_quoting_style = IdentifierQuotingStyle::Backticks;
+
+    set_variables_query->format(format_settings);
+    return initialize_query_stream.str();
 }
 
 }

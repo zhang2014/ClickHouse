@@ -13,8 +13,18 @@ class ASTStorage;
 class ASTSetQuery;
 using ASTSetQueryPtr = std::shared_ptr<ASTSetQuery>;
 
+/** Settings for the MySQL engine.
+  * Could be loaded from a CREATE TABLE query (SETTINGS clause).
+  * Or Cloud be loaded from config.xml (mysql -> mysql_database_name -> mysql_database_name_table_name)
+  */
 struct MySQLSettings
 {
+public:
+    MySQLSettings(const ASTStorage & storage_def, const Context & context, const Poco::Util::AbstractConfiguration & config,
+                  const String & default_database, const String & default_table);
+
+    ASTSetQueryPtr set_variables_query = std::make_shared<ASTSetQuery>();
+
 #define APPLY_FOR_MySQL_SETTINGS(M) \
     M(SettingString, remote_address, "", "Address of the MySQL server.") \
     M(SettingString, remote_database, "", "Database name on the MySQL server.") \
@@ -31,21 +41,19 @@ struct MySQLSettings
 
 #undef DECLARE
 
-    ASTSetQueryPtr set_variables_query = std::make_shared<ASTSetQuery>();
-
-public:
-    void loadFromQuery(const ASTStorage & storage_def);
-
-    void loadFromEngineArguments(ASTs & arguments, const Context & context);
-
-    void loadFromConfig(const Poco::Util::AbstractConfiguration & config, const String & clickhouse_database,
-                        const String & clickhouse_table_name);
+    String genSessionVariablesQuery();
 
 private:
-    void loadFromQuery(const ASTSetQuery * set_query);
+    void evaluateSetQuery(const ASTSetQuery * set_query);
 
-    void loadSettingsFromConfig(const ASTSetQueryPtr &setting_query, const Poco::Util::AbstractConfiguration &config,
-                                const String &config_prefix);
+    void evaluateEngineArguments(const ASTs & arguments, const Context & context);
+
+    ASTPtr convertConfigToSetQuery(const Poco::Util::AbstractConfiguration & config, const String & config_prefix) const;
+
+    void fillDefaultDatabaseAndTableName(const String & default_database, const String & default_table_name);
+
+    template<typename SettingType>
+    void evaluateEngineArguments(const String & name, SettingType & setting, const ASTPtr & argument, const Context & context);
 };
 
 }

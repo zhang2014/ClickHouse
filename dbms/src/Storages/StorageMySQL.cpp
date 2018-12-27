@@ -191,15 +191,9 @@ void registerStorageMySQL(StorageFactory & factory)
 {
     factory.registerStorage("MySQL", [](const StorageFactory::Arguments & args)
     {
-        ASTs & engine_args = args.engine_args;
+        MySQLSettings settings(*args.storage_def, args.local_context, args.context.getConfigRef(), args.database_name, args.table_name);
 
-        MySQLSettings settings;
-        settings.loadFromConfig(args.context.getConfigRef(), args.database_name, args.table_name);
-        settings.loadFromEngineArguments(engine_args, args.local_context);
-        settings.loadFromQuery(*args.storage_def);
-
-        if (settings.remote_address.value.empty() || settings.remote_database.value.empty() ||
-            settings.remote_table_name.value.empty() || settings.user.value.empty() || settings.password.value.empty())
+        if (settings.remote_address.value.empty() || settings.user.value.empty() || settings.password.value.empty())
             throw Exception(
                 "Storage MySQL requires 5-7 parameters: MySQL('host:port', database, table, 'user', 'password'[, replace_query, 'on_duplicate_clause']).",
                 ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH);
@@ -208,16 +202,9 @@ void registerStorageMySQL(StorageFactory & factory)
             throw Exception("Only one of 'replace_query' and 'on_duplicate_clause' can be specified, or none of them",
                             ErrorCodes::BAD_ARGUMENTS);
 
-        std::stringstream initialize_query_stream;
-        IAST::FormatSettings format_settings(initialize_query_stream, true);
-        format_settings.always_quote_identifiers = true;
-        format_settings.identifier_quoting_style = IdentifierQuotingStyle::Backticks;
-
-        settings.set_variables_query->format(format_settings);
-        String initialize_query = initialize_query_stream.str();
         const auto host_and_port = parseAddress(settings.remote_address.value, 3306);
         mysqlxx::Pool pool(settings.remote_database.value, host_and_port.first, settings.user.value, settings.password.value,
-                           host_and_port.second, settings.set_variables_query->changes.empty() ?  "" : initialize_query);
+                           host_and_port.second, settings.genSessionVariablesQuery());
 
         return StorageMySQL::create(args.table_name, std::move(pool), settings.remote_database.value, settings.remote_table_name.value,
                                     bool(settings.replace_query.value), settings.on_duplicate_clause.value, args.columns, args.context);
