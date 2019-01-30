@@ -111,7 +111,7 @@ bool PredicateExpressionsOptimizer::optimizeImpl(
 
 bool PredicateExpressionsOptimizer::allowPushDown(const ASTSelectQuery * subquery)
 {
-    if (subquery && subquery->final() && subquery->limit_by_expression_list && subquery->with_expression_list)
+    if (subquery && !subquery->final() && !subquery->limit_by_expression_list && !subquery->with_expression_list)
     {
         ASTPtr expr_list = subquery->select_expression_list;
         ExtractFunctionVisitor::Data extract_data;
