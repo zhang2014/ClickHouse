@@ -13,8 +13,8 @@ struct ExtractFunctionData
 {
     using TypeToVisit = ASTFunction;
 
-    const std::vector<ASTFunction *> functions;
-    const std::vector<ASTFunction *> aggregate_functions;
+    std::vector<ASTFunction *> functions;
+    std::vector<ASTFunction *> aggregate_functions;
 
     void visit(ASTFunction & identifier, ASTPtr &);
 };
