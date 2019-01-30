@@ -203,13 +203,14 @@ bool PredicateExpressionsOptimizer::canPushDownOuterPredicate(
         bool is_found = false;
         String qualified_name = qualifiedName(identifier, prefix);
 
-        for (auto & [ast, alias] : projection_columns)
+        for (const auto & [ast, alias] : projection_columns)
         {
             if (alias == qualified_name)
             {
                 is_found = true;
+                ASTPtr projection_column = ast;
                 ExtractFunctionVisitor::Data extract_data;
-                ExtractFunctionVisitor(extract_data).visit(ast);
+                ExtractFunctionVisitor(extract_data).visit(projection_column);
 
                 if (!extract_data.aggregate_functions.empty())
                     optimize_kind = OptimizeKind::PUSH_TO_HAVING;
