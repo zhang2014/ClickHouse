@@ -61,7 +61,7 @@ private:
     String path;
     String name;
 
-    mutable std::recursive_mutex rwlock;
+    mutable std::shared_mutex rwlock;
 
     /** Offsets to some row number in a file for column in table.
       * They are needed so that you can read the data in several threads.
@@ -120,6 +120,10 @@ private:
     const Marks & getMarksWithRealRowCount() const;
 
     std::string getFullPath() const { return path + escapeForFileName(name) + '/'; }
+
+    std::unique_lock<std::shared_mutex> lockWithUnique() const;
+
+    std::shared_lock<std::shared_mutex> lockWithShared() const;
 };
 
 }

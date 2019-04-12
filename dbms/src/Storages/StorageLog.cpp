@@ -24,6 +24,7 @@
 
 #include <Poco/Path.h>
 #include <Poco/DirectoryIterator.h>
+#include "StorageLog.h"
 
 
 #define DBMS_STORAGE_LOG_DATA_FILE_EXTENSION ".bin"
@@ -116,9 +117,10 @@ class LogBlockOutputStream final : public IBlockOutputStream
 public:
     explicit LogBlockOutputStream(StorageLog & storage_)
         : storage(storage_),
-        lock(storage.rwlock),
+        lock(storage.lockWithUnique()),
         marks_stream(storage.marks_file.path(), 4096, O_APPEND | O_CREAT | O_WRONLY)
     {
+
     }
 
     ~LogBlockOutputStream() override
@@ -139,7 +141,7 @@ public:
 
 private:
     StorageLog & storage;
-    std::unique_lock<std::recursive_mutex> lock;
+    std::unique_lock<std::shared_mutex> lock;
     bool done = false;
 
     struct Stream
@@ -469,7 +471,7 @@ void StorageLog::addFiles(const String & column_name, const IDataType & type)
 
 void StorageLog::loadMarks()
 {
-    std::unique_lock<std::recursive_mutex> lock(rwlock);
+    const auto lock = lockWithUnique();
 
     if (loaded_marks)
         return;
@@ -510,7 +512,7 @@ void StorageLog::loadMarks()
 
 void StorageLog::rename(const String & new_path_to_db, const String & /*new_database_name*/, const String & new_table_name)
 {
-    std::unique_lock<std::recursive_mutex> lock(rwlock);
+    const auto lock = lockWithUnique();
 
     /// Rename directory with data.
     Poco::File(path + escapeForFileName(name)).renameTo(new_path_to_db + escapeForFileName(new_table_name));
@@ -527,7 +529,7 @@ void StorageLog::rename(const String & new_path_to_db, const String & /*new_data
 
 void StorageLog::truncate(const ASTPtr &, const Context &)
 {
-    std::lock_guard<std::recursive_mutex> lock(rwlock);
+    const auto lock = lockWithShared();
 
     String table_dir = path + escapeForFileName(name);
 
@@ -586,7 +588,7 @@ BlockInputStreams StorageLog::read(
 
     NamesAndTypesList all_columns = Nested::collect(getColumns().getAllPhysical().addTypes(column_names));
 
-    std::lock_guard<std::recursive_mutex> lock(rwlock);
+    const auto lock = lockWithShared();
 
     BlockInputStreams res;
 
@@ -627,8 +629,28 @@ BlockOutputStreamPtr StorageLog::write(
 
 bool StorageLog::checkData() const
 {
-    std::lock_guard<std::recursive_mutex> lock(rwlock);
+    const auto lock = lockWithShared();
     return file_checker.check();
+}
+
+std::unique_lock<std::shared_mutex> StorageLog::lockWithUnique() const
+{
+    std::unique_lock<std::shared_mutex> try_unique_lock(rwlock, std::try_to_lock);
+
+    if (!try_unique_lock.owns_lock())
+        try_unique_lock.lock();
+
+    return try_unique_lock;
+}
+
+std::shared_lock<std::shared_mutex> StorageLog::lockWithShared() const
+{
+    std::shared_lock<std::shared_mutex> try_shared_lock(rwlock, std::try_to_lock);
+
+    if (!try_shared_lock.owns_lock())
+        try_shared_lock.lock();
+
+    return try_shared_lock;
 }
 
 
