@@ -139,7 +139,7 @@ public:
 
 private:
     StorageLog & storage;
-    std::unique_lock<std::shared_mutex> lock;
+    std::unique_lock<std::recursive_mutex> lock;
     bool done = false;
 
     struct Stream
@@ -469,7 +469,7 @@ void StorageLog::addFiles(const String & column_name, const IDataType & type)
 
 void StorageLog::loadMarks()
 {
-    std::unique_lock<std::shared_mutex> lock(rwlock);
+    std::unique_lock<std::recursive_mutex> lock(rwlock);
 
     if (loaded_marks)
         return;
@@ -510,7 +510,7 @@ void StorageLog::loadMarks()
 
 void StorageLog::rename(const String & new_path_to_db, const String & /*new_database_name*/, const String & new_table_name)
 {
-    std::unique_lock<std::shared_mutex> lock(rwlock);
+    std::unique_lock<std::recursive_mutex> lock(rwlock);
 
     /// Rename directory with data.
     Poco::File(path + escapeForFileName(name)).renameTo(new_path_to_db + escapeForFileName(new_table_name));
@@ -527,7 +527,7 @@ void StorageLog::rename(const String & new_path_to_db, const String & /*new_data
 
 void StorageLog::truncate(const ASTPtr &, const Context &)
 {
-    std::shared_lock<std::shared_mutex> lock(rwlock);
+    std::lock_guard<std::recursive_mutex> lock(rwlock);
 
     String table_dir = path + escapeForFileName(name);
 
@@ -586,7 +586,7 @@ BlockInputStreams StorageLog::read(
 
     NamesAndTypesList all_columns = Nested::collect(getColumns().getAllPhysical().addTypes(column_names));
 
-    std::shared_lock<std::shared_mutex> lock(rwlock);
+    std::lock_guard<std::recursive_mutex> lock(rwlock);
 
     BlockInputStreams res;
 
@@ -627,7 +627,7 @@ BlockOutputStreamPtr StorageLog::write(
 
 bool StorageLog::checkData() const
 {
-    std::shared_lock<std::shared_mutex> lock(rwlock);
+    std::lock_guard<std::recursive_mutex> lock(rwlock);
     return file_checker.check();
 }
 

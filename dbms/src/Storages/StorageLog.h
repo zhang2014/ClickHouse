@@ -61,7 +61,7 @@ private:
     String path;
     String name;
 
-    mutable std::shared_mutex rwlock;
+    mutable std::recursive_mutex rwlock;
 
     /** Offsets to some row number in a file for column in table.
       * They are needed so that you can read the data in several threads.
