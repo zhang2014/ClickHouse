@@ -622,7 +622,7 @@ bool ExpressionAnalyzer::appendJoin(ExpressionActionsChain & chain, bool only_ty
                 if (!sample.has(column.name_and_type.name))
                     required_columns.insert(column.name_and_type.name);
 
-            appendRequiredColumns(required_columns, joined_block_actions->getSampleBlock(), analyzed_join);
+//            appendRequiredColumns(required_columns, joined_block_actions->getSampleBlock(), analyzed_join);
 
             std::cout << "after required_columns:";
             for (const auto & required_column : required_columns)
