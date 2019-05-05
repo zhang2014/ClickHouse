@@ -626,7 +626,7 @@ Names qualifyOccupiedNames(NamesAndTypesList & columns, const NameSet & source_c
     for (auto & column : columns)
     {
         originals.push_back(column.name);
-        if (source_columns.count(column.name))
+        if (!source_columns.count(column.name))
             column.name = table.getQualifiedNamePrefix() + column.name;
     }
 
