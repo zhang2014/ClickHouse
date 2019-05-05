@@ -65,7 +65,7 @@ ExpressionActionsPtr AnalyzedJoin::createJoinedBlockActions(
         source_column_names.emplace_back(column.name_and_type);
 
     std::cout << "required_columns " << toString(required_columns) << "\n";
-    std::cout << "required_columns_set " << toString(required_columns_set) << "\n";
+//    std::cout << "required_columns_set " << toString(required_columns_set) << "\n";
     ASTPtr query = expression_list;
     auto syntax_result = SyntaxAnalyzer(context).analyze(query, source_column_names, required_columns);
     ExpressionAnalyzer analyzer(query, syntax_result, context, {}, required_columns_set);
