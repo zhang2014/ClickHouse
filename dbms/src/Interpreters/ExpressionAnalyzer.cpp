@@ -606,7 +606,19 @@ bool ExpressionAnalyzer::appendJoin(ExpressionActionsChain & chain, bool only_ty
             Names action_columns = joined_block_actions->getRequiredColumns();
             NameSet required_columns(action_columns.begin(), action_columns.end());
 
+            std::cout << "before required_columns:";
+            for (const auto & required_column : required_columns)
+                std::cout << "\t" << required_column;
+
+            std::cout << "\n";
+
             appendRequiredColumns(required_columns, joined_block_actions->getSampleBlock(), analyzed_join);
+
+            std::cout << "after required_columns:";
+            for (const auto & required_column : required_columns)
+                std::cout << "\t" << required_column;
+
+            std::cout << "\n";
 
             Names original_columns = analyzed_join.getOriginalColumnNames(required_columns);
 
