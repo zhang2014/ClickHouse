@@ -519,7 +519,7 @@ static void appendRequiredColumns(NameSet & required_columns, const Block & samp
         if (!sample.has(column))
             required_columns.insert(column);
 
-    for (auto & column : analyzed_join.columns_from_joined_table)
+    for (auto & column : analyzed_join.available_joined_columns)
         if (!sample.has(column.name_and_type.name))
             required_columns.insert(column.name_and_type.name);
 }
