@@ -610,6 +610,10 @@ bool ExpressionAnalyzer::appendJoin(ExpressionActionsChain & chain, bool only_ty
 
             Names original_columns = analyzed_join.getOriginalColumnNames(required_columns);
 
+            std::cout << "Join block dump :";
+            joined_block_actions->getSampleBlock().dumpStructure();
+            std::cout << "\n";
+            std::cout << "Join required columns " << toString(original_columns) << "\n";
             auto interpreter = interpretSubquery(table, context, subquery_depth, original_columns);
             subquery_for_set.makeSource(interpreter, analyzed_join.columns_from_joined_table, required_columns);
         }
