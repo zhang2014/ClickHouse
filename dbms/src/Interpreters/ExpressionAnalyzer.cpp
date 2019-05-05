@@ -611,7 +611,7 @@ bool ExpressionAnalyzer::appendJoin(ExpressionActionsChain & chain, bool only_ty
             Names original_columns = analyzed_join.getOriginalColumnNames(required_columns);
 
             std::cout << "Join block dump :";
-            joined_block_actions->getSampleBlock().dumpStructure();
+            std::cout << joined_block_actions->getSampleBlock().dumpStructure();
             std::cout << "\n";
             std::cout << "Join original columns " << toString(original_columns) << "\n";
 //            std::cout << "Join required columns " << toString(required_columns) << "\n";
