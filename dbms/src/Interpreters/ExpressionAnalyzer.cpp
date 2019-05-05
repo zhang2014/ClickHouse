@@ -1012,6 +1012,7 @@ void ExpressionAnalyzer::collectUsedColumns()
         columns_added_by_join.clear();
         for (const auto & joined_column : analyzed_join.available_joined_columns)
         {
+            std::cout << "Joined Columns: " << joined_column.name_and_type.name << "\t" << joined_column.original_name << "\n";
             auto & name = joined_column.name_and_type.name;
             if (avaliable_columns.count(name))
                 continue;

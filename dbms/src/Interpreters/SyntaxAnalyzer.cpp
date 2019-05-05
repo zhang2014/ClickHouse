@@ -698,10 +698,12 @@ SyntaxAnalyzerResultPtr SyntaxAnalyzer::analyze(
             if (settings.enable_optimize_predicate_expression)
                 replaceJoinedTable(node);
 
+//            replaceJoinedTable(node, required_result_columns);
             const auto & joined_expression = node->table_expression->as<ASTTableExpression &>();
             DatabaseAndTableWithAlias table(joined_expression, context.getCurrentDatabase());
 
             NamesAndTypesList joined_columns = getNamesAndTypeListFromTableExpression(joined_expression, context);
+//            NamesAndTypesList joined_columns = getNamesAndTypeListFromTableExpression(joined_expression, context, required_result_columns);
             Names original_names = qualifyOccupiedNames(joined_columns, source_columns_set, table);
             result.analyzed_join.calculateColumnsFromJoinedTable(joined_columns, original_names);
         }
