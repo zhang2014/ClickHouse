@@ -10,6 +10,7 @@
 
 #include <Storages/IStorage.h>
 #include <DataTypes/DataTypeNullable.h>
+#include <Parsers/queryToString.h>
 
 namespace DB
 {
@@ -64,6 +65,8 @@ ExpressionActionsPtr AnalyzedJoin::createJoinedBlockActions(
     for (auto & column : columns_from_joined_table)
         source_column_names.emplace_back(column.name_and_type);
 
+//    source_column_names.getNames()
+    std::cout << "expression list " << queryToString(expression_list) << "\n";
     std::cout << "required_columns " << toString(required_columns) << "\n";
 //    std::cout << "required_columns_set " << toString(required_columns_set) << "\n";
     ASTPtr query = expression_list;
