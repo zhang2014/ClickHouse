@@ -513,16 +513,16 @@ void ExpressionAnalyzer::addJoinAction(ExpressionActionsPtr & actions, bool only
                                                             columns_added_by_join_list));
 }
 
-static void appendRequiredColumns(NameSet & required_columns, const Block & sample, const AnalyzedJoin & analyzed_join)
-{
-    for (auto & column : analyzed_join.key_names_right)
-        if (!sample.has(column))
-            required_columns.insert(column);
-
-    for (auto & column : analyzed_join.available_joined_columns)
-        if (!sample.has(column.name_and_type.name))
-            required_columns.insert(column.name_and_type.name);
-}
+//static void appendRequiredColumns(NameSet & required_columns, const Block & sample, const AnalyzedJoin & analyzed_join)
+//{
+//    for (auto & column : analyzed_join.key_names_right)
+//        if (!sample.has(column))
+//            required_columns.insert(column);
+//
+//    for (auto & column : analyzed_join.available_joined_columns)
+//        if (!sample.has(column.name_and_type.name))
+//            required_columns.insert(column.name_and_type.name);
+//}
 
 bool ExpressionAnalyzer::appendJoin(ExpressionActionsChain & chain, bool only_types)
 {
