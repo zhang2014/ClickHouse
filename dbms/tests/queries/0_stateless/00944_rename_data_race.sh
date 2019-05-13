@@ -7,7 +7,7 @@ set -e
 
 $CLICKHOUSE_CLIENT -q "DROP TABLE IF EXISTS rename_table"
 $CLICKHOUSE_CLIENT -q "DROP TABLE IF EXISTS already_rename_table"
-$CLICKHOUSE_CLIENT -q "CREATE TABLE rename_table (a UInt8, b Int16, c Float32, d String, e Array(UInt8), f Nullable(UUID), g Tuple(UInt8, UInt16)) ENGINE = MergeTree ORDER BY a"
+$CLICKHOUSE_CLIENT -q "CREATE TABLE rename_table (a UInt8, b Int16, c Float32, d String) ENGINE = MergeTree ORDER BY a"
 
 function thread1()
 {
