@@ -274,7 +274,6 @@ void DataTypeArray::deserializeBinaryBulkWithMultipleStreams(
             ErrorCodes::CANNOT_READ_ALL_DATA);
 }
 
-
 template <typename Writer>
 static void serializeTextImpl(const IColumn & column, size_t row_num, WriteBuffer & ostr, Writer && write_nested)
 {

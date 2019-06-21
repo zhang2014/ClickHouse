@@ -24,6 +24,7 @@ namespace ErrorCodes
     extern const int CANNOT_PARSE_DATETIME;
     extern const int CANNOT_READ_ARRAY_FROM_TEXT;
     extern const int CANNOT_PARSE_DATE;
+    extern const int CANNOT_PARSE_JSON;
     extern const int SYNTAX_ERROR;
     extern const int VALUE_IS_OUT_OF_RANGE_OF_DATA_TYPE;
 }

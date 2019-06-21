@@ -116,7 +116,6 @@ void DataTypeNullable::deserializeBinaryBulkWithMultipleStreams(
     settings.path.pop_back();
 }
 
-
 void DataTypeNullable::serializeBinary(const IColumn & column, size_t row_num, WriteBuffer & ostr) const
 {
     const ColumnNullable & col = static_cast<const ColumnNullable &>(column);

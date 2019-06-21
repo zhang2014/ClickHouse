@@ -65,7 +65,6 @@ private:
 private:
     NamesAndTypesList columns_list;
     SerializationStates serialization_states;
-    String part_path;
 
     size_t rows_count = 0;
 
@@ -79,6 +78,7 @@ private:
     std::vector<std::unique_ptr<ColumnStream>> skip_indices_streams;
     MergeTreeIndexAggregators skip_indices_aggregators;
     std::vector<size_t> skip_index_filling;
+    size_t total_size{0};
 };
 
 }

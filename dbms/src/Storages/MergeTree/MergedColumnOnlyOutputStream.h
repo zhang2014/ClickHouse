@@ -26,7 +26,6 @@ public:
 private:
     Block header;
     SerializationStates serialization_states;
-    String part_path;
 
     bool initialized = false;
     bool sync;

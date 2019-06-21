@@ -36,22 +36,13 @@ MergeTreeReader::MergeTreeReader(const String & path,
     UncompressedCache * uncompressed_cache, MarkCache * mark_cache, bool save_marks_in_cache,
     const MergeTreeData & storage, const MarkRanges & all_mark_ranges,
     size_t aio_threshold, size_t max_read_buffer_size, const ValueSizeMap & avg_value_size_hints,
-    const ReadBufferFromFileBase::ProfileCallback & profile_callback,
-    clockid_t clock_type)
+    const ReadBufferFromFileBase::ProfileCallback & profile_callback_,
+    clockid_t clock_type_)
     : data_part(data_part), avg_value_size_hints(avg_value_size_hints), path(path), columns(columns)
     , uncompressed_cache(uncompressed_cache), mark_cache(mark_cache), save_marks_in_cache(save_marks_in_cache), storage(storage)
     , all_mark_ranges(all_mark_ranges), aio_threshold(aio_threshold), max_read_buffer_size(max_read_buffer_size)
+    , profile_callback(profile_callback_), clock_type(clock_type_)
 {
-    try
-    {
-        for (const NameAndTypePair & column : columns)
-            addStreams(column.name, *column.type, profile_callback, clock_type);
-    }
-    catch (...)
-    {
-        storage.reportBrokenPart(data_part->name);
-        throw;
-    }
 }
 
 
@@ -150,35 +141,38 @@ size_t MergeTreeReader::readRows(size_t from_mark, bool continue_reading, size_t
     return read_rows;
 }
 
-void MergeTreeReader::addStreams(const String & name, const IDataType & type,
-    const ReadBufferFromFileBase::ProfileCallback & profile_callback, clockid_t clock_type)
+MergeTreeReaderStream * MergeTreeReader::getOrCreateStream(const String & name, const IDataType::SubstreamPath & substream)
 {
-    IDataType::StreamCallback callback = [&] (const IDataType::SubstreamPath & substream_path)
+    try
     {
-        String stream_name = IDataType::getFileNameForStream(name, substream_path);
+        String stream_name = IDataType::getFileNameForStream(name, substream);
 
-        if (streams.count(stream_name))
-            return;
+        const auto & column_stream_it = streams.find(stream_name);
 
-        bool data_file_exists = data_part->checksums.files.count(stream_name + DATA_FILE_EXTENSION);
+        if (column_stream_it == streams.end())
+        {
+            /** If data file is missing then we will not try to open it.
+              * It is necessary since it allows to add new column to structure of the table without creating new files for old parts.
+              */
+            if (!data_part->checksums.files.count(stream_name + DATA_FILE_EXTENSION))
+                return nullptr;
 
-        /** If data file is missing then we will not try to open it.
-          * It is necessary since it allows to add new column to structure of the table without creating new files for old parts.
-          */
-        if (!data_file_exists)
-            return;
+            streams.emplace(stream_name, std::make_unique<MergeTreeReaderStream>(
+                path + stream_name, DATA_FILE_EXTENSION, data_part->getMarksCount(),
+                all_mark_ranges, mark_cache, save_marks_in_cache,
+                uncompressed_cache, data_part->getFileSizeOrZero(stream_name + DATA_FILE_EXTENSION),
+                aio_threshold, max_read_buffer_size, &data_part->index_granularity_info, profile_callback, clock_type));
 
-        streams.emplace(stream_name, std::make_unique<MergeTreeReaderStream>(
-            path + stream_name, DATA_FILE_EXTENSION, data_part->getMarksCount(),
-            all_mark_ranges, mark_cache, save_marks_in_cache,
-            uncompressed_cache, data_part->getFileSizeOrZero(stream_name + DATA_FILE_EXTENSION),
-            aio_threshold, max_read_buffer_size,
-            &data_part->index_granularity_info,
-            profile_callback, clock_type));
-    };
+            return &*streams.at(stream_name);
+        }
 
-    IDataType::SubstreamPath substream_path;
-    type.enumerateStreams(callback, substream_path);
+        return &*column_stream_it->second;
+    }
+    catch (...)
+    {
+        storage.reportBrokenPart(data_part->name);
+        throw;
+    }
 }
 
 
@@ -195,23 +189,20 @@ void MergeTreeReader::readData(
             if (!with_offsets && substream_path.size() == 1 && substream_path[0].type == IDataType::Substream::ArraySizes)
                 return nullptr;
 
-            String stream_name = IDataType::getFileNameForStream(name, substream_path);
-
-            auto it = streams.find(stream_name);
-            if (it == streams.end())
-                return nullptr;
-
-            MergeTreeReaderStream & stream = *it->second;
-
-            if (stream_for_prefix)
+            if (MergeTreeReaderStream * stream = getOrCreateStream(name, substream_path))
             {
-                stream.seekToStart();
-                continue_reading = false;
-            }
-            else if (!continue_reading)
-                stream.seekToMark(from_mark);
+                if (stream_for_prefix)
+                {
+                    stream->seekToStart();
+                    continue_reading = false;
+                }
+                else if (!continue_reading)
+                    stream->seekToMark(from_mark);
 
-            return stream.data_buffer;
+                return stream->data_buffer;
+            }
+
+            return nullptr;
         };
     };
 
