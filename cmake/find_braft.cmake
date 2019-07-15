@@ -1,6 +1,3 @@
-include (CMakePushCheckState)
-cmake_push_check_state ()
-
 option (ENABLE_BRAFT "Enable braft (embedded distributed coordinator)" ON)
 
 if (ENABLE_BRAFT AND NOT EXISTS "${ClickHouse_SOURCE_DIR}/contrib/braft/src/braft/raft.h")
@@ -14,5 +11,3 @@ if (ENABLE_BRAFT)
 endif ()
 
 message (STATUS "Using braft=${USE_BRAFT}: ${BRAFT_LIBRARY}")
-
-cmake_pop_check_state ()
