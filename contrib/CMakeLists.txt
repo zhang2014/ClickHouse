@@ -333,3 +333,7 @@ endif()
 if (USE_MIMALLOC)
     add_subdirectory (mimalloc)
 endif()
+
+if (USE_BRAFT)
+    add_subdirectory(braft-cmake)
+endif()
