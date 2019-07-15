@@ -103,6 +103,7 @@ if (USE_INTERNAL_PROTOBUF_LIBRARY)
     add_dependencies(${BRAFT_LIBRARY} protoc)
 endif()
 
+target_include_directories(${BRAFT_LIBRARY} PRIVATE ${BRPC_INCLUDE})
 target_include_directories(${BRAFT_LIBRARY} PRIVATE ${PROTO_HEADERS})
 target_include_directories(${BRAFT_LIBRARY} PRIVATE ${BRAFT_INCLUDE_DIR})
 target_include_directories(${BRAFT_LIBRARY} PRIVATE ${Protobuf_INCLUDE_DIR})

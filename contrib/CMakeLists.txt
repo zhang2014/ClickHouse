@@ -335,5 +335,6 @@ if (USE_MIMALLOC)
 endif()
 
 if (USE_BRAFT)
+    add_subdirectory(brpc-cmake)
     add_subdirectory(braft-cmake)
 endif()
