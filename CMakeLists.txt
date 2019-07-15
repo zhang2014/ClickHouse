@@ -453,6 +453,7 @@ include (cmake/find_hyperscan.cmake)
 include (cmake/find_mimalloc.cmake)
 include (cmake/find_simdjson.cmake)
 include (cmake/find_rapidjson.cmake)
+include (cmake/find_brpc.cmake)
 include (cmake/find_braft.cmake)
 
 find_contrib_lib(cityhash)

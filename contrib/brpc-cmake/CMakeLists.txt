@@ -7,7 +7,7 @@ if (NOT USE_INTERNAL_PROTOBUF_LIBRARY)
     endif ()
 endif()
 
-find_package(GFLAGS REQUIRED)
+#find_package(GFLAGS REQUIRED)
 
 set (BRPC_SOURCE_DIR "${ClickHouse_SOURCE_DIR}/contrib/brpc")
 
@@ -177,7 +177,5 @@ set(MCPACK2PB_SOURCES
         ${BRPC_SOURCE_DIR}/src/mcpack2pb/parser.cpp
         ${BRPC_SOURCE_DIR}/src/mcpack2pb/serializer.cpp
 )
-
-set(BRPC_INCLUDE ${BRPC_SOURCE_DIR}/src)
 
 add_library(brpc ${BUTIL_SOURCES} ${BVAR_SOURCES} ${BTHREAD_SOURCES} ${JSON2PB_SOURCES} ${BRPC_SOURCES} ${PROTO_SOURCES} ${PROTO_HEADERS})
