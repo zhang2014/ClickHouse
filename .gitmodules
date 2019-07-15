@@ -103,3 +103,6 @@
 [submodule "contrib/braft"]
 	path = contrib/braft
 	url = git@github.com:zhang2014/braft.git
+[submodule "contrib/brpc"]
+	path = contrib/brpc
+	url = git@github.com:zhang2014/incubator-brpc.git
