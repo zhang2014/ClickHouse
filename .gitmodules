@@ -100,3 +100,6 @@
 [submodule "contrib/mimalloc"]
 	path = contrib/mimalloc
 	url = https://github.com/ClickHouse-Extras/mimalloc
+[submodule "contrib/braft"]
+	path = contrib/braft
+	url = git@github.com:zhang2014/braft.git
