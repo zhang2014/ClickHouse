@@ -637,11 +637,7 @@ bool StorageMergeTree::tryMutatePart()
                 continue;
 
             for (auto it = mutations_begin_it; it != mutations_end_it; ++it)
-            {
-                
                 commands.insert(commands.end(), it->second.commands.begin(), it->second.commands.end());
-            }
-
 
             auto new_part_info = part->info;
             new_part_info.mutation = current_mutations_by_version.rbegin()->first;

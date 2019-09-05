@@ -332,7 +332,6 @@ struct Settings : public SettingsCollection<Settings>
     M(SettingBool, allow_simdjson, true, "Allow using simdjson library in 'JSON*' functions if AVX2 instructions are available. If disabled rapidjson will be used.") \
     \
     M(SettingUInt64, max_partitions_per_insert_block, 100, "Limit maximum number of partitions in single INSERTed block. Zero means unlimited. Throw exception if the block contains too many partitions. This setting is a safety threshold, because using large number of partitions is a common misconception.") \
-    M(SettingUInt64, smallest_json_max_rows_for_single_block, 8192, "") \
 
     DECLARE_SETTINGS_COLLECTION(LIST_OF_SETTINGS)
 

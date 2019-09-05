@@ -36,7 +36,7 @@ void MergedColumnOnlyOutputStream::write(const Block & block)
             const auto columns = storage.getColumns();
             const auto & effective_codec = columns.getCodecOrDefault(col.name, codec);
             serialization_states.emplace_back(nullptr);
-            settings.getter = createStreamGetter(col.name, tmp_offset_columns, effective_codec, 0, skip_offsets);
+            settings.getter = createStreamGetter(col.name, tmp_offset_columns, settings, effective_codec, 0, skip_offsets, false);
             col.type->serializeBinaryBulkStatePrefix(settings, serialization_states.back());
         }
 
@@ -81,7 +81,7 @@ MergeTreeData::DataPart::Checksums MergedColumnOnlyOutputStream::writeSuffixAndG
         auto & column = header.getByPosition(i);
         const auto & columns = storage.getColumns();
         const auto & effective_codec = columns.getCodecOrDefault(column.name, codec);
-        serialize_settings.getter = createStreamGetter(column.name, already_written_offset_columns, effective_codec, 0, skip_offsets);
+        serialize_settings.getter = createStreamGetter(column.name, already_written_offset_columns, serialize_settings, effective_codec, 0, skip_offsets);
         column.type->serializeBinaryBulkStateSuffix(serialize_settings, serialization_states[i]);
 
 
