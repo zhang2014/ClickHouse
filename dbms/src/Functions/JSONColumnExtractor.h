@@ -55,7 +55,7 @@ public:
         return true;
     }
 
-    size_t extractWithConstKey(const char * function_name, const std::vector<Move> & moves, IColumn & dest_column, const DataTypePtr & res_type)
+    void extractWithConstKey(const char * function_name, const std::vector<Move> & moves, IColumn & dest_column, const DataTypePtr & res_type)
     {
         auto column_struct = source_column.getStruct();
         for (size_t index = 0; index < moves.size() && column_struct; ++index)
@@ -68,20 +68,18 @@ public:
         }
 
         Extractor<DummyJSONParser>::create(function_name, res_type).extract(column_struct, dest_column, 0, source_column.size());
-        return source_column.size();
     }
 
-    size_t extract(const char * function_name, const std::vector<Move> & moves, IColumn & dest_column, const DataTypePtr & res_type, size_t input_rows)
+    void extract(const char * function_name, const std::vector<Move> & moves, IColumn & dest_column, const DataTypePtr & res_type, size_t input_rows)
     {
         if (alwaysConstKeyAndIndex(moves))
-            return extractWithConstKey(moves, dest_column);
+            extractWithConstKey(function_name, moves, dest_column, res_type);
         else
         {
             const auto & extractor = Extractor<DummyJSONParser>::create(function_name, res_type);
             for (size_t row = 0; row < input_rows; ++row)
             {
                 ColumnJSONBStructPtr column_struct = source_column.getStruct();
-
                 for (size_t index = 0; index < moves.size() && column_struct; ++index)
                 {
                     switch (moves[index].type)
@@ -141,7 +139,7 @@ public:
                     }
                 }
 
-                extractor.extract(dest_column, iterator);
+                extractor.extract(ok, dest_column, iterator);
             }
         }
     }

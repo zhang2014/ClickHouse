@@ -121,20 +121,7 @@ private:
 };
 
 template <typename JSONParser>
-class Extractor
-{
-public:
-    Extractor() {}
-    virtual ~Extractor() {}
-
-    virtual void extract(bool, IColumn &, const typename JSONParser::Iterator &) = 0;
-
-    virtual void extract(const ColumnJSONBStructPtr &, IColumn &, size_t, size_t) = 0;
-};
-
-
-template <typename JSONParser>
-class JSONHasImpl : public Extractor<JSONParser>
+class JSONHasImpl
 {
 public:
     static constexpr size_t num_extra_arguments = 0;
@@ -142,31 +129,31 @@ public:
 
     JSONHasImpl(const char *, const DataTypePtr &) {}
 
-    void extract(const ColumnJSONBStructPtr & column_struct, IColumn & dest, size_t offset, size_t limit)
+    static inline void extractWithDefaultValue(IColumn & column, size_t rows)
     {
-        ColumnVector<UInt8> & vec_to = static_cast<ColumnVector<UInt8> &>(dest);
-        size_t old_size = vec_to.getData().size();
-        vec_to.getData().reserve(old_size + limit);
-
-        if (!column_struct || !column_struct->mark_column)
-        {
-            for (size_t index = 0; index < limit; ++index)
-                vec_to.getData().push_back(UInt8());
-        }
-        else
-        {
-            const auto & mark_column = static_cast<const ColumnUInt8 &>(*column_struct->mark_column);
-            const ColumnUInt8::Container & mark_column_data = mark_column.getData();
-
-            for (size_t index = 0; index < limit; ++index)
-                vec_to.getData().push_back(mark_column_data[offset + limit] != UInt8(TypeIndex::Nothing));
-        }
+        ColumnVector<UInt8> & res_column = static_cast<ColumnVector<UInt8> &>(column);
+        for (size_t index = 0; index < rows; ++index)
+            res_column.getData().push_back(UInt8());
     }
 
-    void extract(bool insert_default, IColumn & column, const typename JSONParser::Iterator & /*iterator*/) override
+    static inline void extract(bool insert_default, IColumn & column, const typename JSONParser::Iterator &)
     {
         ColumnVector<UInt8> & col_vec = static_cast<ColumnVector<UInt8> &>(column);
         col_vec.getData().push_back(insert_default? UInt8() : UInt8(1));
+    }
+
+    static inline void extract(const ColumnJSONBStructPtr & column_struct, IColumn & column, size_t offset, size_t limit)
+    {
+        if (!column_struct || !column_struct->mark_column)
+            extractWithDefaultValue(column, limit);
+        else
+        {
+            auto & res_column = static_cast<ColumnVector<UInt8> &>(column);
+            const auto & mark_column = static_cast<const ColumnUInt8 &>(*column_struct->mark_column);
+
+            for (size_t index = 0; index < limit; ++index)
+                res_column.getData().push_back(mark_column.getData()[offset + index] != UInt8(TypeIndex::Nothing));
+        }
     }
 };
 
@@ -180,22 +167,49 @@ public:
 
     JSONLengthImpl(const char *, const DataTypePtr &) {}
 
-    using Iterator = typename JSONParser::Iterator;
-    static bool addValueToColumn(IColumn & dest, const Iterator & it)
+    static inline void extractWithDefaultValue(IColumn & column, size_t rows)
     {
-        size_t size;
-        if (JSONParser::isArray(it))
-            size = JSONParser::sizeOfArray(it);
-        else if (JSONParser::isObject(it))
-            size = JSONParser::sizeOfObject(it);
-        else
-            return false;
-
-        ColumnVector<UInt64> & col_vec = static_cast<ColumnVector<UInt64> &>(dest);
-        col_vec.insertValue(size);
-        return true;
+        ColumnVector<UInt64> & res_column = static_cast<ColumnVector<UInt64> &>(column);
+        for (size_t index = 0; index < rows; ++index)
+            res_column.getData().push_back(UInt64());
     }
-    static void prepare(const char *, const Block &, const ColumnNumbers &, size_t) {}
+
+    static inline void extract(bool insert_default, IColumn & column, const typename JSONParser::Iterator & iterator)
+    {
+        ColumnVector<UInt64> & vec_to = static_cast<ColumnVector<UInt64> &>(column);
+
+        if (!insert_default && JSONParser::isArray(iterator))
+            vec_to.getData().push_back(JSONParser::sizeOfArray(iterator));
+        else if (!insert_default && JSONParser::isObject(iterator))
+            vec_to.getData().push_back(JSONParser::sizeOfObject(iterator));
+        else
+            vec_to.getData().push_back(UInt64());
+    }
+
+    static inline void extract(const ColumnJSONBStructPtr & column_struct, IColumn & column, size_t offset, size_t limit)
+    {
+        if (!column_struct || !column_struct->mark_column)
+            extractWithDefaultValue(column, limit);
+        else
+        {
+            std::vector<ColumnUInt8 *> children_marks;
+            auto & res_column = static_cast<ColumnVector<UInt64> &>(column);
+
+            children_marks.reserve(column_struct->children.size());
+            for (size_t index = 0; index < column_struct->children.size(); ++index)
+                if (column_struct->children[index]->mark_column)
+                    children_marks.push_back(static_cast<ColumnUInt8 *>(column_struct->children[index]->mark_column));
+
+            for (size_t index = 0; index < limit; ++index)
+            {
+                UInt64 size = 0;
+                for (const auto & children_mark : children_marks)
+                    size += UInt64(children_mark->getData()[offset + index] != UInt8(TypeIndex::Nothing));
+
+                res_column.getData().push_back(size);
+            }
+        }
+    }
 };
 
 
