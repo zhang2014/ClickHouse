@@ -8,6 +8,7 @@
 #include <Core/Types.h>
 
 #include <simdjson/jsonparser.h>
+#include <simdjson/parsedjson.h>
 
 
 namespace DB

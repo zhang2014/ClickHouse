@@ -5,6 +5,19 @@
 namespace DB
 {
 
+struct NameJSONHas { static constexpr auto name{"JSONHas"}; };
+struct NameJSONLength { static constexpr auto name{"JSONLength"}; };
+struct NameJSONKey { static constexpr auto name{"JSONKey"}; };
+struct NameJSONType { static constexpr auto name{"JSONType"}; };
+struct NameJSONExtractInt { static constexpr auto name{"JSONExtractInt"}; };
+struct NameJSONExtractUInt { static constexpr auto name{"JSONExtractUInt"}; };
+struct NameJSONExtractFloat { static constexpr auto name{"JSONExtractFloat"}; };
+struct NameJSONExtractBool { static constexpr auto name{"JSONExtractBool"}; };
+struct NameJSONExtractString { static constexpr auto name{"JSONExtractString"}; };
+struct NameJSONExtract { static constexpr auto name{"JSONExtract"}; };
+struct NameJSONExtractKeysAndValues { static constexpr auto name{"JSONExtractKeysAndValues"}; };
+struct NameJSONExtractRaw { static constexpr auto name{"JSONExtractRaw"}; };
+
 void registerFunctionsJSON(FunctionFactory & factory)
 {
     factory.registerFunction<FunctionJSON<NameJSONHas, JSONHasImpl>>();
