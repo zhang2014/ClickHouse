@@ -333,3 +333,6 @@ endif()
 if (USE_MIMALLOC)
     add_subdirectory (mimalloc)
 endif()
+
+# fleece
+add_subdirectory (fleece-cmake)

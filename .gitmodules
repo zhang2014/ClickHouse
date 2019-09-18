@@ -100,3 +100,6 @@
 [submodule "contrib/mimalloc"]
 	path = contrib/mimalloc
 	url = https://github.com/ClickHouse-Extras/mimalloc
+[submodule "contrib/fleece"]
+	path = contrib/fleece
+	url = git@github.com:zhang2014/fleece.git
