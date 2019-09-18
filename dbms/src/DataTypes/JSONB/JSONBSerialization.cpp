@@ -213,15 +213,15 @@ template void JSONBSerialization::serialize<JSONBStreamBuffer<WriteBuffer, Forma
 template void JSONBSerialization::serialize<JSONBStreamBuffer<WriteBuffer, FormatStyle::QUOTED>>(const IColumn &, size_t, JSONBStreamBuffer<WriteBuffer, FormatStyle::QUOTED> &);
 template void JSONBSerialization::serialize<JSONBStreamBuffer<WriteBuffer, FormatStyle::ESCAPED>>(const IColumn &, size_t, JSONBStreamBuffer<WriteBuffer, FormatStyle::ESCAPED> &);
 
-template void JSONBSerialization::deserialize<JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::CSV>>(IColumn &, const FormatSettings &, JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::CSV> &);
-template void JSONBSerialization::deserialize<JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::JSON>>(IColumn &, const FormatSettings &, JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::JSON> &);
-template void JSONBSerialization::deserialize<JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::QUOTED>>(IColumn &, const FormatSettings &, JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::QUOTED> &);
-template void JSONBSerialization::deserialize<JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::ESCAPED>>(IColumn &, const FormatSettings &, JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::ESCAPED> &);
+template void JSONBSerialization::deserialize<JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::CSV>>(IColumn &, JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::CSV> &);
+template void JSONBSerialization::deserialize<JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::JSON>>(IColumn &, JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::JSON> &);
+template void JSONBSerialization::deserialize<JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::QUOTED>>(IColumn &, JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::QUOTED> &);
+template void JSONBSerialization::deserialize<JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::ESCAPED>>(IColumn &, JSONBStreamPODArray<const ColumnString::Chars, FormatStyle::ESCAPED> &);
 
-template void JSONBSerialization::deserialize<JSONBStreamBuffer<ReadBuffer, FormatStyle::CSV>>(IColumn &, const FormatSettings &, JSONBStreamBuffer<ReadBuffer, FormatStyle::CSV> &);
-template void JSONBSerialization::deserialize<JSONBStreamBuffer<ReadBuffer, FormatStyle::JSON>>(IColumn &, const FormatSettings &, JSONBStreamBuffer<ReadBuffer, FormatStyle::JSON> &);
-template void JSONBSerialization::deserialize<JSONBStreamBuffer<ReadBuffer, FormatStyle::QUOTED>>(IColumn &, const FormatSettings &, JSONBStreamBuffer<ReadBuffer, FormatStyle::QUOTED> &);
-template void JSONBSerialization::deserialize<JSONBStreamBuffer<ReadBuffer, FormatStyle::ESCAPED>>(IColumn &, const FormatSettings &, JSONBStreamBuffer<ReadBuffer, FormatStyle::ESCAPED> &);
+template void JSONBSerialization::deserialize<JSONBStreamBuffer<ReadBuffer, FormatStyle::CSV>>(IColumn &, JSONBStreamBuffer<ReadBuffer, FormatStyle::CSV> &);
+template void JSONBSerialization::deserialize<JSONBStreamBuffer<ReadBuffer, FormatStyle::JSON>>(IColumn &, JSONBStreamBuffer<ReadBuffer, FormatStyle::JSON> &);
+template void JSONBSerialization::deserialize<JSONBStreamBuffer<ReadBuffer, FormatStyle::QUOTED>>(IColumn &, JSONBStreamBuffer<ReadBuffer, FormatStyle::QUOTED> &);
+template void JSONBSerialization::deserialize<JSONBStreamBuffer<ReadBuffer, FormatStyle::ESCAPED>>(IColumn &, JSONBStreamBuffer<ReadBuffer, FormatStyle::ESCAPED> &);
 
 
 //struct JSONStructAndColumnBinder
