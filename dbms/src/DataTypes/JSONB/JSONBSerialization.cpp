@@ -6,7 +6,15 @@
 #include <DataTypes/JSONB/JSONBStreamBuffer.h>
 #include <DataTypes/JSONB/JSONBStreamFactory.h>
 #include <DataTypes/JSONB/JSONBStreamPODArray.h>
+#if !__clang__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wattributes"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
 #include <Fleece/Encoder.hh>
+#if !__clang__
+#pragma GCC diagnostic pop
+#endif
 
 namespace DB
 {
