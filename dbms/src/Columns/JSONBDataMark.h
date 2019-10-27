@@ -1,8 +1,5 @@
 #pragma once
 
-//#include <Columns/ColumnsNumber.h>
-//#include <Columns/ColumnJSONB.h>
-
 namespace DB
 {
 

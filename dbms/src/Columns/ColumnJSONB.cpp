@@ -8,11 +8,13 @@
 #include <IO/WriteHelpers.h>
 #include <rapidjson/reader.h>
 #include <DataTypes/DataTypesNumber.h>
+#include <DataTypes/JSONBinaryWriter.h>
 #include <DataTypes/JSONBStreamBuffer.h>
 #include <DataTypes/JSONBSerialization.h>
 #include <DataTypes/JSONBStreamFactory.h>
 #include <Columns/ColumnArray.h>
 #include <Columns/JSONBDataMark.h>
+#include <Columns/JSONBinaryComparer.h>
 
 
 namespace DB
@@ -35,11 +37,29 @@ size_t getMaxValue(const ColumnUInt64::Container & values)
     return max_value;
 }
 
+template <bool positive>
+struct less
+{
+    const ColumnJSONB & parent;
+    int nan_direction_hint;
+
+    less(const ColumnJSONB & parent_, int nan_direction_hint_)
+        : parent(parent_), nan_direction_hint(nan_direction_hint_) {}
+
+    bool operator()(size_t lhs, size_t rhs) const
+    {
+        if (positive)
+            return parent.compareAt(lhs, rhs, parent, nan_direction_hint) < 0;
+        else
+            return parent.compareAt(lhs, rhs, parent, nan_direction_hint) > 0;
+    }
+};
+
 template<size_t skip_number>
 UniqueValueAndPos collectUniqueValueAndMarkPos(const ColumnUInt64::Container & values, size_t offset, size_t limit)
 {
     if (values.empty())
-        return {ColumnUInt64::create(), ColumnUInt64::create()};
+        return { ColumnUInt64::create(), ColumnUInt64::create() };
 
     size_t cur_pos = 0;
     auto positions = ColumnUInt64::create(limit);
@@ -142,11 +162,7 @@ void ColumnJSONB::insertDefault()
 {
     /// INSERT Nothing::Nothing to graph and insert empty data ?
     /// Default value is TypeIndex::Nothing
-//    for (size_t index = 0; index < mark_columns.size(); ++index)
-//        mark_columns[index]->insertDefault();
-//
-//    for (size_t index = 0; index < data_columns.size(); ++index)
-//        data_columns[index]->insertDefault();
+    //    insert(Field(""));
 }
 
 void ColumnJSONB::insert(const Field & field)
@@ -157,7 +173,7 @@ void ColumnJSONB::insert(const Field & field)
 
 void ColumnJSONB::insertData(const char * pos, size_t length)
 {
-    /// TODO:
+    /// TODO: It could be multiple columns at this time.
     FormatSettings settings{};
     ReadBufferFromMemory buffer(pos, length);
     JSONBSerialization::deserialize(isNullable(), *this, JSONBStreamFactory::from<FormatStyle::ESCAPED>(static_cast<ReadBuffer *>(&buffer), settings));
@@ -168,6 +184,15 @@ void ColumnJSONB::popBack(size_t n)
     std::vector<WrappedPtr> & data_columns = binary_json_data.getAllDataColumns();
     for (size_t index = 0; index < data_columns.size(); ++index)
         data_columns[index]->popBack(n);
+}
+
+MutableColumnPtr ColumnJSONB::cloneEmpty() const
+{
+    Columns binary_data_columns(2);
+    binary_data_columns[0] = ColumnArray::create(ColumnUInt64::create());
+    binary_data_columns[1] = ColumnString::create();
+    return ColumnJSONB::create(getKeysDictionaryPtr()->cloneEmpty(), getRelationsDictionaryPtr()->cloneEmpty(),
+        std::move(binary_data_columns), false, isNullable(), lowCardinality());
 }
 
 void ColumnJSONB::insertFrom(const IColumn & src, size_t row_num)
@@ -202,20 +227,26 @@ size_t ColumnJSONB::byteSize() const
 
 size_t ColumnJSONB::allocatedBytes() const
 {
-    const std::vector<WrappedPtr> &data_columns = binary_json_data.getAllDataColumns();
+    const std::vector<WrappedPtr> & data_columns = binary_json_data.getAllDataColumns();
     size_t allocated_size = getKeysDictionary().byteSize() + getRelationsDictionary().byteSize();
     for (size_t index = 0; index < data_columns.size(); ++index)
         allocated_size += data_columns[index]->allocatedBytes();
     return allocated_size;
 }
 
-void ColumnJSONB::updateHashWithValue(size_t /*n*/, SipHash & /*hash*/) const
+void ColumnJSONB::updateHashWithValue(size_t n, SipHash & hash) const
 {
-//    for (size_t index = 0; index < mark_columns.size(); ++index)
-//        mark_columns[index]->updateHashWithValue(n, hash);
-//
-//    for (size_t index = 0; index < data_columns.size(); ++index)
-//        data_columns[index]->updateHashWithValue(n, hash);
+    /// TODO: 错误的, 因为没有shared_key, 这回导致相同的数据hash不一致
+    for (const auto & data_column : binary_json_data.getAllDataColumns())
+    {
+        if (&*data_column != &getRelationsBinary())
+            data_column->updateHashWithValue(n, hash);
+    }
+}
+
+void ColumnJSONB::gather(ColumnGathererStream & gatherer_stream)
+{
+    gatherer_stream.gather(*this);
 }
 
 ColumnPtr ColumnJSONB::filter(const IColumn::Filter & filter, ssize_t result_size_hint) const
@@ -227,7 +258,7 @@ ColumnPtr ColumnJSONB::filter(const IColumn::Filter & filter, ssize_t result_siz
         binary_data_columns[index] = data_columns[index]->filter(filter, result_size_hint);
 
     return ColumnJSONB::create(struct_graph.getKeysAsUniqueColumnPtr(), struct_graph.getRelationsAsUniqueColumnPtr(),
-        binary_data_columns, isMultipleColumn(), isNullable());
+        binary_data_columns, isMultipleColumn(), isNullable(), lowCardinality());
 }
 
 ColumnPtr ColumnJSONB::permute(const IColumn::Permutation & perm, size_t limit) const
@@ -239,7 +270,7 @@ ColumnPtr ColumnJSONB::permute(const IColumn::Permutation & perm, size_t limit) 
         binary_data_columns[index] = data_columns[index]->permute(perm, limit);
 
     return ColumnJSONB::create(struct_graph.getKeysAsUniqueColumnPtr(), struct_graph.getRelationsAsUniqueColumnPtr(),
-        binary_data_columns, isMultipleColumn(), isNullable());
+        binary_data_columns, isMultipleColumn(), isNullable(), lowCardinality());
 }
 
 ColumnPtr ColumnJSONB::index(const IColumn & indexes, size_t limit) const
@@ -251,7 +282,7 @@ ColumnPtr ColumnJSONB::index(const IColumn & indexes, size_t limit) const
         binary_data_columns[index] = data_columns[index]->index(indexes, limit);
 
     return ColumnJSONB::create(struct_graph.getKeysAsUniqueColumnPtr(), struct_graph.getRelationsAsUniqueColumnPtr(),
-        binary_data_columns, isMultipleColumn(), isNullable());
+        binary_data_columns, isMultipleColumn(), isNullable(), lowCardinality());
 }
 
 ColumnPtr ColumnJSONB::replicate(const IColumn::Offsets & offsets) const
@@ -263,7 +294,7 @@ ColumnPtr ColumnJSONB::replicate(const IColumn::Offsets & offsets) const
         binary_data_columns[index] = data_columns[index]->replicate(offsets);
 
     return ColumnJSONB::create(struct_graph.getKeysAsUniqueColumnPtr(), struct_graph.getRelationsAsUniqueColumnPtr(),
-        binary_data_columns, isMultipleColumn(), isNullable());
+        binary_data_columns, isMultipleColumn(), isNullable(), lowCardinality());
 }
 
 std::vector<MutableColumnPtr> ColumnJSONB::scatter(IColumn::ColumnIndex num_columns, const IColumn::Selector & selector) const
@@ -284,15 +315,10 @@ std::vector<MutableColumnPtr> ColumnJSONB::scatter(IColumn::ColumnIndex num_colu
         MutableColumnPtr key_dictionary = std::move(getKeysDictionary()).mutate();
         MutableColumnPtr relation_dictionary = std::move(getRelationsDictionary()).mutate();
         res[scattered_idx] = ColumnJSONB::create(
-            std::move(key_dictionary), std::move(relation_dictionary), new_columns, isMultipleColumn(), isNullable());
+            std::move(key_dictionary), std::move(relation_dictionary), new_columns, isMultipleColumn(), isNullable(), lowCardinality());
     }
 
     return res;
-}
-
-void ColumnJSONB::gather(ColumnGathererStream & gatherer_stream)
-{
-    gatherer_stream.gather(*this);
 }
 
 void ColumnJSONB::getExtremes(Field & min, Field & max) const
@@ -318,81 +344,65 @@ void ColumnJSONB::getExtremes(Field & min, Field & max) const
     get(max_idx, max);
 }
 
-int ColumnJSONB::compareAt(size_t /*n*/, size_t /*m*/, const IColumn & /*rhs_*/, int /*nan_direction_hint*/) const
+int ColumnJSONB::compareAt(size_t n, size_t m, const IColumn & rhs, int /*nan_direction_hint*/) const
 {
-    /// Is very slow, But it should not be used often
-//    const ColumnJSONB & rhs = assert_cast<const ColumnJSONB &>(rhs_);
-//
-//    const auto & lhs_relations = checkAndGetColumn<ColumnArray>(getRelationsBinary());
-//    const auto & rhs_relations = checkAndGetColumn<ColumnArray>(rhs.getRelationsBinary());
-
-    /// Suboptimal
-//    size_t lhs_size = sizeAt(n);
-//    size_t rhs_size = rhs.sizeAt(m);
-//    size_t min_size = std::min(lhs_size, rhs_size);
-//    for (size_t i = 0; i < min_size; ++i)
-//        if (int res = getData().compareAt(offsetAt(n) + i, rhs.offsetAt(m) + i, *rhs.data.get(), nan_direction_hint))
-//            return res;
-//
-//    return lhs_size < rhs_size
-//           ? -1
-//           : (lhs_size == rhs_size
-//              ? 0
-//              : 1);
-    throw Exception("Method compareAt is not supported for " + getName(), ErrorCodes::NOT_IMPLEMENTED);
+    return JSONBinaryComparer::compareAt(n, m, *this, *checkAndGetColumn<ColumnJSONB>(rhs));
 }
 
-void ColumnJSONB::getPermutation(bool /*reverse*/, size_t /*limit*/, int /*nan_direction_hint*/, IColumn::Permutation & /*res*/) const
+void ColumnJSONB::getPermutation(bool reverse, size_t limit, int nan_direction_hint, IColumn::Permutation & res) const
 {
     /// TODO: is very slow, maybe use keys dictionary optimize
-//    size_t s = size();
-//    if (limit >= s)
-//        limit = 0;
-//
-//    res.resize(s);
-//    for (size_t i = 0; i < s; ++i)
-//        res[i] = i;
-//
-//    if (limit)
-//    {
-//        if (reverse)
-//            std::partial_sort(res.begin(), res.begin() + limit, res.end(), less<false>(*this, nan_direction_hint));
-//        else
-//            std::partial_sort(res.begin(), res.begin() + limit, res.end(), less<true>(*this, nan_direction_hint));
-//    }
-//    else
-//    {
-//        if (reverse)
-//            std::sort(res.begin(), res.end(), less<false>(*this, nan_direction_hint));
-//        else
-//            std::sort(res.begin(), res.end(), less<true>(*this, nan_direction_hint));
-//    }
-    throw Exception("Method compareAt is not supported for " + getName(), ErrorCodes::NOT_IMPLEMENTED);
+    size_t s = size();
+    if (limit >= s)
+        limit = 0;
+
+    res.resize(s);
+    for (size_t i = 0; i < s; ++i)
+        res[i] = i;
+
+    if (limit)
+    {
+        if (reverse)
+            std::partial_sort(res.begin(), res.begin() + limit, res.end(), less<false>(*this, nan_direction_hint));
+        else
+            std::partial_sort(res.begin(), res.begin() + limit, res.end(), less<true>(*this, nan_direction_hint));
+    }
+    else
+    {
+        if (reverse)
+            std::sort(res.begin(), res.end(), less<false>(*this, nan_direction_hint));
+        else
+            std::sort(res.begin(), res.end(), less<true>(*this, nan_direction_hint));
+    }
 }
 
-const char * ColumnJSONB::deserializeAndInsertFromArena(const char * /*pos*/)
+const char * ColumnJSONB::deserializeAndInsertFromArena(const char * pos)
 {
-    throw Exception("Method deserializeAndInsertFromArena is not supported for " + getName(), ErrorCodes::NOT_IMPLEMENTED);
+    const size_t data_size = unalignedLoad<size_t>(pos);
+
+    pos += sizeof(data_size);
+    insertData(pos, data_size);
+    return pos + data_size;
 }
 
-StringRef ColumnJSONB::serializeValueIntoArena(size_t /*n*/, Arena & /*arena*/, char const *& /*begin*/) const
+StringRef ColumnJSONB::serializeValueIntoArena(size_t n, Arena & arena, char const *& begin) const
 {
-    throw Exception("Method serializeValueIntoArena is not supported for " + getName(), ErrorCodes::NOT_IMPLEMENTED);
+    /// It's just a simple implementation and needs to be optimized.
+    const String & row_data = operator[](n).get<String>();
+
+    StringRef res;
+    res.size = sizeof(size_t) + row_data.size();
+    char * pos = arena.allocContinue(res.size, begin);
+    unalignedStore<size_t>(pos, row_data.size());
+    memcpy(pos + sizeof(row_data.size()), row_data.data(), row_data.size());
+    res.data = pos;
+    return res;
 }
 
 StringRef ColumnJSONB::getDataAt(size_t /*n*/) const
 {
     /// We don't have a location to store the real string
     throw Exception("Method getDataAt is not supported for " + getName(), ErrorCodes::NOT_IMPLEMENTED);
-}
-
-MutableColumnPtr ColumnJSONB::cloneEmpty() const
-{
-    Columns binary_data_columns(2);
-    binary_data_columns[0] = ColumnArray::create(ColumnUInt64::create());
-    binary_data_columns[1] = ColumnString::create();
-    return ColumnJSONB::create(getKeysDictionaryPtr()->cloneEmpty(), getRelationsDictionaryPtr()->cloneEmpty(),
-        std::move(binary_data_columns), false, isNullable(), false);
 }
 
 ColumnPtr ColumnJSONB::StructGraph::insertKeysDictionaryFrom(const IColumnUnique & src, const ColumnArray & positions)
@@ -449,17 +459,12 @@ const ColumnPtr & ColumnJSONB::BinaryJSONData::getBinaryColumnPtr() const
     return data_columns[1];
 }
 
-ColumnJSONB::Ptr ColumnJSONB::convertToMultipleIfNeed(size_t offset, size_t limit) const
+ColumnJSONB::ColumnJSONB(
+    MutableColumnPtr && keys_dictionary_, MutableColumnPtr && relations_dictionary_, MutableColumns && data_columns_,
+    bool multiple_columns, bool is_nullable_, bool is_lowCardinality_)
+    : struct_graph(std::move(keys_dictionary_), std::move(relations_dictionary_)),
+      binary_json_data(std::move(data_columns_), multiple_columns, is_nullable_, is_lowCardinality_)
 {
-    Columns binary_data_columns(2);
-    binary_data_columns[0] = ColumnArray::create(ColumnUInt64::create());
-    binary_data_columns[1] = ColumnString::create();
-    MutablePtr empty_column = ColumnJSONB::create(
-        getKeysDictionaryPtr()->cloneEmpty(), getRelationsDictionaryPtr()->cloneEmpty(),
-        std::move(binary_data_columns), false, isNullable(), false);
-
-    empty_column->insertRangeFrom(*this, offset, limit);
-    return empty_column;
 }
 
 ColumnJSONB::BinaryJSONData::BinaryJSONData(
@@ -476,14 +481,6 @@ ColumnJSONB::BinaryJSONData::BinaryJSONData(
     }
 }
 
-ColumnJSONB::ColumnJSONB(
-    MutableColumnPtr && keys_dictionary_, MutableColumnPtr && relations_dictionary_, MutableColumns && data_columns_,
-    bool multiple_columns, bool is_nullable_, bool is_lowCardinality_)
-    : struct_graph(std::move(keys_dictionary_), std::move(relations_dictionary_)),
-      binary_json_data(std::move(data_columns_), multiple_columns, is_nullable_, is_lowCardinality_)
-{
-}
-
 ColumnJSONB::MutablePtr ColumnJSONB::create(
     const ColumnPtr & keys_dictionary_, const ColumnPtr & relations_dictionary_, const Columns & data_columns,
     bool multiple_columns, bool is_nullable_, bool is_lowCardinality_)
@@ -494,6 +491,19 @@ ColumnJSONB::MutablePtr ColumnJSONB::create(
 
     return Base::create(keys_dictionary_->assumeMutable(), relations_dictionary_->assumeMutable(),
         std::move(mutable_data_columns), multiple_columns, is_nullable_, is_lowCardinality_);
+}
+
+ColumnJSONB::Ptr ColumnJSONB::convertToMultipleIfNeed(size_t offset, size_t limit) const
+{
+    Columns binary_data_columns(2);
+    binary_data_columns[0] = ColumnArray::create(ColumnUInt64::create());
+    binary_data_columns[1] = ColumnString::create();
+    MutablePtr empty_column = ColumnJSONB::create(
+        getKeysDictionaryPtr()->cloneEmpty(), getRelationsDictionaryPtr()->cloneEmpty(),
+        std::move(binary_data_columns), false, isNullable(), lowCardinality());
+
+    empty_column->insertRangeFrom(*this, offset, limit);
+    return empty_column;
 }
 
 }

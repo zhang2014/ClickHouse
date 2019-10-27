@@ -20,7 +20,7 @@ public:
 
     Field getDefault() const override { return Null(); }
 
-    const char * getFamilyName() const override { return "JSONB"; };
+    const char * getFamilyName() const override { return "JSONB"; }
     TypeIndex getTypeId() const override { return TypeIndex::JSONB; }
 
     void deserializeWholeText(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const override;
