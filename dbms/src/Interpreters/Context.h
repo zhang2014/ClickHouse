@@ -81,6 +81,9 @@ class SettingsConstraints;
 class IOutputFormat;
 using OutputFormatPtr = std::shared_ptr<IOutputFormat>;
 
+class HTTPMatchExecutor;
+using HTTPMatchExecutorPtr = std::shared_ptr<HTTPMatchExecutor>;
+
 #if USE_EMBEDDED_COMPILER
 
 class CompiledExpressionCache;
@@ -464,6 +467,8 @@ public:
     void reloadClusterConfig();
 
     Compiler & getCompiler();
+
+    HTTPMatchExecutorPtr getHTTPMatchExecutor();
 
     /// Call after initialization before using system logs. Call for global context.
     void initializeSystemLogs();
