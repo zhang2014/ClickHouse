@@ -22,6 +22,7 @@
 #include <mutex>
 #include <optional>
 #include <thread>
+#include <Poco/Net/HTTPServerRequest.h>
 
 
 namespace Poco
@@ -81,8 +82,8 @@ class SettingsConstraints;
 class IOutputFormat;
 using OutputFormatPtr = std::shared_ptr<IOutputFormat>;
 
-class HTTPMatchExecutor;
-using HTTPMatchExecutorPtr = std::shared_ptr<HTTPMatchExecutor>;
+class CustomExecutor;
+using HTTPMatchExecutorPtr = std::shared_ptr<CustomExecutor>;
 
 #if USE_EMBEDDED_COMPILER
 
@@ -468,7 +469,7 @@ public:
 
     Compiler & getCompiler();
 
-    HTTPMatchExecutorPtr getHTTPMatchExecutor();
+    std::pair<String, HTTPMatchExecutorPtr> getCustomExecutor(Poco::Net::HTTPServerRequest &request/*, HTMLForm & params*/);
 
     /// Call after initialization before using system logs. Call for global context.
     void initializeSystemLogs();
