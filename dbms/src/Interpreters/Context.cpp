@@ -41,7 +41,7 @@
 #include <Interpreters/SystemLog.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/DDLWorker.h>
-#include <Interpreters/CustomHTTP/HTTPMatchExecutorDefault.h>
+#include <Interpreters/CustomHTTP/CustomExecutorDefault.h>
 #include <Common/DNSResolver.h>
 #include <IO/ReadBufferFromFile.h>
 #include <IO/UncompressedCache.h>
@@ -54,6 +54,7 @@
 #include <Common/ShellCommand.h>
 #include <Common/TraceCollector.h>
 #include <common/logger_useful.h>
+#include "Context.h"
 
 
 namespace ProfileEvents
@@ -1674,11 +1675,6 @@ void Context::setCluster(const String & cluster_name, const std::shared_ptr<Clus
     shared->clusters->setCluster(cluster_name, cluster);
 }
 
-HTTPMatchExecutorPtr Context::getHTTPMatchExecutor()
-{
-    return std::make_shared<HTTPMatchExecutorDefault>();
-}
-
 void Context::initializeSystemLogs()
 {
     auto lock = getLock();
@@ -2153,6 +2149,11 @@ void Context::resetInputCallbacks()
 
     if (input_blocks_reader)
         input_blocks_reader = {};
+}
+
+std::pair<String, HTTPMatchExecutorPtr> Context::getCustomExecutor(Poco::Net::HTTPServerRequest & /*request*/)
+{
+    return std::pair<String, HTTPMatchExecutorPtr>("Default", std::shared_ptr<CustomExecutorDefault>());
 }
 
 
