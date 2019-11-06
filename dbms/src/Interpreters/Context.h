@@ -83,7 +83,7 @@ class IOutputFormat;
 using OutputFormatPtr = std::shared_ptr<IOutputFormat>;
 
 class CustomExecutor;
-using HTTPMatchExecutorPtr = std::shared_ptr<CustomExecutor>;
+using CustomExecutorPtr = std::shared_ptr<CustomExecutor>;
 
 #if USE_EMBEDDED_COMPILER
 
@@ -469,7 +469,7 @@ public:
 
     Compiler & getCompiler();
 
-    std::pair<String, HTTPMatchExecutorPtr> getCustomExecutor(Poco::Net::HTTPServerRequest &request/*, HTMLForm & params*/);
+    std::pair<String, CustomExecutorPtr> getCustomExecutor(Poco::Net::HTTPServerRequest &request/*, HTMLForm & params*/);
 
     /// Call after initialization before using system logs. Call for global context.
     void initializeSystemLogs();
