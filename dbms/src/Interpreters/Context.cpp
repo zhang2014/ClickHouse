@@ -2166,7 +2166,7 @@ void Context::setCustomExecutorConfig(const ConfigurationPtr & config, const Str
         shared->custom_executors->updateCustomExecutors(*shared->custom_executors_config, settings, config_prefix);
 }
 
-std::pair<String, CustomExecutorPtr> Context::getCustomExecutor(Poco::Net::HTTPServerRequest & request, HTMLForm & params) const
+std::pair<String, CustomExecutorPtr> Context::getCustomExecutor(Poco::Net::HTTPServerRequest & request, HTMLForm & params)
 {
     std::lock_guard lock(shared->custom_executors_mutex);
 
@@ -2176,7 +2176,7 @@ std::pair<String, CustomExecutorPtr> Context::getCustomExecutor(Poco::Net::HTTPS
         shared->custom_executors = std::make_unique<CustomExecutors>(config, settings);
     }
 
-    return shared->custom_executors->getCustomExecutor(request, params);
+    return shared->custom_executors->getCustomExecutor(*this, request, params);
 }
 
 
