@@ -5,6 +5,8 @@
 #include <Common/HTMLForm.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/CustomHTTP/CustomQueryExecutors.h>
+#include <re2/re2.h>
+#include <re2/stringpiece.h>
 #include <Poco/Net/HTTPServerRequest.h>
 
 
@@ -16,6 +18,11 @@
 
 namespace DB
 {
+
+namespace ErrorCodes
+{
+    extern const int CANNOT_COMPILE_REGEXP;
+}
 
 class CustomExecutorMatcher
 {
@@ -63,7 +70,12 @@ class HTTPURLCustomExecutorMatcher : public CustomExecutorMatcher
 public:
     HTTPURLCustomExecutorMatcher(const Poco::Util::AbstractConfiguration & configuration, const String & url_config_key)
     {
-        regex_matcher = std::make_unique<re2_st::RE2>(configuration.getString(url_config_key));
+        const auto & regex_str = configuration.getString(url_config_key);
+        regex_matcher = std::make_unique<re2_st::RE2>(regex_str);
+
+        if (!regex_matcher->ok())
+            throw Exception("cannot compile re2: " + regex_str + ", error: " + regex_matcher->error() +
+                ". Look at https://github.com/google/re2/wiki/Syntax for reference.", ErrorCodes::CANNOT_COMPILE_REGEXP);
     }
 
     bool checkQueryExecutors(const std::vector<CustomQueryExecutorPtr> & custom_query_executors) const override

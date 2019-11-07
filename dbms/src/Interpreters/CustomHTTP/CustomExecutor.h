@@ -57,9 +57,9 @@ private:
 class CustomExecutor
 {
 public:
-    bool isQueryParam(const String & param_name) const;
+    bool canBeParseRequestBody() const;
 
-    bool canBeParseRequestBody(HTTPRequest & request, HTMLForm & params) const;
+    bool isQueryParam(const String & param_name) const;
 
     bool match(Context & context, HTTPRequest & request, HTMLForm & params) const;
 

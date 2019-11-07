@@ -35,11 +35,11 @@ bool CustomExecutor::isQueryParam(const String & param_name) const
     return true;
 }
 
-bool CustomExecutor::canBeParseRequestBody(HTTPRequest & request, HTMLForm & params) const
+bool CustomExecutor::canBeParseRequestBody() const
 {
     for (const auto & query_executor : query_executors)
     {
-        if (!query_executor->canBeParseRequestBody(request, params))
+        if (!query_executor->canBeParseRequestBody())
             return false;
     }
 
@@ -160,7 +160,10 @@ CustomExecutorPtr CustomExecutors::createCustomExecutor(const Configuration & co
 void CustomExecutors::checkCustomMatchersAndQueryExecutors(
     std::vector<CustomExecutorMatcherPtr> & matchers, std::vector<CustomQueryExecutorPtr> & query_executors)
 {
-    const auto & sum_func = [&](auto & ele) { return !ele->canBeParseRequestBody(); };
+    if (matchers.empty() || query_executors.empty())
+        throw Exception("The CustomExecutor must contain a Matcher and a QueryExecutor.", ErrorCodes::SYNTAX_ERROR);
+
+    const auto & sum_func = [&](auto & ele) ->bool { return !ele->canBeParseRequestBody(); };
     const auto & need_post_data_count = std::count_if(query_executors.begin(), query_executors.end(), sum_func);
 
     if (need_post_data_count > 1)

@@ -57,7 +57,7 @@ public:
 
         bool has_multipart = startsWith(request.getContentType().data(), "multipart/form-data");
 
-        if (has_multipart || executor->canBeParseRequestBody(request, params))
+        if (has_multipart || executor->canBeParseRequestBody())
         {
             ExternalTablesHandler handler(context, params);
             params.load(request, request.stream(), handler);

@@ -24,7 +24,7 @@ public:
     virtual ~CustomQueryExecutor() = default;
 
     virtual bool isQueryParam(const String &) const = 0;
-    virtual bool canBeParseRequestBody(Poco::Net::HTTPServerRequest &, HTMLForm &) const = 0;
+    virtual bool canBeParseRequestBody() const = 0;
 
     virtual void executeQueryImpl(
         Context & context, Poco::Net::HTTPServerRequest & request, Poco::Net::HTTPServerResponse & response,
@@ -50,9 +50,9 @@ public:
         can_be_parse_request_body = !extract_query_ast->as<ASTInsertQuery>();
     }
 
-    bool isQueryParam(const String & param_name) const override { return query_params_name.count(param_name); }
+    bool canBeParseRequestBody() const override { return can_be_parse_request_body; }
 
-    bool canBeParseRequestBody(Poco::Net::HTTPServerRequest & /*request*/, HTMLForm & /*form*/) const override { return can_be_parse_request_body; }
+    bool isQueryParam(const String & param_name) const override { return query_params_name.count(param_name); }
 
     void executeQueryImpl(
         Context & context, Poco::Net::HTTPServerRequest & /*request*/, Poco::Net::HTTPServerResponse & response,
@@ -84,9 +84,9 @@ private:
 class ExtractQueryParamCustomQueryExecutor : public CustomQueryExecutor
 {
 public:
-    bool isQueryParam(const String & param_name) const override { return param_name == "query" || startsWith(param_name, "param_"); }
+    bool canBeParseRequestBody() const override { return false; }
 
-    bool canBeParseRequestBody(Poco::Net::HTTPServerRequest & /*request*/, HTMLForm & /*form*/) const override { return false; }
+    bool isQueryParam(const String & param_name) const override { return param_name == "query" || startsWith(param_name, "param_"); }
 
     void executeQueryImpl(
         Context & context, Poco::Net::HTTPServerRequest & request, Poco::Net::HTTPServerResponse & response,
