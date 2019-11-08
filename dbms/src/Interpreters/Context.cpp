@@ -55,7 +55,6 @@
 #include <Common/ShellCommand.h>
 #include <Common/TraceCollector.h>
 #include <common/logger_useful.h>
-#include "Context.h"
 
 
 namespace ProfileEvents

@@ -54,18 +54,7 @@ public:
                 return new ReplicasStatusHandler(server.context());
         }
 
-        if (uri.find('?') != std::string::npos || request.getMethod() == Poco::Net::HTTPRequest::HTTP_POST)
-        {
-            return new HandlerType(server);
-        }
-
-        if (request.getMethod() == Poco::Net::HTTPRequest::HTTP_GET || request.getMethod() == Poco::Net::HTTPRequest::HTTP_HEAD
-            || request.getMethod() == Poco::Net::HTTPRequest::HTTP_POST)
-        {
-            return new NotFoundHandler;
-        }
-
-        return nullptr;
+        return new HandlerType(server);
     }
 };
 

@@ -14,10 +14,10 @@ import xml.dom.minidom
 from kazoo.client import KazooClient
 from kazoo.exceptions import KazooException
 import psycopg2
-import requests
 import base64
 import pymongo
 import urllib
+import requests
 
 import docker
 from docker.errors import ContainerError
@@ -570,6 +570,11 @@ class ClickHouseInstance:
     # Connects to the instance via HTTP interface, sends a query and returns the answer
     def http_query(self, sql, data=None):
         return urllib.urlopen("http://"+self.ip_address+":8123/?query="+urllib.quote(sql,safe=''), data).read()
+
+    # Connects to the instance via HTTP interface, sends a query and returns the answer
+    def http_request(self, url, method='GET', params=None, data=None):
+        url = "http://" + self.ip_address + ":8123/"+url
+        return requests.request(method=method, url=url, params=params, data=data).content
 
     def restart_clickhouse(self, stop_start_wait_sec=5):
         if not self.stay_alive:
