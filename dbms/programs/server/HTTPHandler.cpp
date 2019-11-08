@@ -93,6 +93,7 @@ namespace ErrorCodes
 
     extern const int INVALID_SESSION_TIMEOUT;
     extern const int HTTP_LENGTH_REQUIRED;
+    extern const int UNKNOW_QUERY_EXECUTOR;
 }
 
 
@@ -120,7 +121,8 @@ static Poco::Net::HTTPResponse::HTTPStatus exceptionCodeToHTTPStatus(int excepti
              exception_code == ErrorCodes::INCORRECT_DATA ||
              exception_code == ErrorCodes::TYPE_MISMATCH)
         return HTTPResponse::HTTP_BAD_REQUEST;
-    else if (exception_code == ErrorCodes::UNKNOWN_TABLE ||
+    else if (exception_code == ErrorCodes::UNKNOW_QUERY_EXECUTOR ||
+             exception_code == ErrorCodes::UNKNOWN_TABLE ||
              exception_code == ErrorCodes::UNKNOWN_FUNCTION ||
              exception_code == ErrorCodes::UNKNOWN_IDENTIFIER ||
              exception_code == ErrorCodes::UNKNOWN_TYPE ||

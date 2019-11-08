@@ -468,6 +468,12 @@
     </query_masking_rules>
     -->
 
+    <custom_http>
+        <default>
+            <dynamic_query />
+            <always_matched />
+        </default>
+    </custom_http>
     <!-- Uncomment to use custom http.
     <custom_http>
         <test_select_single>
