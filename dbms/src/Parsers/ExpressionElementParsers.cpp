@@ -1437,13 +1437,28 @@ bool ParserOrderByElement::parseImpl(Pos & pos, ASTPtr & node, Expected & expect
             return false;
     }
 
-    node = std::make_shared<ASTOrderByElement>(
+    auto order_by_element = std::make_shared<ASTOrderByElement>(
             direction, nulls_direction, nulls_direction_was_explicitly_specified, locale_node,
             has_with_fill, fill_from, fill_to, fill_step);
-    node->children.push_back(expr_elem);
-    if (locale_node)
-        node->children.push_back(locale_node);
 
+    order_by_element->children.push_back(expr_elem);
+
+    if (locale_node)
+        order_by_element->children.push_back(locale_node);
+
+    if (order_by_element->with_fill)
+    {
+        if (order_by_element->fill_from)
+            order_by_element->children.push_back(order_by_element->fill_from);
+
+        if (order_by_element->fill_to)
+            order_by_element->children.push_back(order_by_element->fill_to);
+
+        if (order_by_element->fill_step)
+            order_by_element->children.push_back(order_by_element->fill_step);
+    }
+
+    node = order_by_element;
     return true;
 }
 
