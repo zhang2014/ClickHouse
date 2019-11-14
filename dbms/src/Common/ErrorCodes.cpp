@@ -464,11 +464,12 @@ namespace ErrorCodes
     extern const int CANNOT_GET_CREATE_DICTIONARY_QUERY = 487;
     extern const int UNKNOWN_DICTIONARY = 488;
     extern const int INCORRECT_DICTIONARY_DEFINITION = 489;
-    extern const int UNKNOW_QUERY_EXECUTOR = 490;
-    extern const int TOO_MANY_INPUT_CUSTOM_EXECUTOR = 491;
-    extern const int UNKNOWN_HTTP_PARAM = 492;
-    extern const int ILLEGAL_CUSTOM_EXECUTOR_PARAM = 493;
-    extern const int UNDEFINED_CUSTOM_EXECUTOR_PARAM = 494;
+    extern const int UNKNOW_HTTP_HANDLER_TYPE = 490;
+    extern const int ILLEGAL_HTTP_HANDLER_PARAM_NAME = 491;
+    extern const int DUPLICATE_CAPTURE_QUERY_PARAM = 492;
+    extern const int TOO_MANY_INSERT_QUERY_WITH_PREDEFINE_QUERY = 493;
+    extern const int EMPTY_HTTP_HANDLER_IN_CONFIG = 494;
+    extern const int EMPTY_PREDEFINE_QUERY = 495;
 
     extern const int KEEPER_EXCEPTION = 999;
     extern const int POCO_EXCEPTION = 1000;

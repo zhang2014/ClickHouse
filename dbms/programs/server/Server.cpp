@@ -437,7 +437,6 @@ int Server::main(const std::vector<std::string> & /*args*/)
             setTextLog(global_context->getTextLog());
             buildLoggers(*config, logger());
             global_context->setClustersConfig(config);
-            global_context->setCustomExecutorConfig(config);
             global_context->setMacros(std::make_unique<Macros>(*config, "macros"));
         },
         /* already_loaded = */ true);

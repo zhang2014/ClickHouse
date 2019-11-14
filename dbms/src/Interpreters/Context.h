@@ -22,7 +22,6 @@
 #include <mutex>
 #include <optional>
 #include <thread>
-#include <Poco/Net/HTTPServerRequest.h>
 
 
 namespace Poco
@@ -38,7 +37,6 @@ namespace zkutil
     class ZooKeeper;
 }
 
-struct HTMLForm;
 
 namespace DB
 {
@@ -82,9 +80,6 @@ class SettingsConstraints;
 
 class IOutputFormat;
 using OutputFormatPtr = std::shared_ptr<IOutputFormat>;
-
-class CustomExecutor;
-using CustomExecutorPtr = std::shared_ptr<CustomExecutor>;
 
 #if USE_EMBEDDED_COMPILER
 
@@ -469,9 +464,6 @@ public:
     void reloadClusterConfig();
 
     Compiler & getCompiler();
-
-    void setCustomExecutorConfig(const ConfigurationPtr & config, const String & config_prefix = "custom_http");
-    std::pair<String, CustomExecutorPtr> getCustomExecutor(Poco::Net::HTTPServerRequest &request, HTMLForm & params);
 
     /// Call after initialization before using system logs. Call for global context.
     void initializeSystemLogs();
