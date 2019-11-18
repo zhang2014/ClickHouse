@@ -11,14 +11,14 @@ namespace ErrorCodes
 }
 
 
-String ASTDropQuery::getID(char delim) const
+String ASTDropQuery::getID(char /*delim*/) const
 {
     if (kind == ASTDropQuery::Kind::Drop)
-        return "DropQuery" + (delim + getTableAndDatabaseID(delim));
+        return "DropQuery";
     else if (kind == ASTDropQuery::Kind::Detach)
-        return "DetachQuery" + (delim + getTableAndDatabaseID(delim));
+        return "DetachQuery";
     else if (kind == ASTDropQuery::Kind::Truncate)
-        return "TruncateQuery" + (delim + getTableAndDatabaseID(delim));
+        return "TruncateQuery";
     else
         throw Exception("Not supported kind of drop query.", ErrorCodes::SYNTAX_ERROR);
 }

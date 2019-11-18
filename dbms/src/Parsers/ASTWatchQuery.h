@@ -26,7 +26,7 @@ public:
     bool is_watch_events;
 
     ASTWatchQuery() = default;
-    String getID(char delim) const override { return "WatchQuery" + (delim + getTableAndDatabaseID(delim)); }
+    String getID(char /*delim*/) const override { return "WatchQuery"; }
 
     ASTPtr clone() const override
     {

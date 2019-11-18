@@ -43,7 +43,7 @@ template <typename AstIDAndQueryNames>
 class ASTQueryWithTableAndOutputImpl : public ASTQueryWithTableAndOutput
 {
 public:
-    String getID(char delim) const override { return AstIDAndQueryNames::ID + (delim + getTableAndDatabaseID(delim)); }
+    String getID(char /*delim*/) const override { return AstIDAndQueryNames::ID; }
 
     ASTPtr clone() const override
     {

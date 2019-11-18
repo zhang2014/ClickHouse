@@ -75,7 +75,7 @@ public:
     ASTDictionary * dictionary = nullptr; /// dictionary definition (layout, primary key, etc.)
 
     /** Get the text that identifies this element. */
-    String getID(char delim) const override { return (attach ? "AttachQuery" : "CreateQuery") + (delim + getTableAndDatabaseID(delim)); }
+    String getID(char /*delim*/) const override { return attach ? "AttachQuery" : "CreateQuery"; }
 
     ASTPtr clone() const override;
 

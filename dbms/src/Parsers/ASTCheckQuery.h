@@ -14,7 +14,7 @@ struct ASTCheckQuery : public ASTQueryWithTableAndOutput
     ASTPtr partition;
 
     /** Get the text that identifies this element. */
-    String getID(char delim) const override { return "CheckQuery" + (delim + getTableAndDatabaseID(delim)); }
+    String getID(char /*delim*/) const override { return "CheckQuery"; }
 
     ASTPtr clone() const override
     {
