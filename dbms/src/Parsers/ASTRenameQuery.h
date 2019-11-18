@@ -9,6 +9,12 @@
 namespace DB
 {
 
+class ASTRenameElement : public IAST
+{
+
+};
+
+
 /** RENAME query
   */
 class ASTRenameQuery : public ASTQueryWithOutput, public ASTQueryWithOnCluster

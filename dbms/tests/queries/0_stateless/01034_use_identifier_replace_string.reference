@@ -1,0 +1,44 @@
+DROP DATABASE database_name
+Explain AST (children 1)\n DropQuery (children 1)\n  Identifier database_name\n
+DETACH DATABASE database_name
+Explain AST (children 1)\n DetachQuery (children 1)\n  Identifier database_name\n
+CREATE DATABASE database_name
+Explain AST (children 1)\n CreateQuery (children 1)\n  Identifier database_name\n
+CHECK TABLE table_name
+Explain AST (children 1)\n CheckQuery (children 1)\n  Identifier table_name\n
+CHECK TABLE database_name.table_name
+Explain AST (children 1)\n CheckQuery (children 2)\n  Identifier table_name\n  Identifier database_name\n
+DROP TABLE table_name
+Explain AST (children 1)\n DropQuery (children 1)\n  Identifier table_name\n
+DROP TABLE database_name.table_name
+Explain AST (children 1)\n DropQuery (children 2)\n  Identifier table_name\n  Identifier database_name\n
+DETACH TABLE table_name
+Explain AST (children 1)\n DetachQuery (children 1)\n  Identifier table_name\n
+DETACH TABLE database_name.table_name
+Explain AST (children 1)\n DetachQuery (children 2)\n  Identifier table_name\n  Identifier database_name\n
+TRUNCATE TABLE table_name
+Explain AST (children 1)\n TruncateQuery (children 1)\n  Identifier table_name\n
+TRUNCATE TABLE database_name.table_name
+Explain AST (children 1)\n TruncateQuery (children 2)\n  Identifier table_name\n  Identifier database_name\n
+CREATE TABLE table_name\n(\n    `test` UInt8\n)\nENGINE = Memory
+Explain AST (children 1)\n CreateQuery (children 3)\n  Identifier table_name\n  Columns definition (children 1)\n   ExpressionList (children 1)\n    ColumnDeclaration test (children 1)\n     Function UInt8\n  Storage definition (children 1)\n   Function Memory\n
+CREATE TABLE database_name.table_name\n(\n    `test` UInt8\n)\nENGINE = Memory
+Explain AST (children 1)\n CreateQuery (children 4)\n  Identifier table_name\n  Identifier database_name\n  Columns definition (children 1)\n   ExpressionList (children 1)\n    ColumnDeclaration test (children 1)\n     Function UInt8\n  Storage definition (children 1)\n   Function Memory\n
+OPTIMIZE TABLE table_name
+Explain AST (children 1)\n OptimizeQuery (children 1)\n  Identifier table_name\n
+OPTIMIZE TABLE database_name.table_name
+Explain AST (children 1)\n OptimizeQuery (children 2)\n  Identifier table_name\n  Identifier database_name\n
+SHOW TABLES FROM database_name
+Explain AST (children 1)\n ShowTables\n
+DESCRIBE TABLE database_name.table_name
+Explain AST (children 1)\n DescribeQuery\n
+SHOW CREATE DATABASE database_name
+Explain AST (children 1)\n ShowCreateDatabaseQuery (children 1)\n  Identifier database_name\n
+SHOW CREATE TABLE database_name.table_name
+Explain AST (children 1)\n ShowCreateTableQuery (children 2)\n  Identifier table_name\n  Identifier database_name\n
+SHOW CREATE DICTIONARY database_name.dictionary_name
+Explain AST (children 1)\n ShowCreateDictionaryQuery (children 2)\n  Identifier dictionary_name\n  Identifier database_name\n
+EXISTS TABLE database_name.table_name
+Explain AST (children 1)\n ExistsTableQuery (children 2)\n  Identifier table_name\n  Identifier database_name\n
+EXISTS DICTIONARY database_name.table_name
+Explain AST (children 1)\n ExistsDictionaryQuery (children 2)\n  Identifier table_name\n  Identifier database_name\n

@@ -17,7 +17,6 @@ bool ParserDescribeTableQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & ex
     ParserKeyword s_desc("DESC");
     ParserKeyword s_table("TABLE");
     ParserToken s_dot(TokenType::Dot);
-    ParserIdentifier name_p;
 
     ASTPtr database;
     ASTPtr table;

@@ -6,25 +6,9 @@
 namespace DB
 {
 
-String ASTQueryWithTableAndOutput::getTableAndDatabaseID(char delim) const
-{
-    if (onlyDatabase())
-        return databaseName();
-    else
-    {
-        if (const auto & table = getTable())
-        {
-            if (const auto & database = getDatabase())
-                return getIdentifierName(database) + delim + getIdentifierName(table);
-
-            return getIdentifierName(table);
-        }
-    }
-
-    throw Exception("LOGICAL ERROR: no define database and table in query.", ErrorCodes::LOGICAL_ERROR);
-}
-
-void ASTQueryWithTableAndOutput::formatTableAndDatabase(const FormatSettings & settings, FormatState & /*state*/, FormatStateStacked frame) const
+template <typename Base>
+void ASTQueryWithTable<Base>::formatTableAndDatabase(
+    const typename Base::FormatSettings & settings, typename Base::FormatState & /*state*/, typename Base::FormatStateStacked frame) const
 {
     if (onlyDatabase())
         settings.ostr << backQuoteIfNeed(databaseName());
@@ -44,11 +28,12 @@ void ASTQueryWithTableAndOutput::formatTableAndDatabase(const FormatSettings & s
     }
 }
 
+template <typename Base>
 static void setChildren(ASTs & children, size_t & pos, ASTPtr && set_node)
 {
     if (set_node)
     {
-        if (pos != ASTQueryWithTableAndOutput::npos)
+        if (pos != ASTQueryWithTable<Base>::npos)
             children[pos] = set_node;
         else
         {
@@ -56,21 +41,26 @@ static void setChildren(ASTs & children, size_t & pos, ASTPtr && set_node)
             children.emplace_back(set_node);
         }
     }
-    else if (!set_node && pos != ASTQueryWithTableAndOutput::npos)
+    else if (!set_node && pos != ASTQueryWithTable<Base>::npos)
     {
         children.erase(children.begin() + pos);
     }
 }
 
-void ASTQueryWithTableAndOutput::setTable(ASTPtr && table)
+template <typename Base>
+void ASTQueryWithTable<Base>::setTable(ASTPtr && table)
 {
-    setChildren(children, table_pos, std::move(table));
+    setChildren<Base>(Base::children, table_pos, std::move(table));
 }
 
-void ASTQueryWithTableAndOutput::setDatabase(ASTPtr && database)
+template <typename Base>
+void ASTQueryWithTable<Base>::setDatabase(ASTPtr && database)
 {
-    setChildren(children, database_pos, std::move(database));
+    setChildren<Base>(Base::children, database_pos, std::move(database));
 }
+
+template class ASTQueryWithTable<IAST>;
+template class ASTQueryWithTable<ASTQueryWithOutput>;
 
 }
 

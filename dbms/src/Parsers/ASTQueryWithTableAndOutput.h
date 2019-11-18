@@ -8,10 +8,8 @@
 namespace DB
 {
 
-
-/** Query specifying table name and, possibly, the database and the FORMAT section.
-  */
-class ASTQueryWithTableAndOutput : public ASTQueryWithOutput
+template <typename Base>
+class ASTQueryWithTable : public Base
 {
 public:
     static constexpr size_t npos = static_cast<size_t>(-1);
@@ -19,8 +17,8 @@ public:
     bool isTemporary() const { return temporary; }
     bool onlyDatabase() const { return database_pos != npos && table_pos == npos; }
 
-    ASTPtr getTable() const { return table_pos == npos ? ASTPtr{} : children[table_pos]; }
-    ASTPtr getDatabase() const { return database_pos == npos ? ASTPtr{} : children[database_pos]; }
+    ASTPtr getTable() const { return table_pos == npos ? ASTPtr{} : Base::children[table_pos]; }
+    ASTPtr getDatabase() const { return database_pos == npos ? ASTPtr{} : Base::children[database_pos]; }
 
     String tableName() const { return getIdentifierName(getTable()); }
     String databaseName(const String & default_name = "") const { return database_pos == npos ? default_name : getIdentifierName(getDatabase()); }
@@ -33,10 +31,14 @@ protected:
     size_t table_pos = npos;
     size_t database_pos = npos;
 
-    String getTableAndDatabaseID(char delim) const;
-
-    void formatTableAndDatabase(const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const;
+    void formatTableAndDatabase(
+        const typename Base::FormatSettings & settings, typename Base::FormatState & state, typename Base::FormatStateStacked frame) const;
 };
+
+using ASTQueryWithDatabaseAndTable = ASTQueryWithTable<IAST>;
+
+/// Query specifying table name and, possibly, the database and the FORMAT section.
+using ASTQueryWithTableAndOutput = ASTQueryWithTable<ASTQueryWithOutput>;
 
 
 template <typename AstIDAndQueryNames>
