@@ -1,4 +1,5 @@
 #include <iomanip>
+#include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTShowTablesQuery.h>
 #include <Common/quoteString.h>
 
@@ -25,9 +26,10 @@ void ASTShowTablesQuery::formatQueryImpl(const FormatSettings & settings, Format
         settings.ostr << (settings.hilite ? hilite_keyword : "") << "SHOW " << (temporary ? "TEMPORARY " : "") <<
              (dictionaries ? "DICTIONARIES" : "TABLES") << (settings.hilite ? hilite_none : "");
 
-        if (!from.empty())
+        if (from)
             settings.ostr << (settings.hilite ? hilite_keyword : "") << " FROM " << (settings.hilite ? hilite_none : "")
-                << backQuoteIfNeed(from);
+                          << backQuoteIfNeed(getIdentifierName(from));
+
 
         if (!like.empty())
             settings.ostr << (settings.hilite ? hilite_keyword : "") << " LIKE " << (settings.hilite ? hilite_none : "")

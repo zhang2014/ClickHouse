@@ -7,6 +7,7 @@
 #include <Parsers/ASTExplainQuery.h>
 #include <Parsers/DumpASTNode.h>
 #include <Parsers/queryToString.h>
+#include <Parsers/ASTSelectQuery.h>
 #include <Common/typeid_cast.h>
 #include <Core/Field.h>
 
@@ -52,9 +53,13 @@ BlockInputStreamPtr InterpreterExplainQuery::executeImpl()
     }
     else if (ast.getKind() == ASTExplainQuery::AnalyzedSyntax)
     {
-        InterpreterSelectWithUnionQuery interpreter(ast.children.at(0), context,
-                                                    SelectQueryOptions(QueryProcessingStage::FetchColumns).analyze().modify());
-        interpreter.getQuery()->format(IAST::FormatSettings(ss, false));
+        ASTPtr analyzed_query = ast.children.at(0);
+
+        if (const auto & ast_select = ast.children.at(0)->as<ASTSelectQuery>())
+            analyzed_query = InterpreterSelectWithUnionQuery{ast.children.at(0), context,
+                SelectQueryOptions(QueryProcessingStage::FetchColumns).analyze().modify()}.getQuery();
+
+        analyzed_query->format(IAST::FormatSettings(ss, false));
     }
 
     res_columns[0]->insert(ss.str());

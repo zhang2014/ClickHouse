@@ -17,7 +17,7 @@ public:
     bool databases{false};
     bool dictionaries{false};
     bool temporary{false};
-    String from;
+    ASTPtr from;
     String like;
     bool not_like{false};
     ASTPtr limit_length;

@@ -1,6 +1,7 @@
 #include <IO/ReadBufferFromString.h>
 #include <Parsers/ASTShowTablesQuery.h>
 #include <Parsers/formatAST.h>
+#include <Parsers/ASTIdentifier.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/executeQuery.h>
 #include <Interpreters/InterpreterShowTablesQuery.h>
@@ -32,10 +33,10 @@ String InterpreterShowTablesQuery::getRewrittenQuery()
     if (query.databases)
         return "SELECT name FROM system.databases";
 
-    if (query.temporary && !query.from.empty())
+    if (query.temporary && query.from)
         throw Exception("The `FROM` and `TEMPORARY` cannot be used together in `SHOW TABLES`", ErrorCodes::SYNTAX_ERROR);
 
-    String database = query.from.empty() ? context.getCurrentDatabase() : query.from;
+    String database = query.from ? getIdentifierName(query.from) : context.getCurrentDatabase();
 
     /** The parameter check_database_access_rights is reset when the SHOW TABLES query is processed,
       * So that all clients can see a list of all databases and tables in them regardless of their access rights

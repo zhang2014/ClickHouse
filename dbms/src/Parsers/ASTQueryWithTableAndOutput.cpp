@@ -13,7 +13,19 @@ void ASTQueryWithTableAndOutput::formatHelper(const FormatSettings & settings, c
 
 String ASTQueryWithTableAndOutput::getTableAndDatabaseID(char delim) const
 {
-    return database ? getIdentifierName(database) + delim + getIdentifierName(table) : getIdentifierName(table);
+    if (onlyDatabase())
+        return getIdentifierName(database);
+    else
+    {
+        if (table)
+        {
+            if (database)
+                return getIdentifierName(table);
+            return getIdentifierName(database) + delim + getIdentifierName(table);
+        }
+    }
+
+    throw Exception("LOGICAL ERROR: no define database and table in query.", ErrorCodes::LOGICAL_ERROR);
 }
 
 void ASTQueryWithTableAndOutput::formatTableAndDatabase(const FormatSettings & settings, FormatState & /*state*/, FormatStateStacked frame) const
