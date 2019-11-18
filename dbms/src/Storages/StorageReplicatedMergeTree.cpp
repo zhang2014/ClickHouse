@@ -4054,18 +4054,18 @@ void StorageReplicatedMergeTree::sendRequestToLeaderReplica(const ASTPtr & query
     auto new_query = query->clone();
     if (auto * alter = new_query->as<ASTAlterQuery>())
     {
-        alter->database = std::make_shared<ASTIdentifier>(leader_address.database);
-        alter->table = std::make_shared<ASTIdentifier>(leader_address.table);
+        alter->setTable(std::make_shared<ASTIdentifier>(leader_address.table));
+        alter->setDatabase(std::make_shared<ASTIdentifier>(leader_address.database));
     }
     else if (auto * optimize = new_query->as<ASTOptimizeQuery>())
     {
-        optimize->database = std::make_shared<ASTIdentifier>(leader_address.database);
-        optimize->table = std::make_shared<ASTIdentifier>(leader_address.table);
+        optimize->setTable(std::make_shared<ASTIdentifier>(leader_address.table));
+        optimize->setDatabase(std::make_shared<ASTIdentifier>(leader_address.database));
     }
     else if (auto * drop = new_query->as<ASTDropQuery>(); drop->kind == ASTDropQuery::Kind::Truncate)
     {
-        drop->database = std::make_shared<ASTIdentifier>(leader_address.database);
-        drop->table    = std::make_shared<ASTIdentifier>(leader_address.table);
+        drop->setTable(std::make_shared<ASTIdentifier>(leader_address.table));
+        drop->setDatabase(std::make_shared<ASTIdentifier>(leader_address.database));
     }
     else
         throw Exception("Can't proxy this query. Unsupported query type", ErrorCodes::NOT_IMPLEMENTED);
