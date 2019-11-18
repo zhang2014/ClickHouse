@@ -480,7 +480,7 @@ void InterpreterCreateQuery::setEngine(ASTCreateQuery & create) const
 {
     if (create.storage)
     {
-        if (create.temporary && create.storage->engine->name != "Memory")
+        if (create.isTemporary() && create.storage->engine->name != "Memory")
             throw Exception(
                 "Temporary tables can only be created with ENGINE = Memory, not " + create.storage->engine->name,
                 ErrorCodes::INCORRECT_QUERY);
@@ -488,7 +488,7 @@ void InterpreterCreateQuery::setEngine(ASTCreateQuery & create) const
         return;
     }
 
-    if (create.temporary && !create.is_live_view)
+    if (create.isTemporary() && !create.is_live_view)
     {
         auto engine_ast = std::make_shared<ASTFunction>();
         engine_ast->name = "Memory";
@@ -533,7 +533,7 @@ BlockIO InterpreterCreateQuery::createTable(ASTCreateQuery & create)
     }
 
     /// Temporary tables are created out of databases.
-    if (create.temporary && create.database && !create.is_live_view)
+    if (create.isTemporary() && create.getDatabase() && !create.is_live_view)
         throw Exception("Temporary tables cannot be inside a database. You should not specify a database for a temporary table.",
             ErrorCodes::BAD_DATABASE_FOR_TEMPORARY_TABLE);
 
@@ -618,7 +618,7 @@ BlockIO InterpreterCreateQuery::createTable(ASTCreateQuery & create)
         String data_path;
         DatabasePtr database;
 
-        if (!create.temporary || create.is_live_view)
+        if (!create.isTemporary() || create.is_live_view)
         {
             database = context.getDatabase(database_name);
             data_path = database->getDataPath();
@@ -638,8 +638,8 @@ BlockIO InterpreterCreateQuery::createTable(ASTCreateQuery & create)
                 {
                     /// when executing CREATE OR REPLACE VIEW, drop current existing view
                     auto drop_ast = std::make_shared<ASTDropQuery>();
-                    drop_ast->database = std::make_shared<ASTIdentifier>(database_name);
-                    drop_ast->table = std::make_shared<ASTIdentifier>(table_name);
+                    drop_ast->setTable(std::make_shared<ASTIdentifier>(table_name));
+                    drop_ast->setDatabase(std::make_shared<ASTIdentifier>(database_name));
                     drop_ast->no_ddl_lock = true;
 
                     InterpreterDropQuery interpreter(drop_ast, context);
@@ -666,7 +666,7 @@ BlockIO InterpreterCreateQuery::createTable(ASTCreateQuery & create)
                 false);
         }
 
-        if (create.temporary && !create.is_live_view)
+        if (create.isTemporary() && !create.is_live_view)
             context.getSessionContext().addExternalTable(table_name, res, query_ptr);
         else
             database->createTable(context, table_name, res, query_ptr);
@@ -689,17 +689,17 @@ BlockIO InterpreterCreateQuery::createTable(ASTCreateQuery & create)
     {
         auto insert = std::make_shared<ASTInsertQuery>();
 
-        if (!create.temporary)
+        if (!create.isTemporary())
             insert->database = database_name;
 
         insert->table = table_name;
         insert->select = create.select->clone();
 
-        if (create.temporary && !context.getSessionContext().hasQueryContext())
+        if (create.isTemporary() && !context.getSessionContext().hasQueryContext())
             context.getSessionContext().makeQueryContext();
 
         return InterpreterInsertQuery(insert,
-            create.temporary ? context.getSessionContext() : context,
+            create.isTemporary() ? context.getSessionContext() : context,
             context.getSettingsRef().insert_allow_materialized_columns).execute();
     }
 
@@ -786,7 +786,7 @@ void InterpreterCreateQuery::checkAccess(const ASTCreateQuery & create)
         object = "dictionary";
     }
 
-    if (create.temporary && readonly >= 2)
+    if (create.isTemporary() && readonly >= 2)
         return;
 
     if (readonly)

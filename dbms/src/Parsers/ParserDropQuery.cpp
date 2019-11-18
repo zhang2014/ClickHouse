@@ -120,12 +120,12 @@ bool ParserDropQuery::parseDropQuery(Pos & pos, ASTPtr & node, Expected & expect
 
     query->kind = ASTDropQuery::Kind::Drop;
     query->if_exists = if_exists;
-    query->temporary = temporary;
+    query->setTemporary(is_temporary);
     query->is_dictionary = is_dictionary;
 
-    query->table = table;
-    query->database = database;
     query->cluster = cluster_str;
+    query->setTable(std::move(table));
+    query->setDatabase(std::move(database));
 
     return true;
 }

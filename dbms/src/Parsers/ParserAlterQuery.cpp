@@ -522,14 +522,13 @@ bool ParserAssignment::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
 
 bool ParserAlterQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
 {
-    auto query = std::make_shared<ASTAlterQuery>();
-    node = query;
-
     ParserToken s_dot(TokenType::Dot);
     ParserKeyword s_alter_table("ALTER TABLE");
     ParserKeyword s_alter_live_view("ALTER LIVE VIEW");
     ParserIdentifier identifier_parser;
 
+    ASTPtr table;
+    ASTPtr database;
     bool is_live_view = false;
 
     if (!s_alter_table.ignore(pos, expected))
@@ -540,21 +539,14 @@ bool ParserAlterQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
             is_live_view = true;
     }
 
-    if (is_live_view)
-        query->is_live_view = true;
-
-    if (!identifier_parser.parse(pos, query->database, expected))
+    if (!identifier_parser.parse(pos, table, expected))
         return false;
 
     if (s_dot.ignore(pos))
     {
-        if (!identifier_parser.parse(pos, query->table, expected))
+        database = table;
+        if (!identifier_parser.parse(pos, table, expected))
             return false;
-    }
-    else
-    {
-        query->table = query->database;
-        query->database.reset();
     }
 
     String cluster_str;
@@ -563,7 +555,13 @@ bool ParserAlterQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
         if (!ASTQueryWithOnCluster::parse(pos, cluster_str, expected))
             return false;
     }
+
+    auto query = std::make_shared<ASTAlterQuery>();
     query->cluster = cluster_str;
+    query->is_live_view = is_live_view;
+
+    query->setTable(std::move(table));
+    query->setDatabase(std::move(database));
 
     ParserAlterCommandList p_command_list(is_live_view);
     ASTPtr command_list;
@@ -572,6 +570,7 @@ bool ParserAlterQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
 
     query->set(query->command_list, command_list);
 
+    node = query;
     return true;
 }
 

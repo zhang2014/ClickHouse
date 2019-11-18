@@ -62,12 +62,8 @@ bool ParserWatchQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
             return false;
     }
 
-    if (database)
-        query->database = database;
-
-    if (table)
-        query->table = table;
-
+    query->setTable(std::move(table));
+    query->setDatabase(std::move(database));
     node = query;
 
     return true;

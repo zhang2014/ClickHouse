@@ -70,7 +70,7 @@ bool ParserTablePropertiesQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & 
     else
     {
         if (temporary || s_temporary.ignore(pos, expected))
-            query->temporary = true;
+            query->setTemporary(true);
 
         if (!s_table.ignore(pos, expected))
             s_dictionary.ignore(pos, expected);
@@ -86,9 +86,8 @@ bool ParserTablePropertiesQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & 
         }
     }
 
-    query->table = table;
-    query->database = database;
-
+    query->setTable(std::move(table));
+    query->setDatabase(std::move(database));
     node = query;
 
     return true;

@@ -229,7 +229,7 @@ void ASTCreateQuery::formatQueryImpl(const FormatSettings & settings, FormatStat
         settings.ostr
             << (settings.hilite ? hilite_keyword : "")
                 << (attach ? "ATTACH " : "CREATE ")
-                << (temporary ? "TEMPORARY " : "")
+                << (isTemporary() ? "TEMPORARY " : "")
                 << (replace_view ? "OR REPLACE " : "")
                 << what << " "
                 << (if_not_exists ? "IF NOT EXISTS " : "")

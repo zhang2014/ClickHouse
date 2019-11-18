@@ -164,8 +164,8 @@ private:
 
     void visitDDL(ASTQueryWithTableAndOutput & node, ASTPtr &) const
     {
-        if (!node.database)
-            node.database = std::make_shared<ASTIdentifier>(database_name);
+        if (!node.getDatabase())
+            node.setDatabase(std::make_shared<ASTIdentifier>(database_name));
     }
 
     void visitDDL(ASTRenameQuery & node, ASTPtr &) const

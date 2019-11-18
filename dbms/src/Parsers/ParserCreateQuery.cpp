@@ -410,9 +410,8 @@ bool ParserCreateTableQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expe
         query->attach = attach;
         query->if_not_exists = if_not_exists;
         query->cluster = cluster_str;
-
-        query->table = table;
-        query->database = database;
+        query->setTable(std::move(table));
+        query->setDatabase(std::move(database));
 
         return true;
     }
@@ -467,11 +466,11 @@ bool ParserCreateTableQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expe
 
     query->attach = attach;
     query->if_not_exists = if_not_exists;
-    query->temporary = is_temporary;
+    query->setTemporary(is_temporary);
 
-    query->table = table;
-    query->database = database;
     query->cluster = cluster_str;
+    query->setTable(std::move(table));
+    query->setDatabase(std::move(database));
 
     tryGetIdentifierNameInto(to_database, query->to_database);
     tryGetIdentifierNameInto(to_table, query->to_table);
@@ -594,11 +593,11 @@ bool ParserCreateLiveViewQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & e
     query->attach = attach;
     query->if_not_exists = if_not_exists;
     query->is_live_view = true;
-    query->temporary = is_temporary;
+    query->setTemporary(is_temporary);
 
-    query->table = table;
-    query->database = database;
     query->cluster = cluster_str;
+    query->setTable(std::move(table));
+    query->setDatabase(std::move(database));
 
     tryGetIdentifierNameInto(to_database, query->to_database);
     tryGetIdentifierNameInto(to_table, query->to_table);
@@ -660,7 +659,7 @@ bool ParserCreateDatabaseQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & e
     query->attach = attach;
     query->if_not_exists = if_not_exists;
 
-    query->database = database;
+    query->setDatabase(std::move(database));
     query->cluster = cluster_str;
 
     query->set(query->storage, storage);
@@ -801,9 +800,9 @@ bool ParserCreateViewQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expec
     query->is_populate = is_populate;
     query->replace_view = replace_view;
 
-    query->table = table;
-    query->database = database;
     query->cluster = cluster_str;
+    query->setTable(std::move(table));
+    query->setDatabase(std::move(database));
 
     tryGetIdentifierNameInto(to_database, query->to_database);
     tryGetIdentifierNameInto(to_table, query->to_table);
@@ -885,11 +884,8 @@ bool ParserCreateDictionaryQuery::parseImpl(IParser::Pos & pos, ASTPtr & node, E
     query->is_dictionary = true;
     query->attach = attach;
 
-    if (database)
-        query->database = database;
-
-    query->table = name;
-
+    query->setTable(std::move(name));
+    query->setDatabase(std::move(database));
     query->if_not_exists = if_not_exists;
     query->set(query->dictionary_attributes_list, attributes);
     query->set(query->dictionary, dictionary);

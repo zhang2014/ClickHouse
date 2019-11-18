@@ -40,7 +40,7 @@ static void executeCreateQuery(
 
     auto & ast_create_query = ast->as<ASTCreateQuery &>();
     ast_create_query.attach = true;
-    ast_create_query.database = std::make_shared<ASTIdentifier>(database);
+    ast_create_query.setDatabase(std::make_shared<ASTIdentifier>(database));
 
     InterpreterCreateQuery interpreter(ast, context);
     interpreter.setInternal(true);

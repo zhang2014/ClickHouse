@@ -1250,8 +1250,8 @@ protected:
         if (create.storage == nullptr || new_storage_ast == nullptr)
             throw Exception("Storage is not specified", ErrorCodes::LOGICAL_ERROR);
 
-        res->database = std::make_shared<ASTIdentifier>(new_table.first);
-        res->table = std::make_shared<ASTIdentifier>(new_table.second);
+        res->setTable(std::make_shared<ASTIdentifier>(new_table.second));
+        res->setDatabase(std::make_shared<ASTIdentifier>(new_table.first));
 
         res->children.clear();
         res->set(res->columns_list, create.columns_list->clone());
@@ -1822,8 +1822,8 @@ protected:
     {
         auto drop_ast = std::make_shared<ASTDropQuery>();
         drop_ast->if_exists = true;
-        drop_ast->database = std::make_shared<ASTIdentifier>(table_name.first);
-        drop_ast->table = std::make_shared<ASTIdentifier>(table_name.second);
+        drop_ast->setTable(std::make_shared<ASTIdentifier>(table_name.second));
+        drop_ast->setDatabase(std::make_shared<ASTIdentifier>(table_name.first));
 
         InterpreterDropQuery interpreter(drop_ast, context);
         interpreter.execute();

@@ -227,7 +227,7 @@ StorageLiveView::StorageLiveView(
         DatabaseAndTableName(select_database_name, select_table_name),
         DatabaseAndTableName(database_name, table_name));
 
-    is_temporary = query.temporary;
+    is_temporary = query.isTemporary();
     temporary_live_view_timeout = local_context.getSettingsRef().temporary_live_view_timeout.totalSeconds();
 
     blocks_ptr = std::make_shared<BlocksPtr>();
@@ -381,8 +381,8 @@ void StorageLiveView::noUsersThread(std::shared_ptr<StorageLiveView> storage, co
             {
                 /// We create and execute `drop` query for this table
                 auto drop_query = std::make_shared<ASTDropQuery>();
-                drop_query->database = std::make_shared<ASTIdentifier>(storage->database_name);
-                drop_query->table = std::make_shared<ASTIdentifier>(storage->table_name);
+                drop_query->setTable(std::make_shared<ASTIdentifier>(storage->table_name));
+                drop_query->setDatabase(std::make_shared<ASTIdentifier>(storage->database_name));
                 drop_query->kind = ASTDropQuery::Kind::Drop;
                 ASTPtr ast_drop_query = drop_query;
                 InterpreterDropQuery drop_interpreter(ast_drop_query, storage->global_context);

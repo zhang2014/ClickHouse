@@ -14,19 +14,27 @@ namespace DB
 class ASTQueryWithTableAndOutput : public ASTQueryWithOutput
 {
 public:
-    ASTPtr database;
-    ASTPtr table;
-    bool temporary{false};
+    static constexpr size_t npos = static_cast<size_t>(-1);
 
-    String tableName() const { return getIdentifierName(table); }
-    String databaseName(const String & default_name = "") const { return database ? getIdentifierName(database) : default_name ; }
+    bool isTemporary() const { return temporary; }
+    bool onlyDatabase() const { return database_pos != npos && table_pos == npos; }
 
-    bool onlyDatabase() const { return !table && database; }
+    ASTPtr getTable() const { return table_pos == npos ? ASTPtr{} : children[table_pos]; }
+    ASTPtr getDatabase() const { return database_pos == npos ? ASTPtr{} : children[database_pos]; }
 
+    String tableName() const { return getIdentifierName(getTable()); }
+    String databaseName(const String & default_name = "") const { return database_pos == npos ? default_name : getIdentifierName(getDatabase()); }
+
+    void setTable(ASTPtr && table);
+    void setDatabase(ASTPtr && database);
+    void setTemporary(bool is_temporary_table) { temporary = is_temporary_table; }
 protected:
-    String getTableAndDatabaseID(char delim) const;
 
-    void formatHelper(const FormatSettings & settings, const char * name) const;
+    bool temporary{false};
+    size_t table_pos = npos;
+    size_t database_pos = npos;
+
+    String getTableAndDatabaseID(char delim) const;
 
     void formatTableAndDatabase(const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const;
 };
@@ -47,9 +55,12 @@ public:
     }
 
 protected:
-    void formatQueryImpl(const FormatSettings & settings, FormatState &, FormatStateStacked) const override
+    void formatQueryImpl(const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override
     {
-        formatHelper(settings, temporary ? AstIDAndQueryNames::QueryTemporary : AstIDAndQueryNames::Query);
+        const char * query_name = isTemporary() ? AstIDAndQueryNames::QueryTemporary : AstIDAndQueryNames::Query;
+
+        settings.ostr << (settings.hilite ? hilite_keyword : "") << query_name << " " << (settings.hilite ? hilite_none : "");
+        formatTableAndDatabase(settings, state, frame);
     }
 };
 

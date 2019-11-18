@@ -41,14 +41,14 @@ BlockInputStreamPtr InterpreterExistsQuery::executeImpl()
     bool result = false;
     if (exists_query = query_ptr->as<ASTExistsTableQuery>(); exists_query)
     {
-        if (exists_query->temporary)
+        if (exists_query->isTemporary())
             result = context.isExternalTableExist(exists_query->tableName());
         else
             result = context.isTableExist(exists_query->databaseName(), exists_query->tableName());
     }
     else if (exists_query = query_ptr->as<ASTExistsDictionaryQuery>(); exists_query)
     {
-        if (exists_query->temporary)
+        if (exists_query->isTemporary())
             throw Exception("Temporary dictionaries are not possible.", ErrorCodes::SYNTAX_ERROR);
         result = context.isDictionaryExists(exists_query->databaseName(), exists_query->tableName());
     }

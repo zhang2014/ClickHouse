@@ -46,9 +46,9 @@ BlockIO InterpreterDropQuery::execute()
     else
     {
         if (!drop.is_dictionary)
-            return executeToTable(drop.databaseName(), drop.tableName(), drop.kind, drop.if_exists, drop.temporary, drop.no_ddl_lock);
+            return executeToTable(drop.databaseName(), drop.tableName(), drop.kind, drop.if_exists, drop.isTemporary(), drop.no_ddl_lock);
         else
-            return executeToDictionary(drop.databaseName(), drop.tableName(), drop.kind, drop.if_exists, drop.temporary, drop.no_ddl_lock);
+            return executeToDictionary(drop.databaseName(), drop.tableName(), drop.kind, drop.if_exists, drop.isTemporary(), drop.no_ddl_lock);
     }
 }
 
@@ -307,7 +307,7 @@ void InterpreterDropQuery::checkAccess(const ASTDropQuery & drop)
     bool allow_ddl = settings.allow_ddl;
 
     /// It's allowed to drop temporary tables.
-    if ((!readonly && allow_ddl) || (!drop.database && context.tryGetExternalTable(drop.tableName()) && readonly >= 2))
+    if ((!readonly && allow_ddl) || (!drop.getDatabase() && context.tryGetExternalTable(drop.tableName()) && readonly >= 2))
         return;
 
     if (readonly)

@@ -1,27 +1,23 @@
 #include <Parsers/ASTQueryWithTableAndOutput.h>
 #include <Common/quoteString.h>
+#include "ASTQueryWithTableAndOutput.h"
 
 
 namespace DB
 {
 
-void ASTQueryWithTableAndOutput::formatHelper(const FormatSettings & settings, const char * name) const
-{
-    settings.ostr << (settings.hilite ? hilite_keyword : "") << name << " " << (settings.hilite ? hilite_none : "");
-    settings.ostr << (database ? backQuoteIfNeed(getIdentifierName(database)) + "." : "") << backQuoteIfNeed(getIdentifierName(table));
-}
-
 String ASTQueryWithTableAndOutput::getTableAndDatabaseID(char delim) const
 {
     if (onlyDatabase())
-        return getIdentifierName(database);
+        return databaseName();
     else
     {
-        if (table)
+        if (const auto & table = getTable())
         {
-            if (database)
-                return getIdentifierName(table);
-            return getIdentifierName(database) + delim + getIdentifierName(table);
+            if (const auto & database = getDatabase())
+                return getIdentifierName(database) + delim + getIdentifierName(table);
+
+            return getIdentifierName(table);
         }
     }
 
@@ -31,14 +27,14 @@ String ASTQueryWithTableAndOutput::getTableAndDatabaseID(char delim) const
 void ASTQueryWithTableAndOutput::formatTableAndDatabase(const FormatSettings & settings, FormatState & /*state*/, FormatStateStacked frame) const
 {
     if (onlyDatabase())
-        settings.ostr << backQuoteIfNeed(getIdentifierName(database));
+        settings.ostr << backQuoteIfNeed(databaseName());
     else
     {
         std::string indent_str = settings.one_line ? "" : std::string(4u * frame.indent, ' ');
 
-        if (table)
+        if (const auto & table = getTable())
         {
-            if (database)
+            if (const auto & database = getDatabase())
             {
                 settings.ostr << indent_str << backQuoteIfNeed(getIdentifierName(database));
                 settings.ostr << ".";
@@ -46,6 +42,34 @@ void ASTQueryWithTableAndOutput::formatTableAndDatabase(const FormatSettings & s
             settings.ostr << indent_str << backQuoteIfNeed(getIdentifierName(table));
         }
     }
+}
+
+static void setChildren(ASTs & children, size_t & pos, ASTPtr && set_node)
+{
+    if (set_node)
+    {
+        if (pos != ASTQueryWithTableAndOutput::npos)
+            children[pos] = set_node;
+        else
+        {
+            pos = children.size();
+            children.emplace_back(set_node);
+        }
+    }
+    else if (!set_node && pos != ASTQueryWithTableAndOutput::npos)
+    {
+        children.erase(children.begin() + pos);
+    }
+}
+
+void ASTQueryWithTableAndOutput::setTable(ASTPtr && table)
+{
+    setChildren(children, table_pos, std::move(table));
+}
+
+void ASTQueryWithTableAndOutput::setDatabase(ASTPtr && database)
+{
+    setChildren(children, database_pos, std::move(database));
 }
 
 }

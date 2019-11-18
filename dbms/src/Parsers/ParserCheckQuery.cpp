@@ -22,31 +22,32 @@ bool ParserCheckQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
 
     ASTPtr table;
     ASTPtr database;
+    ASTPtr partition;
 
     if (!s_check_table.ignore(pos, expected))
         return false;
 
-    auto query = std::make_shared<ASTCheckQuery>();
-
-    if (!identifier_parser.parse(pos, query->database, expected))
+    if (!identifier_parser.parse(pos, table, expected))
         return false;
 
     if (s_dot.ignore(pos))
     {
-        if (!identifier_parser.parse(pos, query->table, expected))
+        database = table;
+        if (!identifier_parser.parse(pos, table, expected))
             return false;
-    }
-    else
-    {
-        query->table = query->database;
-        query->database.reset();
     }
 
     if (s_partition.ignore(pos, expected))
     {
-        if (!partition_parser.parse(pos, query->partition, expected))
+        if (!partition_parser.parse(pos, partition, expected))
             return false;
     }
+
+    auto query = std::make_shared<ASTCheckQuery>();
+
+    query->partition = partition;
+    query->setTable(std::move(table));
+    query->setDatabase(std::move(database));
 
     node = query;
     return true;
