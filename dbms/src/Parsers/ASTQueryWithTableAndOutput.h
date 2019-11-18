@@ -29,7 +29,6 @@ public:
     void setDatabase(ASTPtr && database);
     void setTemporary(bool is_temporary_table) { temporary = is_temporary_table; }
 protected:
-
     bool temporary{false};
     size_t table_pos = npos;
     size_t database_pos = npos;

@@ -40,8 +40,8 @@ protected:
         T & query = static_cast<T &>(*query_ptr);
 
         query.cluster.clear();
-        if (!query.database)
-            query.database = std::make_shared<ASTIdentifier>(new_database);
+        if (!query.getDatabase())
+            query.setDatabase(std::make_shared<ASTIdentifier>(new_database));
 
         return query_ptr;
     }
