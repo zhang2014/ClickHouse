@@ -55,7 +55,7 @@ BlockInputStreamPtr InterpreterExplainQuery::executeImpl()
     {
         ASTPtr analyzed_query = ast.children.at(0);
 
-        if (const auto & ast_select = ast.children.at(0)->as<ASTSelectQuery>())
+        if (ast.children.at(0)->as<ASTSelectQuery>())
             analyzed_query = InterpreterSelectWithUnionQuery{ast.children.at(0), context,
                 SelectQueryOptions(QueryProcessingStage::FetchColumns).analyze().modify()}.getQuery();
 
