@@ -120,7 +120,7 @@ bool ParserDropQuery::parseDropQuery(Pos & pos, ASTPtr & node, Expected & expect
 
     query->kind = ASTDropQuery::Kind::Drop;
     query->if_exists = if_exists;
-    query->setTemporary(is_temporary);
+    query->setTemporary(temporary);
     query->is_dictionary = is_dictionary;
 
     query->cluster = cluster_str;
