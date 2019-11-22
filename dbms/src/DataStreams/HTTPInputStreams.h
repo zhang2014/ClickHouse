@@ -13,15 +13,17 @@ using HTTPServerRequest = Poco::Net::HTTPServerRequest;
 
 struct HTTPInputStreams
 {
-    std::shared_ptr<ReadBuffer> in;
-    std::shared_ptr<ReadBuffer> in_maybe_compressed;
-    std::shared_ptr<ReadBuffer> in_maybe_internal_compressed;
+    using ReadBufferUniquePtr = std::unique_ptr<ReadBuffer>;
+
+    ReadBufferUniquePtr in;
+    ReadBufferUniquePtr in_maybe_compressed;
+    ReadBufferUniquePtr in_maybe_internal_compressed;
 
     HTTPInputStreams(Context & context, HTTPServerRequest & request, HTMLForm & from);
 
-    ReadBufferPtr createRawInBuffer(HTTPServerRequest & request) const;
-    ReadBufferPtr createCompressedBuffer(HTTPServerRequest & request, ReadBufferPtr & raw_buffer) const;
-    ReadBufferPtr createInternalCompressedBuffer(HTMLForm & params, ReadBufferPtr & http_maybe_encoding_buffer) const;
+    ReadBufferUniquePtr createRawInBuffer(HTTPServerRequest & request) const;
+    ReadBufferUniquePtr createCompressedBuffer(HTTPServerRequest & request, ReadBufferUniquePtr & raw_buffer) const;
+    ReadBufferUniquePtr createInternalCompressedBuffer(HTMLForm & params, ReadBufferUniquePtr & http_maybe_encoding_buffer) const;
 };
 
 }
