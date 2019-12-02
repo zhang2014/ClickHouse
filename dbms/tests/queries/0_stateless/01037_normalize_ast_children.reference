@@ -1,0 +1,4 @@
+SHOW TABLES FROM database_name LIKE '%match_database_name%' LIMIT 5
+Explain AST (children 1)\n ShowTables (children 3)\n Literal '%match_database_name%'\n Identifier database_name\n Literal UInt64_5
+
+

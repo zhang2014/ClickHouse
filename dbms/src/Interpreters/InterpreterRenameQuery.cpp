@@ -1,4 +1,5 @@
 #include <Parsers/ASTRenameQuery.h>
+#include <Parsers/ASTQueryWithTableAndOutput.h>
 #include <Databases/IDatabase.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/InterpreterRenameQuery.h>
@@ -10,6 +11,10 @@
 namespace DB
 {
 
+namespace ErrorCodes
+{
+    extern const int SYNTAX_ERROR;
+}
 
 InterpreterRenameQuery::InterpreterRenameQuery(const ASTPtr & query_ptr_, Context & context_)
     : query_ptr(query_ptr_), context(context_)
@@ -19,12 +24,15 @@ InterpreterRenameQuery::InterpreterRenameQuery(const ASTPtr & query_ptr_, Contex
 
 struct RenameDescription
 {
-    RenameDescription(const ASTRenameQuery::Element & elem, const String & current_database) :
-        from_database_name(elem.from.database.empty() ? current_database : elem.from.database),
-        from_table_name(elem.from.table),
-        to_database_name(elem.to.database.empty() ? current_database : elem.to.database),
-        to_table_name(elem.to.table)
-    {}
+    RenameDescription(const ASTPtr & node, const String & current_database)
+    {
+        const auto & rename_expression = node->as<ASTRenameQueryExpression>();
+        const auto & to_table_expression = rename_expression->getChild(ASTRenameQueryExpression::Children::TO_TABLE_EXPRESSION);
+        const auto & from_table_expression = rename_expression->getChild(ASTRenameQueryExpression::Children::FROM_TABLE_EXPRESSION);
+
+        std::tie(to_database_name, to_table_name) = getDatabaseAndTable(to_table_expression, current_database);
+        std::tie(from_database_name, from_table_name) = getDatabaseAndTable(from_table_expression, current_database);
+    }
 
     String from_database_name;
     String from_table_name;
@@ -41,10 +49,19 @@ BlockIO InterpreterRenameQuery::execute()
     if (!rename.cluster.empty())
     {
         NameSet databases;
-        for (const auto & elem : rename.elements)
+        const auto & expression_list = rename.getChild(ASTRenameQuery::Children::RENAME_EXPRESSION_LIST);
+
+        for (const auto & rename_expression_node : expression_list->children)
         {
-            databases.emplace(elem.from.database);
-            databases.emplace(elem.to.database);
+            const auto & rename_expression = rename_expression_node->as<ASTRenameQueryExpression>();
+            const auto & to_table_expression = rename_expression->getChild(ASTRenameQueryExpression::Children::TO_TABLE_EXPRESSION);
+            const auto & from_table_expression = rename_expression->getChild(ASTRenameQueryExpression::Children::FROM_TABLE_EXPRESSION);
+
+            const auto & [to_database_name, to_table_name] = getDatabaseAndTable(to_table_expression);
+            const auto & [from_database_name, from_table_name] = getDatabaseAndTable(from_table_expression);
+
+            databases.emplace(from_database_name);
+            databases.emplace(to_database_name);
         }
 
         return executeDDLQueryOnCluster(query_ptr, context, std::move(databases));
@@ -52,13 +69,6 @@ BlockIO InterpreterRenameQuery::execute()
 
     String path = context.getPath();
     String current_database = context.getCurrentDatabase();
-
-    /** In case of error while renaming, it is possible that only part of tables was renamed
-      *  or we will be in inconsistent state. (It is worth to be fixed.)
-      */
-
-    std::vector<RenameDescription> descriptions;
-    descriptions.reserve(rename.elements.size());
 
     /// To avoid deadlocks, we must acquire locks for tables in same order in any different RENAMES.
     struct UniqueTableName
@@ -78,9 +88,17 @@ BlockIO InterpreterRenameQuery::execute()
     /// Don't allow to drop tables (that we are renaming); don't allow to create tables in places where tables will be renamed.
     std::map<UniqueTableName, std::unique_ptr<DDLGuard>> table_guards;
 
-    for (const auto & elem : rename.elements)
+    /** In case of error while renaming, it is possible that only part of tables was renamed
+      *  or we will be in inconsistent state. (It is worth to be fixed.)
+      */
+
+    std::vector<RenameDescription> descriptions;
+    const auto & expression_list = rename.getChild(ASTRenameQuery::Children::RENAME_EXPRESSION_LIST);
+    descriptions.reserve(expression_list->children.size());
+
+    for (const auto & rename_expression : expression_list->children)
     {
-        descriptions.emplace_back(elem, current_database);
+        descriptions.emplace_back(rename_expression, current_database);
 
         UniqueTableName from(descriptions.back().from_database_name, descriptions.back().from_table_name);
         UniqueTableName to(descriptions.back().to_database_name, descriptions.back().to_table_name);

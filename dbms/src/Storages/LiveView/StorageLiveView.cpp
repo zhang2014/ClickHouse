@@ -519,10 +519,10 @@ BlockInputStreams StorageLiveView::watch(
     bool has_limit = false;
     UInt64 limit = 0;
 
-    if (query.limit_length)
+    if (const auto & limit_length = query.getChild(ASTWatchQuery::Children::LIMIT_LENGTH))
     {
         has_limit = true;
-        limit = safeGet<UInt64>(typeid_cast<ASTLiteral &>(*query.limit_length).value);
+        limit = safeGet<UInt64>(typeid_cast<ASTLiteral &>(*limit_length).value);
     }
 
     if (query.is_watch_events)

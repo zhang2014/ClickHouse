@@ -170,12 +170,22 @@ private:
 
     void visitDDL(ASTRenameQuery & node, ASTPtr &) const
     {
-        for (ASTRenameQuery::Element & elem : node.elements)
+        const auto & expression_list = node.getChild(ASTRenameQuery::Children::RENAME_EXPRESSION_LIST);
+
+        for (auto & expression_node : expression_list->children)
         {
-            if (elem.from.database.empty())
-                elem.from.database = database_name;
-            if (elem.to.database.empty())
-                elem.to.database = database_name;
+            auto & rename_expression = expression_node->as<ASTRenameQueryExpression &>();
+            auto & to_table_expression_node = rename_expression.getChildRef(ASTRenameQueryExpression::Children::TO_TABLE_EXPRESSION);
+            auto & from_table_expression_node = rename_expression.getChildRef(ASTRenameQueryExpression::Children::FROM_TABLE_EXPRESSION);
+
+            auto & to_table_expression = to_table_expression_node->as<ASTDatabaseAndTableExpression &>();
+            auto & from_table_expression = from_table_expression_node->as<ASTDatabaseAndTableExpression &>();
+
+            if (to_table_expression.getChild(ASTDatabaseAndTableExpression::Children::DATABASE))
+                to_table_expression.setChild(ASTDatabaseAndTableExpression::Children::DATABASE, std::make_shared<ASTIdentifier>(database_name));
+
+            if (from_table_expression.getChild(ASTDatabaseAndTableExpression::Children::DATABASE))
+                from_table_expression.setChild(ASTDatabaseAndTableExpression::Children::DATABASE, std::make_shared<ASTIdentifier>(database_name));
         }
     }
 

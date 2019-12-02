@@ -4064,8 +4064,8 @@ void StorageReplicatedMergeTree::sendRequestToLeaderReplica(const ASTPtr & query
     }
     else if (auto * optimize = new_query->as<ASTOptimizeQuery>())
     {
-        optimize->database = std::make_shared<ASTIdentifier>(leader_address.database);
-        optimize->table = std::make_shared<ASTIdentifier>(leader_address.table);
+        auto & table_expression_node = optimize->getChildRef(ASTOptimizeQuery::Children::TABLE_EXPRESSION);
+        replaceDatabaseAndTable(table_expression_node, leader_address.database, leader_address.table);
     }
     else if (auto * drop = new_query->as<ASTDropQuery>(); drop->kind == ASTDropQuery::Kind::Truncate)
     {

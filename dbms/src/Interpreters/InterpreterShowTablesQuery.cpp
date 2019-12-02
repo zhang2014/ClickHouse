@@ -1,12 +1,14 @@
 #include <IO/ReadBufferFromString.h>
 #include <Parsers/ASTShowTablesQuery.h>
 #include <Parsers/formatAST.h>
+#include <Parsers/ASTIdentifier.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/executeQuery.h>
 #include <Interpreters/InterpreterShowTablesQuery.h>
 #include <Common/typeid_cast.h>
 #include <iomanip>
 #include <sstream>
+#include <Parsers/ASTLiteral.h>
 
 
 namespace DB
@@ -32,7 +34,7 @@ String InterpreterShowTablesQuery::getRewrittenQuery()
     if (query.databases)
         return "SELECT name FROM system.databases";
 
-    const auto & from = query.getChild(ASTShowTablesQueryChildren::FROM);
+    const auto & from = query.getChild(ASTShowTablesQuery::Children::FROM);
 
     if (query.temporary && from)
         throw Exception("The `FROM` and `TEMPORARY` cannot be used together in `SHOW TABLES`", ErrorCodes::SYNTAX_ERROR);
@@ -64,10 +66,10 @@ String InterpreterShowTablesQuery::getRewrittenQuery()
     else
         rewritten_query << "database = " << std::quoted(database, '\'');
 
-    if (const auto & like = query.getChild(ASTShowTablesQueryChildren::LIKE))
+    if (const auto & like = query.getChild(ASTShowTablesQuery::Children::LIKE))
         rewritten_query << " AND name " << (query.not_like ? "NOT " : "") << "LIKE " << std::quoted(like->as<ASTLiteral>()->value.get<String>(), '\'');
 
-    if (const auto & limit_length = query.getChild(ASTShowTablesQueryChildren::LIMIT_LENGTH))
+    if (const auto & limit_length = query.getChild(ASTShowTablesQuery::Children::LIMIT_LENGTH))
         rewritten_query << " LIMIT " << limit_length;
 
     return rewritten_query.str();

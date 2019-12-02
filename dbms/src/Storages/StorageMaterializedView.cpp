@@ -278,23 +278,9 @@ static void executeRenameQuery(Context & global_context, const String & database
 {
     if (global_context.tryGetTable(database_name, table_original_name))
     {
-            auto rename = std::make_shared<ASTRenameQuery>();
+        auto rename_query = makeSimpleRenameQuery(database_name, table_original_name, database_name, new_table_name);
 
-            ASTRenameQuery::Table from;
-            from.database = database_name;
-            from.table = table_original_name;
-
-            ASTRenameQuery::Table to;
-            to.database = database_name;
-            to.table = new_table_name;
-
-            ASTRenameQuery::Element elem;
-            elem.from = from;
-            elem.to = to;
-
-            rename->elements.emplace_back(elem);
-
-            InterpreterRenameQuery(rename, global_context).execute();
+        InterpreterRenameQuery(rename_query, global_context).execute();
     }
 }
 

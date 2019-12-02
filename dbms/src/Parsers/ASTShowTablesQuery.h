@@ -3,7 +3,7 @@
 #include <iomanip>
 #include <Parsers/IAST.h>
 #include <Parsers/ASTQueryWithOutput.h>
-#include <Parsers/ASTNamedChildrenHelper.h>
+#include <Parsers/ASTTraitWithNamedChildren.h>
 
 
 namespace DB
@@ -11,8 +11,7 @@ namespace DB
 
 /** Query SHOW TABLES or SHOW DATABASES
   */
-class DECLARE_SELF_AND_CHILDREN(ASTShowTablesQuery, FROM, LIKE, LIMIT_LENGTH)
-    : public ASTWithNamedChildren<ASTQueryWithOutput, ASTShowTablesQuery, ASTShowTablesQueryChildren>
+class ASTShowTablesQueryTrait : public ASTQueryWithOutput
 {
 public:
     bool databases{false};
@@ -20,13 +19,42 @@ public:
     bool temporary{false};
     bool not_like{false};
 
-    /** Get the text that identifies this element. */
-    String getID(char) const override { return "ShowTables"; }
-
-    ASTPtr clone() const override;
-
 protected:
-    void formatQueryImpl(const FormatSettings & settings, FormatState &, FormatStateStacked) const override;
+    enum class Children : UInt8
+    {
+        FROM,
+        LIKE,
+        LIMIT_LENGTH,
+    };
+
+    void reset(ASTShowTablesQueryTrait & res) const { cloneOutputOptions(res); }
+
+    /** Get the text that identifies this element. */
+    void identifier(char /*delim*/, ASTTraitOStream<ASTShowTablesQueryTrait> & out) const { out << "ShowTables"; }
+
+    void formatSyntax(ASTTraitOStream<ASTShowTablesQueryTrait> & out, const FormatSettings & settings, FormatState &, FormatStateStacked) const
+    {
+        if (databases)
+        {
+            out << (settings.hilite ? hilite_keyword : "") << "SHOW DATABASES" << (settings.hilite ? hilite_none : "");
+        }
+        else
+        {
+            out << (settings.hilite ? hilite_keyword : "") << "SHOW " << (temporary ? "TEMPORARY " : "")
+                << (dictionaries ? "DICTIONARIES" : "TABLES") << (settings.hilite ? hilite_none : "");
+
+            if (out.node->getChild(Children::FROM))
+                out << (settings.hilite ? hilite_keyword : "") << " FROM " << (settings.hilite ? hilite_none : "") << Children::FROM;
+
+            if (out.node->getChild(Children::LIKE))
+                out << (settings.hilite ? hilite_keyword : "") << " LIKE " << (settings.hilite ? hilite_none : "") << Children::LIKE;
+
+            if (out.node->getChild(Children::LIMIT_LENGTH))
+                out << (settings.hilite ? hilite_keyword : "") << " LIMIT " << (settings.hilite ? hilite_none : "") << Children::LIMIT_LENGTH;
+        }
+    }
 };
+
+using ASTShowTablesQuery = ASTTraitWithOutput<ASTShowTablesQueryTrait>;
 
 }

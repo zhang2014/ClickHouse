@@ -29,7 +29,6 @@ private:
     bool is_first;
 };
 
-
 class ParserTableExpression : public IParserBase
 {
 protected:

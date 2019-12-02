@@ -1,78 +1,112 @@
 #pragma once
 
 #include <Parsers/IAST.h>
+#include <Parsers/ASTExpressionList.h>
 #include <Parsers/ASTQueryWithOutput.h>
 #include <Parsers/ASTQueryWithOnCluster.h>
+#include <Parsers/ASTQueryWithTableAndOutput.h>
 #include <Common/quoteString.h>
 
 
 namespace DB
 {
 
-/** RENAME query
-  */
-class ASTRenameQuery : public ASTQueryWithOutput, public ASTQueryWithOnCluster
+/** RENAME query expression
+ */
+class ASTRenameQueryExpressionTrait : public IAST
 {
-public:
-    struct Table
+protected:
+    enum class Children : UInt8
     {
-        String database;
-        String table;
+        FROM_TABLE_EXPRESSION,
+        TO_TABLE_EXPRESSION,
     };
 
-    struct Element
-    {
-        Table from;
-        Table to;
-    };
-
-    using Elements = std::vector<Element>;
-    Elements elements;
+    void reset(ASTRenameQueryExpressionTrait & /*res*/) const {}
 
     /** Get the text that identifies this element. */
-    String getID(char) const override { return "Rename"; }
+    void identifier(char /*delim*/, ASTTraitOStream<ASTRenameQueryExpressionTrait> & out) const { out << "RenameQueryExpression"; }
 
-    ASTPtr clone() const override
+    void formatSyntax(ASTTraitOStream<ASTRenameQueryExpressionTrait> & out, const FormatSettings & settings, FormatState &, FormatStateStacked) const
     {
-        auto res = std::make_shared<ASTRenameQuery>(*this);
-        cloneOutputOptions(*res);
-        return res;
+        out << Children::FROM_TABLE_EXPRESSION << (settings.hilite ? hilite_keyword : "") << " TO " << (settings.hilite ? hilite_none : "")
+            << Children::TO_TABLE_EXPRESSION;
+    }
+};
+
+using ASTRenameQueryExpression = ASTTraitWithNonOutput<ASTRenameQueryExpressionTrait>;
+
+/** RENAME query
+  */
+class ASTRenameQueryTrait : public ASTQueryWithOutput, public ASTQueryWithOnCluster
+{
+public:
+    ASTs getExpressionList()
+    {
+        auto & query = this->as<ASTTraitWithNamedChildren<ASTRenameQueryTrait> &>();
+        return query.getChildRef(Children::RENAME_EXPRESSION_LIST)->children;
     }
 
     ASTPtr getRewrittenASTWithoutOnCluster(const std::string & new_database) const override
     {
         auto query_ptr = clone();
-        auto & query = query_ptr->as<ASTRenameQuery &>();
+        auto & query = query_ptr->as<ASTTraitWithNamedChildren<ASTRenameQueryTrait> &>();
 
         query.cluster.clear();
-        for (Element & elem : query.elements)
+        auto & rename_expression_list = query.getChildRef(Children::RENAME_EXPRESSION_LIST);
+        for (auto & rename_expression_node : rename_expression_list->children)
         {
-            if (elem.from.database.empty())
-                elem.from.database = new_database;
-            if (elem.to.database.empty())
-                elem.to.database = new_database;
+            auto rename_expression = rename_expression_node->as<ASTRenameQueryExpression>();
+            auto & to_description = rename_expression->getChildRef(ASTRenameQueryExpression::Children::TO_TABLE_EXPRESSION);
+            auto & from_description = rename_expression->getChildRef(ASTRenameQueryExpression::Children::FROM_TABLE_EXPRESSION);
+
+            auto to_table_expression = to_description->as<ASTDatabaseAndTableExpression>();
+            auto from_table_expression = from_description->as<ASTDatabaseAndTableExpression>();
+
+            if (to_table_expression && to_table_expression->getChild(ASTDatabaseAndTableExpression::Children::DATABASE))
+                to_table_expression->setChild(ASTDatabaseAndTableExpression::Children::DATABASE, std::make_shared<ASTIdentifier>(new_database));
+
+            if (from_table_expression && from_table_expression->getChild(ASTDatabaseAndTableExpression::Children::DATABASE))
+                from_table_expression->setChild(ASTDatabaseAndTableExpression::Children::DATABASE, std::make_shared<ASTIdentifier>(new_database));
         }
 
         return query_ptr;
     }
 
 protected:
-    void formatQueryImpl(const FormatSettings & settings, FormatState &, FormatStateStacked) const override
+    enum class Children : UInt8
     {
-        settings.ostr << (settings.hilite ? hilite_keyword : "") << "RENAME TABLE " << (settings.hilite ? hilite_none : "");
+        RENAME_EXPRESSION_LIST  /// ExpressionList(ASTRenameQueryExpression)
+    };
 
-        for (auto it = elements.cbegin(); it != elements.cend(); ++it)
-        {
-            if (it != elements.cbegin())
-                settings.ostr << ", ";
+    void reset(ASTRenameQueryTrait & res) const { cloneOutputOptions(res); }
 
-            settings.ostr << (!it->from.database.empty() ? backQuoteIfNeed(it->from.database) + "." : "") << backQuoteIfNeed(it->from.table)
-                << (settings.hilite ? hilite_keyword : "") << " TO " << (settings.hilite ? hilite_none : "")
-                << (!it->to.database.empty() ? backQuoteIfNeed(it->to.database) + "." : "") << backQuoteIfNeed(it->to.table);
-        }
+    /** Get the text that identifies this element. */
+    void identifier(char /*delim*/, ASTTraitOStream<ASTRenameQueryTrait> & out) const { out << "RenameQuery"; }
+
+    void formatSyntax(ASTTraitOStream<ASTRenameQueryTrait> & out, const FormatSettings & settings, FormatState &, FormatStateStacked) const
+    {
+        out << (settings.hilite ? hilite_keyword : "") << "RENAME TABLE " << (settings.hilite ? hilite_none : "")
+            << Children::RENAME_EXPRESSION_LIST;
 
         formatOnCluster(settings);
     }
 };
+
+using ASTRenameQuery = ASTTraitWithOutput<ASTRenameQueryTrait>;
+
+inline ASTPtr makeSimpleRenameQuery(const String & from_database, const String & from_table, const String & to_database, const String & to_table)
+{
+    auto rename_query = std::make_shared<ASTRenameQuery>();
+    auto rename_expression_list = std::make_shared<ASTExpressionList>();
+    auto rename_query_expression = std::make_shared<ASTRenameQueryExpression>();
+
+    rename_query_expression->setChild(ASTRenameQueryExpression::Children::TO_TABLE_EXPRESSION, makeSimpleTableExpression(to_database, to_table));
+    rename_query_expression->setChild(ASTRenameQueryExpression::Children::FROM_TABLE_EXPRESSION, makeSimpleTableExpression(from_database, from_table));
+
+    rename_expression_list->children.push_back(rename_query_expression);
+    rename_query->setChild(ASTRenameQuery::Children::RENAME_EXPRESSION_LIST, rename_expression_list);
+    return rename_query;
+}
 
 }

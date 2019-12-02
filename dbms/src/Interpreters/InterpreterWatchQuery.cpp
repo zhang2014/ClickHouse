@@ -15,6 +15,7 @@ limitations under the License. */
 #include <Interpreters/InterpreterWatchQuery.h>
 #include <DataStreams/IBlockInputStream.h>
 #include <DataStreams/OneBlockInputStream.h>
+#include <AggregateFunctions/AggregateFunctionSequenceMatch.h>
 
 
 namespace DB
@@ -40,13 +41,9 @@ BlockIO InterpreterWatchQuery::execute()
 
     BlockIO res;
     const ASTWatchQuery & query = typeid_cast<const ASTWatchQuery &>(*query_ptr);
-    String database;
-    String table;
-    /// Get database
-    database = query.databaseName(context.getCurrentDatabase());
 
-    /// Get table
-    table = query.tableName();
+    const auto & table_expression = query.getChild(ASTWatchQuery::Children::TABLE_EXPRESSION);
+    const auto & [database, table] = getDatabaseAndTable(table_expression, context.getCurrentDatabase());
 
     /// Get storage
     storage = context.tryGetTable(database, table);

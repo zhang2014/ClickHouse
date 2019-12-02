@@ -383,26 +383,13 @@ void SystemLog<LogElement>::prepareTable()
             while (context.isTableExist(database_name, table_name + "_" + toString(suffix)))
                 ++suffix;
 
-            auto rename = std::make_shared<ASTRenameQuery>();
-
-            ASTRenameQuery::Table from;
-            from.database = database_name;
-            from.table = table_name;
-
-            ASTRenameQuery::Table to;
-            to.database = database_name;
-            to.table = table_name + "_" + toString(suffix);
-
-            ASTRenameQuery::Element elem;
-            elem.from = from;
-            elem.to = to;
-
-            rename->elements.emplace_back(elem);
+            const String & to_table_name = table_name + "_" + toString(suffix);
+            auto rename_query = makeSimpleRenameQuery(database_name, table_name, database_name, to_table_name);
 
             LOG_DEBUG(log, "Existing table " << description << " for system log has obsolete or different structure."
-            " Renaming it to " << backQuoteIfNeed(to.table));
+            " Renaming it to " << backQuoteIfNeed(to_table_name));
 
-            InterpreterRenameQuery(rename, context).execute();
+            InterpreterRenameQuery(rename_query, context).execute();
 
             /// The required table will be created.
             table = nullptr;

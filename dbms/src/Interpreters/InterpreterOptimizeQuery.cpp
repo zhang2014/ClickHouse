@@ -18,12 +18,14 @@ namespace ErrorCodes
 BlockIO InterpreterOptimizeQuery::execute()
 {
     const auto & ast = query_ptr->as<ASTOptimizeQuery &>();
+    const auto & table_expression = ast.getChild(ASTOptimizeQuery::Children::TABLE_EXPRESSION);
+    const auto & [database_name, table_name] = getDatabaseAndTable(table_expression);
 
     if (!ast.cluster.empty())
-        return executeDDLQueryOnCluster(query_ptr, context, {ast.databaseName()});
+        return executeDDLQueryOnCluster(query_ptr, context, {database_name});
 
-    StoragePtr table = context.getTable(ast.databaseName(), ast.tableName());
-    table->optimize(query_ptr, ast.partition, ast.final, ast.deduplicate, context);
+    StoragePtr table = context.getTable(database_name, table_name);
+    table->optimize(query_ptr, ast.getChild(ASTOptimizeQuery::Children::OPTIMIZE_PARTITION), ast.final, ast.deduplicate, context);
     return {};
 }
 

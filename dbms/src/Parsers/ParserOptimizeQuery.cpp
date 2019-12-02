@@ -1,6 +1,7 @@
 #include <Parsers/ParserOptimizeQuery.h>
 #include <Parsers/ParserPartition.h>
 #include <Parsers/CommonParsers.h>
+#include <Parsers/ParserDatabaseAndTableExpression.h>
 
 #include <Parsers/ASTOptimizeQuery.h>
 #include <Parsers/ASTIdentifier.h>
@@ -17,35 +18,28 @@ bool ParserOptimizeQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expecte
     ParserKeyword s_final("FINAL");
     ParserKeyword s_deduplicate("DEDUPLICATE");
     ParserToken s_dot(TokenType::Dot);
-    ParserIdentifier name_p;
+    ParserDatabaseAndTableExpression table_expression_p;
     ParserPartition partition_p;
 
-    ASTPtr database;
-    ASTPtr table;
-    ASTPtr partition;
     bool final = false;
     bool deduplicate = false;
     String cluster_str;
 
+    ASTPtr table_expression;
+    ASTPtr optimize_partition;
+
     if (!s_optimize_table.ignore(pos, expected))
         return false;
 
-    if (!name_p.parse(pos, table, expected))
+    if (!table_expression_p.parse(pos, table_expression, expected))
         return false;
-
-    if (s_dot.ignore(pos, expected))
-    {
-        database = table;
-        if (!name_p.parse(pos, table, expected))
-            return false;
-    }
 
     if (ParserKeyword{"ON"}.ignore(pos, expected) && !ASTQueryWithOnCluster::parse(pos, cluster_str, expected))
         return false;
 
     if (s_partition.ignore(pos, expected))
     {
-        if (!partition_p.parse(pos, partition, expected))
+        if (!partition_p.parse(pos, optimize_partition, expected))
             return false;
     }
 
@@ -56,14 +50,12 @@ bool ParserOptimizeQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expecte
         deduplicate = true;
 
     auto query = std::make_shared<ASTOptimizeQuery>();
-    node = query;
-
-    query->table = table;
-    query->database = database;
-    query->cluster = cluster_str;
-    query->partition = partition;
     query->final = final;
+    query->cluster = cluster_str;
     query->deduplicate = deduplicate;
+    query->setChild(ASTOptimizeQuery::Children::TABLE_EXPRESSION, std::move(table_expression));
+    query->setChild(ASTOptimizeQuery::Children::OPTIMIZE_PARTITION, std::move(optimize_partition));
+    node = query;
 
     return true;
 }

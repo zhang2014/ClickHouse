@@ -15,6 +15,8 @@ limitations under the License. */
 #include <Parsers/CommonParsers.h>
 #include <Parsers/ParserWatchQuery.h>
 #include <Parsers/ExpressionElementParsers.h>
+#include <Parsers/ParserTablesInSelectQuery.h>
+#include <Parsers/ParserDatabaseAndTableExpression.h>
 
 
 namespace DB
@@ -23,13 +25,15 @@ namespace DB
 bool ParserWatchQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
 {
     ParserKeyword s_watch("WATCH");
-    ParserToken s_dot(TokenType::Dot);
-    ParserIdentifier name_p;
-    ParserKeyword s_events("EVENTS");
     ParserKeyword s_limit("LIMIT");
+    ParserKeyword s_events("EVENTS");
+    ParserToken s_dot(TokenType::Dot);
 
-    ASTPtr database;
-    ASTPtr table;
+    ParserDatabaseAndTableExpression simple_table_expression_p;
+
+    ASTPtr limit_length;
+    ASTPtr table_expression;
+
     auto query = std::make_shared<ASTWatchQuery>();
 
     if (!s_watch.ignore(pos, expected))
@@ -37,15 +41,8 @@ bool ParserWatchQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
         return false;
     }
 
-    if (!name_p.parse(pos, table, expected))
+    if (!simple_table_expression_p.parse(pos, table_expression, expected))
         return false;
-
-    if (s_dot.ignore(pos, expected))
-    {
-        database = table;
-        if (!name_p.parse(pos, table, expected))
-            return false;
-    }
 
     /// EVENTS
     if (s_events.ignore(pos, expected))
@@ -58,16 +55,12 @@ bool ParserWatchQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
     {
         ParserNumber num;
 
-        if (!num.parse(pos, query->limit_length, expected))
+        if (!num.parse(pos, limit_length, expected))
             return false;
     }
 
-    if (database)
-        query->database = database;
-
-    if (table)
-        query->table = table;
-
+    query->setChild(ASTWatchQuery::Children::LIMIT_LENGTH, std::move(limit_length));
+    query->setChild(ASTWatchQuery::Children::TABLE_EXPRESSION, std::move(table_expression));
     node = query;
 
     return true;

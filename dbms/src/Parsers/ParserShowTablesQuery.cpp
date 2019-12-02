@@ -80,9 +80,9 @@ bool ParserShowTablesQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expec
     }
 
     node = query;
-    query->setChild(ASTShowTablesQueryChildren::LIKE, like);
-    query->setChild(ASTShowTablesQueryChildren::FROM, database);
-    query->setChild(ASTShowTablesQueryChildren::LIMIT_LENGTH, limit_length);
+    query->setChild(ASTShowTablesQuery::Children::LIKE, std::move(like));
+    query->setChild(ASTShowTablesQuery::Children::FROM, std::move(database));
+    query->setChild(ASTShowTablesQuery::Children::LIMIT_LENGTH, std::move(limit_length));
 
     return true;
 }

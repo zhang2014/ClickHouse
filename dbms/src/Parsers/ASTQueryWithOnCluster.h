@@ -3,6 +3,8 @@
 #include <Parsers/IAST.h>
 #include <Parsers/IParser.h>
 #include <Parsers/ASTIdentifier.h>
+#include <Parsers/ASTQueryWithTableAndOutput.h>
+#include <Parsers/ASTTraitWithNamedChildren.h>
 
 namespace DB
 {
@@ -19,9 +21,6 @@ public:
     /// new_database should be used by queries that refer to default db
     ///  and default_database is specified for remote server
     virtual ASTPtr getRewrittenASTWithoutOnCluster(const std::string & new_database = {}) const = 0;
-
-    /// Returns a query prepared for execution on remote server
-    std::string getRewrittenQueryWithoutOnCluster(const std::string & new_database = {}) const;
 
     void formatOnCluster(const IAST::FormatSettings & settings) const;
 
@@ -42,6 +41,22 @@ protected:
         query.cluster.clear();
         if (!query.database)
             query.database = std::make_shared<ASTIdentifier>(new_database);
+
+        return query_ptr;
+    }
+
+    template <typename Trait>
+    static ASTPtr removeTraitOnCluster(ASTPtr query_ptr, const std::string & new_database)
+    {
+        auto & trait_query = query_ptr->as<ASTTraitWithOutput<Trait> &>();
+
+        trait_query.cluster.clear();
+        if (auto & table_expression = trait_query.getChildRef(ASTTraitWithOutput<Trait>::Children::TABLE_EXPRESSION))
+        {
+            const auto & [database_name, table_name] = getDatabaseAndTable(table_expression);
+            if (!database_name.empty())
+                replaceDatabaseAndTable(table_expression, new_database, table_name);
+        }
 
         return query_ptr;
     }

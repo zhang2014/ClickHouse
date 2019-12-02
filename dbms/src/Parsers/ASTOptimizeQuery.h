@@ -7,45 +7,55 @@
 namespace DB
 {
 
-
 /** OPTIMIZE query
   */
-class ASTOptimizeQuery : public ASTQueryWithTableAndOutput, public ASTQueryWithOnCluster
+class ASTOptimizeTrait : public ASTQueryWithOutput, public ASTQueryWithOnCluster
 {
 public:
-    /// The partition to optimize can be specified.
-    ASTPtr partition;
     /// A flag can be specified - perform optimization "to the end" instead of one step.
     bool final;
     /// Do deduplicate (default: false)
     bool deduplicate;
 
+    ASTPtr getRewrittenASTWithoutOnCluster(const std::string & new_database) const override
+    {
+        return removeTraitOnCluster<ASTOptimizeTrait>(clone(), new_database);
+    }
+
+protected:
+    enum class Children : UInt8
+    {
+        TABLE_EXPRESSION,
+        OPTIMIZE_PARTITION, /// The partition to optimize can be specified.
+    };
+
+    void reset(ASTOptimizeTrait & res) const { cloneOutputOptions(res); }
+
     /** Get the text that identifies this element. */
-    String getID(char delim) const override
+    void identifier(char delim, ASTTraitOStream<ASTOptimizeTrait> & out) const
     {
-        return "OptimizeQuery" + (delim + getTableAndDatabaseID(delim)) + (final ? "_final" : "") + (deduplicate ? "_deduplicate" : "");
+        out << "OptimizeQuery" << delim << Children::TABLE_EXPRESSION << (final ? "_final" : "") << (deduplicate ? "_deduplicate" : "");
     }
 
-    ASTPtr clone() const override
+    void formatSyntax(ASTTraitOStream<ASTOptimizeTrait> & out, const FormatSettings & settings, FormatState &, FormatStateStacked) const
     {
-        auto res = std::make_shared<ASTOptimizeQuery>(*this);
-        res->children.clear();
+        out << (settings.hilite ? hilite_keyword : "") << "OPTIMIZE TABLE " << (settings.hilite ? hilite_none : "")
+            << Children::TABLE_EXPRESSION;
 
-        if (partition)
-        {
-            res->partition = partition->clone();
-            res->children.push_back(res->partition);
-        }
+        formatOnCluster(settings);
 
-        return res;
-    }
+        if (out.node->getChild(Children::OPTIMIZE_PARTITION))
+            out << (settings.hilite ? hilite_keyword : "") << " PARTITION " << (settings.hilite ? hilite_none : "")
+                << Children::OPTIMIZE_PARTITION;
 
-    void formatQueryImpl(const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override;
+        if (final)
+            out << (settings.hilite ? hilite_keyword : "") << " FINAL" << (settings.hilite ? hilite_none : "");
 
-    ASTPtr getRewrittenASTWithoutOnCluster(const std::string &new_database) const override
-    {
-        return removeOnCluster<ASTOptimizeQuery>(clone(), new_database);
+        if (deduplicate)
+            out << (settings.hilite ? hilite_keyword : "") << " DEDUPLICATE" << (settings.hilite ? hilite_none : "");
     }
 };
+
+using ASTOptimizeQuery = ASTTraitWithOutput<ASTOptimizeTrait>;
 
 }

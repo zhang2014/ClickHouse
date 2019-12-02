@@ -11,6 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 #pragma once
 
+#include <Parsers/ASTTraitWithNamedChildren.h>
 #include <Parsers/ASTQueryWithTableAndOutput.h>
 #include <Common/quoteString.h>
 
@@ -18,44 +19,39 @@ limitations under the License. */
 namespace DB
 {
 
-class ASTWatchQuery : public ASTQueryWithTableAndOutput
+class ASTWatchQueryTrait : public ASTQueryWithOutput
 {
-
 public:
-    ASTPtr limit_length;
     bool is_watch_events;
 
-    ASTWatchQuery() = default;
-    String getID(char delim) const override { return "WatchQuery" + (delim + getTableAndDatabaseID(delim)); }
-
-    ASTPtr clone() const override
-    {
-        std::shared_ptr<ASTWatchQuery> res = std::make_shared<ASTWatchQuery>(*this);
-        res->children.clear();
-        cloneOutputOptions(*res);
-        return res;
-    }
-
 protected:
-    void formatQueryImpl(const FormatSettings & s, FormatState & state, FormatStateStacked frame) const override
+    enum class Children : UInt8
     {
-        std::string indent_str = s.one_line ? "" : std::string(4 * frame.indent, ' ');
+        TABLE_EXPRESSION,
+        LIMIT_LENGTH,
+    };
 
-        s.ostr << (s.hilite ? hilite_keyword : "") << "WATCH" << " " << (s.hilite ? hilite_none : "");
+    void reset(ASTWatchQueryTrait & res) const { cloneOutputOptions(res); }
 
-        formatTableAndDatabase(s, state, frame);
+    /** Get the text that identifies this element. */
+    void identifier(char delim, ASTTraitOStream<ASTWatchQueryTrait> & out) const { out << "WatchQuery" << delim << Children::TABLE_EXPRESSION; }
+
+    void formatSyntax(ASTTraitOStream<ASTWatchQueryTrait> & out, const FormatSettings & settings, FormatState &, FormatStateStacked frame) const
+    {
+        std::string indent_str = settings.one_line ? "" : std::string(4 * frame.indent, ' ');
+
+        out << (settings.hilite ? hilite_keyword : "") << "WATCH" << " " << (settings.hilite ? hilite_none : "")
+            << Children::TABLE_EXPRESSION;
 
         if (is_watch_events)
-        {
-            s.ostr << " " << (s.hilite ? hilite_keyword : "") << "EVENTS" << (s.hilite ? hilite_none : "");
-        }
+            out << " " << (settings.hilite ? hilite_keyword : "") << "EVENTS" << (settings.hilite ? hilite_none : "");
 
-        if (limit_length)
-        {
-            s.ostr << (s.hilite ? hilite_keyword : "") << s.nl_or_ws << indent_str << "LIMIT " << (s.hilite ? hilite_none : "");
-            limit_length->formatImpl(s, state, frame);
-        }
+        if (out.node->getChild(Children::LIMIT_LENGTH))
+            out << (settings.hilite ? hilite_keyword : "") << settings.nl_or_ws << indent_str << "LIMIT "
+                << (settings.hilite ? hilite_none : "") << Children::LIMIT_LENGTH;
     }
 };
+
+using ASTWatchQuery = ASTTraitWithOutput<ASTWatchQueryTrait>;
 
 }
