@@ -230,6 +230,7 @@ DDLWorker::DDLWorker(const std::string & zk_root_dir, Context & context_, const 
         task_max_lifetime = config->getUInt64(prefix + ".task_max_lifetime", static_cast<UInt64>(task_max_lifetime));
         cleanup_delay_period = config->getUInt64(prefix + ".cleanup_delay_period", static_cast<UInt64>(cleanup_delay_period));
         max_tasks_in_queue = std::max<UInt64>(1, config->getUInt64(prefix + ".max_tasks_in_queue", max_tasks_in_queue));
+        sync_ddl_worker_flag = config->getBool(prefix + ".sync_ddl_worker_when_start", true);
 
         if (config->has(prefix + ".profile"))
             context.setSetting("profile", config->getString(prefix + ".profile"));
@@ -244,8 +245,12 @@ DDLWorker::DDLWorker(const std::string & zk_root_dir, Context & context_, const 
     host_fqdn = getFQDNOrHostName();
     host_fqdn_id = Cluster::Address::toString(host_fqdn, context.getTCPPort());
 
+    std::unique_lock sync_lock(sync_ddl_mutex);
     main_thread = ThreadFromGlobalPool(&DDLWorker::runMainThread, this);
-    cleanup_thread = ThreadFromGlobalPool(&DDLWorker::runCleanupThread, this);
+    cond.wait(sync_lock);
+
+    if (sync_error_code)
+        throw Exception(sync_exception_message, sync_error_code);
 }
 
 
@@ -345,12 +350,14 @@ bool DDLWorker::initAndCheckTask(const String & entry_name, String & out_reason,
         }
     }
 
-    if (host_in_hostlist)
-        current_task = std::move(task);
-    else
-        out_reason = "There is no a local address in host list";
+    if (!host_in_hostlist)
+    {
+        task->host_id = HostID::fromString("127.0.0.1:" + toString(context.getTCPPort()));
+        task->host_id_str = task->host_id.toString();
+    }
 
-    return host_in_hostlist;
+    current_task = std::move(task);
+    return true;
 }
 
 
@@ -974,6 +981,12 @@ void DDLWorker::runMainThread()
             cleanup_event->set();
             processTasks();
 
+            if (sync_ddl_worker_flag)
+            {
+                cond.notify_one();
+                sync_ddl_worker_flag = false;
+            }
+
             LOG_DEBUG(log, "Waiting a watch");
             queue_updated_event->wait();
         }
@@ -1005,12 +1018,35 @@ void DDLWorker::runMainThread()
             }
             else
             {
+                if (sync_ddl_worker_flag)
+                {
+                    {
+                        std::lock_guard sync_lock{sync_ddl_mutex};
+                        sync_error_code = e.code;
+                        sync_exception_message = e.message();
+                    }
+
+                    cond.notify_one();
+                    sync_ddl_worker_flag = false;
+                }
+
                 LOG_ERROR(log, "Unexpected ZooKeeper error: " << getCurrentExceptionMessage(true) << ". Terminating.");
                 return;
             }
         }
         catch (...)
         {
+            if (sync_ddl_worker_flag)
+            {
+                {
+                    std::lock_guard sync_lock{sync_ddl_mutex};
+                    sync_error_code = getCurrentExceptionCode();
+                    sync_exception_message = getCurrentExceptionMessage(true);
+                }
+                cond.notify_one();
+                sync_ddl_worker_flag = false;
+            }
+
             tryLogCurrentException(log, "Unexpected error, will terminate:");
             return;
         }

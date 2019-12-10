@@ -124,6 +124,13 @@ private:
     /// How many tasks could be in the queue
     size_t max_tasks_in_queue = 1000;
 
+    std::atomic<bool> sync_ddl_worker_flag{true};
+    std::mutex sync_ddl_mutex;
+    std::condition_variable cond;
+
+    int sync_error_code = 0;
+    String sync_exception_message = "";
+
     ThreadGroupStatusPtr thread_group;
 
     friend class DDLQueryStatusInputStream;
