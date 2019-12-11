@@ -38,7 +38,7 @@ BlockIO InterpreterDropQuery::execute()
 
     checkAccess(drop);
 
-    if (!drop.cluster.empty())
+    if (isExecutionOnCluster(query_ptr, context))
         return executeDDLQueryOnCluster(query_ptr, context, {drop.database});
 
     if (!drop.table.empty())

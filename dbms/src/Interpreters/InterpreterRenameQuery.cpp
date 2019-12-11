@@ -38,7 +38,7 @@ BlockIO InterpreterRenameQuery::execute()
 {
     const auto & rename = query_ptr->as<ASTRenameQuery &>();
 
-    if (!rename.cluster.empty())
+    if (isExecutionOnCluster(query_ptr, context))
     {
         NameSet databases;
         for (const auto & elem : rename.elements)

@@ -1283,6 +1283,17 @@ void Context::setDefaultFormat(const String & name)
     default_format = name;
 }
 
+String Context::getDefaultOnCluster() const
+{
+    return default_on_cluster;
+}
+
+
+void Context::setDefaultOnCluster(const String & cluster_name)
+{
+    default_on_cluster = cluster_name;
+}
+
 MultiVersion<Macros>::Version Context::getMacros() const
 {
     return shared->macros.get();

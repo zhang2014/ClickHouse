@@ -35,7 +35,7 @@ BlockIO InterpreterAlterQuery::execute()
 {
     const auto & alter = query_ptr->as<ASTAlterQuery &>();
 
-    if (!alter.cluster.empty())
+    if (isExecutionOnCluster(query_ptr, context))
         return executeDDLQueryOnCluster(query_ptr, context, {alter.database});
 
     const String & table_name = alter.table;

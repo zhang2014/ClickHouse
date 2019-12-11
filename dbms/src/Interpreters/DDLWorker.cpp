@@ -1238,6 +1238,19 @@ private:
     Int64 timeout_seconds = 120;
 };
 
+bool isExecutionOnCluster(ASTPtr & query_ptr_, const Context & context)
+{
+    if (auto * query = dynamic_cast<ASTQueryWithOnCluster *>(query_ptr_.get()))
+    {
+        const auto & kind = context.getClientInfo().query_kind;
+        if (kind != ClientInfo::QueryKind::SECONDARY_QUERY && !context.getDefaultOnCluster().empty())
+            query->cluster = context.getDefaultOnCluster();
+
+        return !query->cluster.empty();
+    }
+
+    return false;
+}
 
 BlockIO executeDDLQueryOnCluster(const ASTPtr & query_ptr_, const Context & context, NameSet && query_databases)
 {

@@ -174,7 +174,7 @@ BlockIO InterpreterKillQueryQuery::execute()
 {
     const auto & query = query_ptr->as<ASTKillQueryQuery &>();
 
-    if (!query.cluster.empty())
+    if (isExecutionOnCluster(query_ptr, context))
         return executeDDLQueryOnCluster(query_ptr, context, {"system"});
 
     BlockIO res_io;

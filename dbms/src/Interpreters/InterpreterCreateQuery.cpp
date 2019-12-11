@@ -81,7 +81,7 @@ InterpreterCreateQuery::InterpreterCreateQuery(const ASTPtr & query_ptr_, Contex
 
 BlockIO InterpreterCreateQuery::createDatabase(ASTCreateQuery & create)
 {
-    if (!create.cluster.empty())
+    if (isExecutionOnCluster(query_ptr, context))
         return executeDDLQueryOnCluster(query_ptr, context, {create.database});
 
     String database_name = create.database;
@@ -523,7 +523,7 @@ void InterpreterCreateQuery::setEngine(ASTCreateQuery & create) const
 
 BlockIO InterpreterCreateQuery::createTable(ASTCreateQuery & create)
 {
-    if (!create.cluster.empty())
+    if (isExecutionOnCluster(query_ptr, context))
     {
         NameSet databases{create.database};
         if (!create.to_table.empty())
