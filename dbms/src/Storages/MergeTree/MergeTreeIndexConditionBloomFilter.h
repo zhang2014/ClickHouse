@@ -39,7 +39,8 @@ public:
     };
 
     MergeTreeIndexConditionBloomFilter(
-        const SelectQueryInfo & info_, const Context & context_, const Block & header_, size_t hash_functions_, size_t fixed_index_rows_);
+        const SelectQueryInfo & info_, const Context & context_,
+        const Block & header_, size_t hash_functions_, size_t fixed_index_rows_, size_t bits_per_row_);
 
     bool alwaysUnknownOrTrue() const override;
 
@@ -57,6 +58,7 @@ private:
     const SelectQueryInfo & query_info;
     const size_t hash_functions;
     const size_t fixed_index_rows;
+    const size_t bits_per_row;
     std::vector<RPNElement> rpn;
 
     SetPtr getPreparedSet(const ASTPtr & node);

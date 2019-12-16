@@ -79,8 +79,10 @@ bool maybeTrueOnBloomFilter(
 }
 
 MergeTreeIndexConditionBloomFilter::MergeTreeIndexConditionBloomFilter(
-    const SelectQueryInfo & info_, const Context & context_, const Block & header_, size_t hash_functions_, size_t fixed_index_rows_)
-    : header(header_), context(context_), query_info(info_), hash_functions(hash_functions_), fixed_index_rows(fixed_index_rows_)
+    const SelectQueryInfo & info_, const Context & context_,
+    const Block & header_, size_t hash_functions_, size_t fixed_index_rows_, size_t bits_per_row_)
+    : header(header_), context(context_), query_info(info_)
+    , hash_functions(hash_functions_), fixed_index_rows(fixed_index_rows_), bits_per_row(bits_per_row_)
 {
     auto atomFromAST = [this](auto & node, auto &, auto & constants, auto & out) { return traverseAtomAST(node, constants, out); };
     rpn = std::move(RPNBuilder<RPNElement>(info_, context, atomFromAST).extractRPN());
@@ -259,10 +261,10 @@ bool MergeTreeIndexConditionBloomFilter::traverseASTIn(
 
         {
             /// create predicate
+            size_t row_size = column->size();
             size_t position = header.getPositionByName(key_ast->getColumnName());
             const DataTypePtr & index_type = header.getByPosition(position).type;
             const auto & converted_column = castColumn(ColumnWithTypeAndName{column, type, ""}, index_type, context);
-
             out.predicate.emplace_back(buildPredicate(position, BloomFilterHash::hashWithColumn(index_type, converted_column, 0, row_size)));
         }
 
@@ -379,7 +381,7 @@ SetPtr MergeTreeIndexConditionBloomFilter::getPreparedSet(const ASTPtr & node)
 std::tuple<size_t, BloomFilterPtr, ColumnPtr> MergeTreeIndexConditionBloomFilter::buildPredicate(size_t position, const ColumnPtr & column) const
 {
     static size_t atom_size = 8;
-    size_t bytes_size = /*(bits_per_row * total_items + atom_size - 1) /*/ atom_size;
+    size_t bytes_size = (bits_per_row * fixed_index_rows + atom_size - 1) / atom_size;
 
     auto bf = std::make_shared<BloomFilter>(bytes_size, hash_functions, 0);
 

@@ -65,8 +65,8 @@ MergeTreeIndexAggregatorPtr MergeTreeIndexBloomFilter::createIndexAggregator(siz
 MergeTreeIndexConditionPtr MergeTreeIndexBloomFilter::createIndexCondition(
     const SelectQueryInfo & query_info, const Context & context, size_t fixed_granularity_rows) const
 {
-    size_t perfect_size = granularity * fixed_granularity_rows;
-    return std::make_shared<MergeTreeIndexConditionBloomFilter>(query_info, context, header, hash_functions);
+    return std::make_shared<MergeTreeIndexConditionBloomFilter>(
+        query_info, context, header, hash_functions, granularity * fixed_granularity_rows, bits_per_row);
 }
 
 static void assertIndexColumnsType(const Block & header)
