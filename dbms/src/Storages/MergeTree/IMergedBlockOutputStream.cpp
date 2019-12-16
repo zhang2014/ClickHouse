@@ -323,7 +323,8 @@ void IMergedBlockOutputStream::initSkipIndices()
                         part_path + stream_name, marks_file_extension,
                         codec, max_compress_block_size,
                         0, aio_threshold));
-        skip_indices_aggregators.push_back(index->createIndexAggregator());
+        const auto storage_settings = storage.getSettings();
+        skip_indices_aggregators.push_back(index->createIndexAggregator(storage_settings->index_granularity));
         skip_index_filling.push_back(0);
     }
 }
@@ -354,7 +355,8 @@ void IMergedBlockOutputStream::calculateAndSerializeSkipIndices(
                 limit = index_granularity.getMarkRows(skip_index_current_data_mark);
                 if (skip_indices_aggregators[i]->empty())
                 {
-                    skip_indices_aggregators[i] = index->createIndexAggregator();
+                    const auto storage_settings = storage.getSettings();
+                    skip_indices_aggregators[i] = index->createIndexAggregator(storage_settings->index_granularity);
                     skip_index_filling[i] = 0;
 
                     if (stream.compressed.offset() >= min_compress_block_size)
@@ -381,7 +383,7 @@ void IMergedBlockOutputStream::calculateAndSerializeSkipIndices(
                 /// write index if it is filled
                 if (skip_index_filling[i] == index->granularity)
                 {
-                    skip_indices_aggregators[i]->getGranuleAndReset()->serializeBinary(stream.compressed);
+                    skip_indices_aggregators[i]->getGranuleAndReset(true)->serializeBinary(stream.compressed);
                     skip_index_filling[i] = 0;
                 }
             }
@@ -398,7 +400,7 @@ void IMergedBlockOutputStream::finishSkipIndicesSerialization(
     {
         auto & stream = *skip_indices_streams[i];
         if (!skip_indices_aggregators[i]->empty())
-            skip_indices_aggregators[i]->getGranuleAndReset()->serializeBinary(stream.compressed);
+            skip_indices_aggregators[i]->getGranuleAndReset(false)->serializeBinary(stream.compressed);
     }
 
     for (auto & stream : skip_indices_streams)

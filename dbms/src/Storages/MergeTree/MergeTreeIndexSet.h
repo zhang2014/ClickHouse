@@ -107,10 +107,9 @@ public:
     ~MergeTreeIndexSet() override = default;
 
     MergeTreeIndexGranulePtr createIndexGranule() const override;
-    MergeTreeIndexAggregatorPtr createIndexAggregator() const override;
+    MergeTreeIndexAggregatorPtr createIndexAggregator(size_t) const override;
 
-    MergeTreeIndexConditionPtr createIndexCondition(
-            const SelectQueryInfo & query, const Context & context) const override;
+    MergeTreeIndexConditionPtr createIndexCondition(const SelectQueryInfo & query, const Context & context, size_t) const override;
 
     bool mayBenefitFromIndexForIn(const ASTPtr & node) const override;
 

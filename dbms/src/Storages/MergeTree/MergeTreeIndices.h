@@ -45,7 +45,7 @@ struct IMergeTreeIndexAggregator
     virtual ~IMergeTreeIndexAggregator() = default;
 
     virtual bool empty() const = 0;
-    virtual MergeTreeIndexGranulePtr getGranuleAndReset() = 0;
+    virtual MergeTreeIndexGranulePtr getGranuleAndReset(bool is_full) = 0;
 
     /// Updates the stored info using rows of the specified block.
     /// Reads no more than `limit` rows.
@@ -98,10 +98,10 @@ public:
     virtual bool mayBenefitFromIndexForIn(const ASTPtr & node) const = 0;
 
     virtual MergeTreeIndexGranulePtr createIndexGranule() const = 0;
-    virtual MergeTreeIndexAggregatorPtr createIndexAggregator() const = 0;
+    virtual MergeTreeIndexAggregatorPtr createIndexAggregator(size_t fixed_index_granularity_rows) const = 0;
 
     virtual MergeTreeIndexConditionPtr createIndexCondition(
-            const SelectQueryInfo & query_info, const Context & context) const = 0;
+            const SelectQueryInfo & query_info, const Context & context, size_t fixed_granularity_rows) const = 0;
 
     Names getColumnsRequiredForIndexCalc() const { return expr->getRequiredColumns(); }
 

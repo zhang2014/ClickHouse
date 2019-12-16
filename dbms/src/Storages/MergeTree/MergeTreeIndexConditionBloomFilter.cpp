@@ -13,6 +13,7 @@
 #include <Columns/ColumnTuple.h>
 #include <Interpreters/castColumn.h>
 #include <Interpreters/convertFieldToType.h>
+#include "MergeTreeIndexConditionBloomFilter.h"
 
 
 namespace DB
@@ -41,23 +42,22 @@ ColumnWithTypeAndName getPreparedSetInfo(const SetPtr & prepared_set)
     return {ColumnTuple::create(prepared_set->getSetElements()), std::make_shared<DataTypeTuple>(prepared_set->getElementsTypes()), "dummy"};
 }
 
-bool maybeTrueOnBloomFilter(const IColumn * hash_column, const BloomFilterPtr & bloom_filter, size_t hash_functions)
+bool maybeTrueOnBloomFilter(
+    const IColumn * hash_column, const BloomFilterPtr & condition_bf, const BloomFilterPtr & data_bf, size_t hash_functions)
 {
-    const auto const_column = typeid_cast<const ColumnConst *>(hash_column);
-    const auto non_const_column = typeid_cast<const ColumnUInt64 *>(hash_column);
-
-    if (!const_column && !non_const_column)
-        throw Exception("LOGICAL ERROR: hash column must be Const Column or UInt64 Column.", ErrorCodes::LOGICAL_ERROR);
-
-    if (const_column)
+    if (const auto const_column = typeid_cast<const ColumnConst *>(hash_column))
     {
         for (size_t index = 0; index < hash_functions; ++index)
-            if (!bloom_filter->findHashWithSeed(const_column->getValue<UInt64>(), BloomFilterHash::bf_hash_seed[index]))
+            if (!data_bf->findHashWithSeed(const_column->getValue<UInt64>(), BloomFilterHash::bf_hash_seed[index]))
                 return false;
+
         return true;
     }
-    else
+    else if (const auto non_const_column = typeid_cast<const ColumnUInt64 *>(hash_column))
     {
+        if (condition_bf->getSize() == data_bf->getSize())
+            return data_bf->contains(*condition_bf);
+
         bool missing_rows = true;
         const ColumnUInt64::Container & data = non_const_column->getData();
 
@@ -65,20 +65,22 @@ bool maybeTrueOnBloomFilter(const IColumn * hash_column, const BloomFilterPtr & 
         {
             bool match_row = true;
             for (size_t hash_index = 0; match_row && hash_index < hash_functions; ++hash_index)
-                match_row = bloom_filter->findHashWithSeed(data[index], BloomFilterHash::bf_hash_seed[hash_index]);
+                match_row = data_bf->findHashWithSeed(data[index], BloomFilterHash::bf_hash_seed[hash_index]);
 
             missing_rows = !match_row;
         }
 
         return !missing_rows;
     }
+    else
+        throw Exception("LOGICAL ERROR: hash column must be Const Column or UInt64 Column.", ErrorCodes::LOGICAL_ERROR);
 }
 
 }
 
 MergeTreeIndexConditionBloomFilter::MergeTreeIndexConditionBloomFilter(
-    const SelectQueryInfo & info_, const Context & context_, const Block & header_, size_t hash_functions_)
-    : header(header_), context(context_), query_info(info_), hash_functions(hash_functions_)
+    const SelectQueryInfo & info_, const Context & context_, const Block & header_, size_t hash_functions_, size_t fixed_index_rows_)
+    : header(header_), context(context_), query_info(info_), hash_functions(hash_functions_), fixed_index_rows(fixed_index_rows_)
 {
     auto atomFromAST = [this](auto & node, auto &, auto & constants, auto & out) { return traverseAtomAST(node, constants, out); };
     rpn = std::move(RPNBuilder<RPNElement>(info_, context, atomFromAST).extractRPN());
@@ -150,10 +152,8 @@ bool MergeTreeIndexConditionBloomFilter::mayBeTrueOnGranule(const MergeTreeIndex
             const auto & predicate = element.predicate;
             for (size_t index = 0; match_rows && index < predicate.size(); ++index)
             {
-                const auto & query_index_hash = predicate[index];
-                const auto & filter = filters[query_index_hash.first];
-                const ColumnPtr & hash_column = query_index_hash.second;
-                match_rows = maybeTrueOnBloomFilter(&*hash_column, filter, hash_functions);
+                const auto & [column_index, bf, hash_column] = predicate[index];
+                match_rows = maybeTrueOnBloomFilter(&*hash_column, bf, filters[column_index], hash_functions);
             }
 
             rpn_stack.emplace_back(match_rows, !match_rows);
@@ -251,17 +251,20 @@ bool MergeTreeIndexConditionBloomFilter::traverseASTIn(
 {
     if (header.has(key_ast->getColumnName()))
     {
-        size_t row_size = column->size();
-        size_t position = header.getPositionByName(key_ast->getColumnName());
-        const DataTypePtr & index_type = header.getByPosition(position).type;
-        const auto & converted_column = castColumn(ColumnWithTypeAndName{column, type, ""}, index_type, context);
-        out.predicate.emplace_back(std::make_pair(position, BloomFilterHash::hashWithColumn(index_type, converted_column, 0, row_size)));
-
         if (function_name == "in"  || function_name == "globalIn")
             out.function = RPNElement::FUNCTION_IN;
 
         if (function_name == "notIn"  || function_name == "globalNotIn")
             out.function = RPNElement::FUNCTION_NOT_IN;
+
+        {
+            /// create predicate
+            size_t position = header.getPositionByName(key_ast->getColumnName());
+            const DataTypePtr & index_type = header.getByPosition(position).type;
+            const auto & converted_column = castColumn(ColumnWithTypeAndName{column, type, ""}, index_type, context);
+
+            out.predicate.emplace_back(buildPredicate(position, BloomFilterHash::hashWithColumn(index_type, converted_column, 0, row_size)));
+        }
 
         return true;
     }
@@ -311,7 +314,7 @@ bool MergeTreeIndexConditionBloomFilter::traverseASTEquals(
 
             const DataTypePtr actual_type = BloomFilter::getPrimitiveType(array_type->getNestedType());
             Field converted_field = convertFieldToType(value_field, *actual_type, value_type.get());
-            out.predicate.emplace_back(std::make_pair(position, BloomFilterHash::hashWithField(actual_type.get(), converted_field)));
+            out.predicate.emplace_back(buildPredicate(position, BloomFilterHash::hashWithField(actual_type.get(), converted_field)));
         }
         else
         {
@@ -321,7 +324,7 @@ bool MergeTreeIndexConditionBloomFilter::traverseASTEquals(
             out.function = function_name == "equals" ? RPNElement::FUNCTION_EQUALS : RPNElement::FUNCTION_NOT_EQUALS;
             const DataTypePtr actual_type = BloomFilter::getPrimitiveType(index_type);
             Field converted_field = convertFieldToType(value_field, *actual_type, value_type.get());
-            out.predicate.emplace_back(std::make_pair(position, BloomFilterHash::hashWithField(actual_type.get(), converted_field)));
+            out.predicate.emplace_back(buildPredicate(position, BloomFilterHash::hashWithField(actual_type.get(), converted_field)));
         }
 
         return true;
@@ -371,6 +374,29 @@ SetPtr MergeTreeIndexConditionBloomFilter::getPreparedSet(const ASTPtr & node)
     }
 
     return DB::SetPtr();
+}
+
+std::tuple<size_t, BloomFilterPtr, ColumnPtr> MergeTreeIndexConditionBloomFilter::buildPredicate(size_t position, const ColumnPtr & column) const
+{
+    static size_t atom_size = 8;
+    size_t bytes_size = /*(bits_per_row * total_items + atom_size - 1) /*/ atom_size;
+
+    auto bf = std::make_shared<BloomFilter>(bytes_size, hash_functions, 0);
+
+    if (const auto hash_column = typeid_cast<const ColumnUInt64 *>(column.get()))
+    {
+        const auto & hash_column_vec = hash_column->getData();
+
+        for (size_t index = 0, size = hash_column_vec.size(); index < size; ++index)
+        {
+            const UInt64 &bf_base_hash = hash_column_vec[index];
+
+            for (size_t i = 0; i < hash_functions; ++i)
+                bf->addHashWithSeed(bf_base_hash, BloomFilterHash::bf_hash_seed[i]);
+        }
+    }
+
+    return std::make_tuple(position, bf, column);
 }
 
 }

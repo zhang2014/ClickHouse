@@ -35,7 +35,7 @@ struct MergeTreeIndexAggregatorMinMax : IMergeTreeIndexAggregator
     ~MergeTreeIndexAggregatorMinMax() override = default;
 
     bool empty() const override { return parallelogram.empty(); }
-    MergeTreeIndexGranulePtr getGranuleAndReset() override;
+    MergeTreeIndexGranulePtr getGranuleAndReset(bool) override;
     void update(const Block & block, size_t * pos, size_t limit) override;
 
     const MergeTreeIndexMinMax & index;
@@ -77,10 +77,9 @@ public:
     ~MergeTreeIndexMinMax() override = default;
 
     MergeTreeIndexGranulePtr createIndexGranule() const override;
-    MergeTreeIndexAggregatorPtr createIndexAggregator() const override;
+    MergeTreeIndexAggregatorPtr createIndexAggregator(size_t) const override;
 
-    MergeTreeIndexConditionPtr createIndexCondition(
-        const SelectQueryInfo & query, const Context & context) const override;
+    MergeTreeIndexConditionPtr createIndexCondition(const SelectQueryInfo & query, const Context & context, size_t) const override;
 
     bool mayBenefitFromIndexForIn(const ASTPtr & node) const override;
 };

@@ -433,7 +433,7 @@ bool MergeTreeIndexConditionSet::checkASTUseless(const ASTPtr &node, bool atomic
 }
 
 
-MergeTreeIndexGranulePtr MergeTreeIndexSet::createIndexGranule() const
+MergeTreeIndexGranulePtr MergeTreeIndexSet::createIndexGranule(size_t) const
 {
     return std::make_shared<MergeTreeIndexGranuleSet>(*this);
 }
@@ -443,8 +443,7 @@ MergeTreeIndexAggregatorPtr MergeTreeIndexSet::createIndexAggregator() const
     return std::make_shared<MergeTreeIndexAggregatorSet>(*this);
 }
 
-MergeTreeIndexConditionPtr MergeTreeIndexSet::createIndexCondition(
-    const SelectQueryInfo & query, const Context & context) const
+MergeTreeIndexConditionPtr MergeTreeIndexSet::createIndexCondition(const SelectQueryInfo & query, const Context & context, size_t) const
 {
     return std::make_shared<MergeTreeIndexConditionSet>(query, context, *this);
 };

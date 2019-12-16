@@ -19,8 +19,9 @@ namespace ErrorCodes
 }
 
 MergeTreeIndexAggregatorBloomFilter::MergeTreeIndexAggregatorBloomFilter(
-    size_t bits_per_row_, size_t hash_functions_, const Names & columns_name_)
-    : bits_per_row(bits_per_row_), hash_functions(hash_functions_), index_columns_name(columns_name_)
+    size_t bits_per_row_, size_t hash_functions_, size_t granularity_size_, size_t fixed_granularity_rows_, const Names & columns_name_)
+    : bits_per_row(bits_per_row_), hash_functions(hash_functions_), granularity_size(granularity_size_)
+    , fixed_granularity_rows(fixed_granularity_rows_), index_columns_name(columns_name_)
 {
 }
 
@@ -29,8 +30,15 @@ bool MergeTreeIndexAggregatorBloomFilter::empty() const
     return !total_rows;
 }
 
-MergeTreeIndexGranulePtr MergeTreeIndexAggregatorBloomFilter::getGranuleAndReset()
+MergeTreeIndexGranulePtr MergeTreeIndexAggregatorBloomFilter::getGranuleAndReset(bool is_full)
 {
+    if (is_full)
+    {
+        size_t perfect_size = fixed_granularity_rows * granularity_size;
+        if (total_rows / double(perfect_size) >= 0.618)
+            total_rows = perfect_size;  /// If the number of rows filled is more than 61.8%, it makes sense for us to round up.
+    }
+
     const auto granule = std::make_shared<MergeTreeIndexGranuleBloomFilter>(bits_per_row, hash_functions, total_rows, granule_index_blocks);
     total_rows = 0;
     granule_index_blocks.clear();

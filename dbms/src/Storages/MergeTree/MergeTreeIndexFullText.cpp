@@ -90,7 +90,7 @@ void MergeTreeIndexGranuleFullText::deserializeBinary(ReadBuffer & istr)
 MergeTreeIndexAggregatorFullText::MergeTreeIndexAggregatorFullText(const MergeTreeIndexFullText & index_)
     : index(index_), granule(std::make_shared<MergeTreeIndexGranuleFullText>(index)) {}
 
-MergeTreeIndexGranulePtr MergeTreeIndexAggregatorFullText::getGranuleAndReset()
+MergeTreeIndexGranulePtr MergeTreeIndexAggregatorFullText::getGranuleAndReset(bool)
 {
     auto new_granule = std::make_shared<MergeTreeIndexGranuleFullText>(index);
     new_granule.swap(granule);
@@ -549,13 +549,12 @@ MergeTreeIndexGranulePtr MergeTreeIndexFullText::createIndexGranule() const
     return std::make_shared<MergeTreeIndexGranuleFullText>(*this);
 }
 
-MergeTreeIndexAggregatorPtr MergeTreeIndexFullText::createIndexAggregator() const
+MergeTreeIndexAggregatorPtr MergeTreeIndexFullText::createIndexAggregator(size_t) const
 {
     return std::make_shared<MergeTreeIndexAggregatorFullText>(*this);
 }
 
-MergeTreeIndexConditionPtr MergeTreeIndexFullText::createIndexCondition(
-        const SelectQueryInfo & query, const Context & context) const
+MergeTreeIndexConditionPtr MergeTreeIndexFullText::createIndexCondition(const SelectQueryInfo & query, const Context & context, size_t) const
 {
     return std::make_shared<MergeTreeConditionFullText>(query, context, *this);
 };

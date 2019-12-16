@@ -56,13 +56,16 @@ bool MergeTreeIndexBloomFilter::mayBenefitFromIndexForIn(const ASTPtr & node) co
     return false;
 }
 
-MergeTreeIndexAggregatorPtr MergeTreeIndexBloomFilter::createIndexAggregator() const
+MergeTreeIndexAggregatorPtr MergeTreeIndexBloomFilter::createIndexAggregator(size_t fixed_granularity_rows) const
 {
-    return std::make_shared<MergeTreeIndexAggregatorBloomFilter>(bits_per_row, hash_functions, columns);
+    return std::make_shared<MergeTreeIndexAggregatorBloomFilter>(
+        bits_per_row, hash_functions, granularity, fixed_granularity_rows, columns);
 }
 
-MergeTreeIndexConditionPtr MergeTreeIndexBloomFilter::createIndexCondition(const SelectQueryInfo & query_info, const Context & context) const
+MergeTreeIndexConditionPtr MergeTreeIndexBloomFilter::createIndexCondition(
+    const SelectQueryInfo & query_info, const Context & context, size_t fixed_granularity_rows) const
 {
+    size_t perfect_size = granularity * fixed_granularity_rows;
     return std::make_shared<MergeTreeIndexConditionBloomFilter>(query_info, context, header, hash_functions);
 }
 

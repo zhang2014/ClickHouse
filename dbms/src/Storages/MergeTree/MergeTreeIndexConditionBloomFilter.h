@@ -35,10 +35,11 @@ public:
         RPNElement(Function function_ = FUNCTION_UNKNOWN) : function(function_) {}
 
         Function function = FUNCTION_UNKNOWN;
-        std::vector<std::pair<size_t, ColumnPtr>> predicate;
+        std::vector<std::tuple<size_t, BloomFilterPtr, ColumnPtr>> predicate;
     };
 
-    MergeTreeIndexConditionBloomFilter(const SelectQueryInfo & info_, const Context & context_, const Block & header_, size_t hash_functions_);
+    MergeTreeIndexConditionBloomFilter(
+        const SelectQueryInfo & info_, const Context & context_, const Block & header_, size_t hash_functions_, size_t fixed_index_rows_);
 
     bool alwaysUnknownOrTrue() const override;
 
@@ -55,6 +56,7 @@ private:
     const Context & context;
     const SelectQueryInfo & query_info;
     const size_t hash_functions;
+    const size_t fixed_index_rows;
     std::vector<RPNElement> rpn;
 
     SetPtr getPreparedSet(const ASTPtr & node);
@@ -65,11 +67,11 @@ private:
 
     bool traverseASTIn(const String & function_name, const ASTPtr & key_ast, const SetPtr & prepared_set, RPNElement & out);
 
-    bool traverseASTIn(
-        const String & function_name, const ASTPtr & key_ast, const DataTypePtr & type, const ColumnPtr & column, RPNElement & out);
+    bool traverseASTIn(const String & function_name, const ASTPtr & key_ast, const DataTypePtr & type, const ColumnPtr & column, RPNElement & out);
 
-    bool traverseASTEquals(
-        const String & function_name, const ASTPtr & key_ast, const DataTypePtr & value_type, const Field & value_field, RPNElement & out);
+    bool traverseASTEquals(const String & function_name, const ASTPtr & key_ast, const DataTypePtr & value_type, const Field & value_field, RPNElement & out);
+
+    std::tuple<size_t, BloomFilterPtr, ColumnPtr> buildPredicate(size_t position, const ColumnPtr & hash_column) const;
 };
 
 }

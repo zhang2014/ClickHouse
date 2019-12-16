@@ -545,10 +545,11 @@ Pipes MergeTreeDataSelectExecutor::readFromParts(
 
     RangesInDataParts parts_with_ranges;
 
+    const auto & storage_settings = data.getSettings();
     std::vector<std::pair<MergeTreeIndexPtr, MergeTreeIndexConditionPtr>> useful_indices;
     for (const auto & index : data.skip_indices)
     {
-        auto condition = index->createIndexCondition(query_info, context);
+        auto condition = index->createIndexCondition(query_info, context, storage_settings->index_granularity);
         if (!condition->alwaysUnknownOrTrue())
             useful_indices.emplace_back(index, condition);
     }

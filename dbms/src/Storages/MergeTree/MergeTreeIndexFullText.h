@@ -40,7 +40,7 @@ struct MergeTreeIndexAggregatorFullText : IMergeTreeIndexAggregator
     ~MergeTreeIndexAggregatorFullText() override = default;
 
     bool empty() const override { return !granule || granule->empty(); }
-    MergeTreeIndexGranulePtr getGranuleAndReset() override;
+    MergeTreeIndexGranulePtr getGranuleAndReset(bool) override;
 
     void update(const Block & block, size_t * pos, size_t limit) override;
 
@@ -193,10 +193,9 @@ public:
     ~MergeTreeIndexFullText() override = default;
 
     MergeTreeIndexGranulePtr createIndexGranule() const override;
-    MergeTreeIndexAggregatorPtr createIndexAggregator() const override;
+    MergeTreeIndexAggregatorPtr createIndexAggregator(size_t) const override;
 
-    MergeTreeIndexConditionPtr createIndexCondition(
-            const SelectQueryInfo & query, const Context & context) const override;
+    MergeTreeIndexConditionPtr createIndexCondition(const SelectQueryInfo & query, const Context & context, size_t) const override;
 
     bool mayBenefitFromIndexForIn(const ASTPtr & node) const override;
 

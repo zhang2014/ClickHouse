@@ -86,7 +86,7 @@ void MergeTreeIndexGranuleMinMax::deserializeBinary(ReadBuffer & istr)
 MergeTreeIndexAggregatorMinMax::MergeTreeIndexAggregatorMinMax(const MergeTreeIndexMinMax & index_)
     : index(index_) {}
 
-MergeTreeIndexGranulePtr MergeTreeIndexAggregatorMinMax::getGranuleAndReset()
+MergeTreeIndexGranulePtr MergeTreeIndexAggregatorMinMax::getGranuleAndReset(bool)
 {
     return std::make_shared<MergeTreeIndexGranuleMinMax>(index, std::move(parallelogram));
 }
@@ -147,7 +147,7 @@ bool MergeTreeIndexConditionMinMax::mayBeTrueOnGranule(MergeTreeIndexGranulePtr 
 }
 
 
-MergeTreeIndexGranulePtr MergeTreeIndexMinMax::createIndexGranule() const
+MergeTreeIndexGranulePtr MergeTreeIndexMinMax::createIndexGranule(size_t) const
 {
     return std::make_shared<MergeTreeIndexGranuleMinMax>(*this);
 }
@@ -159,8 +159,7 @@ MergeTreeIndexAggregatorPtr MergeTreeIndexMinMax::createIndexAggregator() const
 }
 
 
-MergeTreeIndexConditionPtr MergeTreeIndexMinMax::createIndexCondition(
-    const SelectQueryInfo & query, const Context & context) const
+MergeTreeIndexConditionPtr MergeTreeIndexMinMax::createIndexCondition(const SelectQueryInfo & query, const Context & context, size_t) const
 {
     return std::make_shared<MergeTreeIndexConditionMinMax>(query, context, *this);
 };
