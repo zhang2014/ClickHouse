@@ -351,11 +351,9 @@ bool DDLWorker::initAndCheckTask(const String & entry_name, String & out_reason,
     }
 
     if (!host_in_hostlist)
-    {
         task->host_id = HostID::fromString("127.0.0.1:" + toString(context.getTCPPort()));
-        task->host_id_str = task->host_id.toString();
-    }
 
+    task->host_id_str = Cluster::Address::toString(DNSResolver::instance().getHostName(), context.getTCPPort());
     current_task = std::move(task);
     return true;
 }
