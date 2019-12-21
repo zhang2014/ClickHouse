@@ -350,12 +350,55 @@ bool DDLWorker::initAndCheckTask(const String & entry_name, String & out_reason,
         }
     }
 
-    if (!host_in_hostlist)
-        task->host_id = HostID::fromString("127.0.0.1:" + toString(context.getTCPPort()));
+    bool found_via_resolving = host_in_hostlist;
 
-    task->host_id_str = Cluster::Address::toString(DNSResolver::instance().getHostName(), context.getTCPPort());
+    if (!found_via_resolving)
+    {
+        try
+        {
+            const char * begin = task->entry.query.data();
+            const char * end = begin + task->entry.query.size();
+
+            String description;
+            ParserQuery parser_query(end);
+            const auto & query = parseQuery(parser_query, begin, end, description, 0);
+
+            ASTQueryWithOnCluster * query_on_cluster = nullptr;
+            // XXX: serious design flaw since `ASTQueryWithOnCluster` is not inherited from `IAST`!
+            if (!query || !(query_on_cluster = dynamic_cast<ASTQueryWithOnCluster *>(query.get())))
+                throw Exception("Received unknown DDL query", ErrorCodes::UNKNOWN_TYPE_OF_QUERY);
+
+            const auto & cluster_name = query_on_cluster->cluster;
+            const auto & cluster = context.tryGetCluster(cluster_name);
+
+            const auto & shards = cluster->getShardsAddresses();
+
+            for (size_t shard_num = 0; shard_num < shards.size(); ++shard_num)
+            {
+                for (size_t replica_num = 0; replica_num < shards[shard_num].size(); ++replica_num)
+                {
+                    const Cluster::Address & address = shards[shard_num][replica_num];
+
+                    if (auto resolved = address.getResolvedAddress();
+                        resolved && (isLocalAddress(*resolved, context.getTCPPort())
+                                     || (context.getTCPPortSecure() && isLocalAddress(*resolved, *context.getTCPPortSecure()))))
+                    {
+                        found_via_resolving = true;
+                        task->host_id = HostID(address);
+                        task->host_id_str = task->host_id.toString();
+                    }
+                }
+            }
+        }
+        catch (...)
+        {
+            tryLogCurrentException(log);
+            out_reason = getCurrentExceptionMessage(false);
+        }
+    }
+
     current_task = std::move(task);
-    return true;
+    return found_via_resolving;
 }
 
 
@@ -964,6 +1007,17 @@ void DDLWorker::runMainThread()
         }
         catch (...)
         {
+            if (sync_ddl_worker_flag)
+            {
+                {
+                    std::lock_guard sync_lock{sync_ddl_mutex};
+                    sync_error_code = getCurrentExceptionCode();
+                    sync_exception_message = getCurrentExceptionMessage(true);
+                }
+                cond.notify_one();
+                sync_ddl_worker_flag = false;
+            }
+
             tryLogCurrentException(log, "Terminating. Cannot initialize DDL queue.");
             return;
         }
