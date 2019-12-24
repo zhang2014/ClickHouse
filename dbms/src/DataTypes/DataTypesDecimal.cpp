@@ -33,7 +33,12 @@ template <typename T>
 std::string DataTypeDecimal<T>::doGetName() const
 {
     std::stringstream ss;
-    ss << type_name << "(" << this->precision << ", " << this->scale << ")";
+    ss << type_name << "(";
+
+    if (!only_scale)
+        ss << this->precision << ", ";
+
+    ss << this->scale << ")";
     return ss.str();
 }
 
@@ -138,8 +143,8 @@ void DataTypeDecimal<T>::deserializeProtobuf(IColumn & column, ProtobufReader & 
 }
 
 template<typename T>
-DataTypeDecimal<T>::DataTypeDecimal(UInt32 precision_, UInt32 scale_, const String & type_name_)
-    : Base(precision_, scale_), type_name(type_name_)
+DataTypeDecimal<T>::DataTypeDecimal(UInt32 precision_, UInt32 scale_, const String & type_name_, bool only_scale_)
+    : Base(precision_, scale_), type_name(type_name_), only_scale(only_scale_)
 {
 }
 
@@ -178,7 +183,7 @@ static DataTypePtr createExact(const String & type_name, const ASTPtr & argument
     UInt64 precision = DecimalUtils::maxPrecision<T>();
     UInt64 scale = scale_arg->value.get<UInt64>();
 
-    return createDecimal<DataTypeDecimal>(precision, scale, type_name);
+    return createDecimal<DataTypeDecimal>(precision, scale, type_name, true);
 }
 
 void registerDataTypeDecimal(DataTypeFactory & factory)

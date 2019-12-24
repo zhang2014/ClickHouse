@@ -35,7 +35,7 @@ public:
     using typename Base::ColumnType;
     using Base::Base;
 
-    DataTypeDecimal(UInt32 precision_, UInt32 scale_, const String & type_name_ = "Decimal");
+    DataTypeDecimal(UInt32 precision_, UInt32 scale_, const String & type_name_ = "Decimal", bool only_scale_ = false);
 
     static constexpr auto family_name = "Decimal";
 
@@ -62,6 +62,7 @@ public:
 
 private:
     const String type_name;
+    bool only_scale = false;
 };
 
 template <typename T>
