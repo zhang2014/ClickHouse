@@ -35,6 +35,8 @@ public:
     using typename Base::ColumnType;
     using Base::Base;
 
+    DataTypeDecimal(UInt32 precision_, UInt32 scale_, const String & type_name_ = "Decimal");
+
     static constexpr auto family_name = "Decimal";
 
     const char * getFamilyName() const override { return family_name; }
@@ -57,6 +59,9 @@ public:
 
     static void readText(T & x, ReadBuffer & istr, UInt32 precision_, UInt32 scale_, bool csv = false);
     static bool tryReadText(T & x, ReadBuffer & istr, UInt32 precision_, UInt32 scale_);
+
+private:
+    const String type_name;
 };
 
 template <typename T>
