@@ -1,5 +1,6 @@
 #include "TestHint.h"
 #include "ConnectionParameters.h"
+#include "ExitTip.h"
 
 #include <port/unistd.h>
 #include <stdlib.h>
@@ -540,6 +541,7 @@ private:
 
             loop();
 
+            exitTip(std::cout);
             std::cout << (isNewYearMode() ? "Happy new year." : "Bye.") << std::endl;
             return 0;
         }
