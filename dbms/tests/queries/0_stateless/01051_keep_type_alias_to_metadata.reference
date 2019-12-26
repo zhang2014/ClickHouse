@@ -35,5 +35,4 @@ longtext	LONGTEXT
 blob	BLOB					
 tinyblob	TINYBLOB					
 mediumblob	MEDIUMBLOB					
-longblob	LONGBLOB
-
+longblob	LONGBLOB					
