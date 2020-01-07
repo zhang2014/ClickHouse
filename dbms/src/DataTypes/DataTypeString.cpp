@@ -375,6 +375,7 @@ void registerDataTypeString(DataTypeFactory & factory)
 
     /// These synonyms are added for compatibility.
 
+    factory.registerAlias("JSON", "String", DataTypeFactory::CaseInsensitive);
     factory.registerAlias("CHAR", "String", DataTypeFactory::CaseInsensitive);
     factory.registerAlias("VARCHAR", "String", DataTypeFactory::CaseInsensitive);
     factory.registerAlias("TEXT", "String", DataTypeFactory::CaseInsensitive);
