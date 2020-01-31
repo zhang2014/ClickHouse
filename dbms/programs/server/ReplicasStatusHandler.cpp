@@ -1,6 +1,7 @@
 #include "ReplicasStatusHandler.h"
 
 #include <Interpreters/Context.h>
+#include <Storages/StoragesSettings.h>
 #include <Storages/StorageReplicatedMergeTree.h>
 #include <Common/HTMLForm.h>
 #include <Common/typeid_cast.h>
@@ -30,7 +31,7 @@ void ReplicasStatusHandler::handleRequest(Poco::Net::HTTPServerRequest & request
         /// Even if lag is small, output detailed information about the lag.
         bool verbose = params.get("verbose", "") == "1";
 
-        const MergeTreeSettings & settings = context.getMergeTreeSettings();
+        const auto & settings = StoragesSettings::instance().mergeTreeSettingsRef(context);
 
         bool ok = true;
         std::stringstream message;

@@ -4,20 +4,8 @@
 #include <Core/SettingsCollection.h>
 #include <Common/SettingsChanges.h>
 
-
-namespace Poco
-{
-    namespace Util
-    {
-        class AbstractConfiguration;
-    }
-}
-
-
 namespace DB
 {
-
-class ASTStorage;
 
 /** Settings for the MergeTree family of engines.
   * Could be loaded from config or from a CREATE TABLE query (SETTINGS clause).
@@ -93,20 +81,10 @@ struct MergeTreeSettings : public SettingsCollection<MergeTreeSettings>
 
     DECLARE_SETTINGS_COLLECTION(LIST_OF_MERGE_TREE_SETTINGS)
 
-    /// Settings that should not change after the creation of a table.
-#define APPLY_FOR_IMMUTABLE_MERGE_TREE_SETTINGS(M) \
-    M(index_granularity)
-
-    void loadFromConfig(const String & config_elem, const Poco::Util::AbstractConfiguration & config);
-
-    /// NOTE: will rewrite the AST to add immutable settings.
-    void loadFromQuery(ASTStorage & storage_def);
-
     /// We check settings after storage creation
-    static bool isReadonlySetting(const String & name)
-    {
-        return name == "index_granularity" || name == "index_granularity_bytes";
-    }
+    static bool isReadonlySetting(const String & name);
+
+    static std::vector<String> immutableSettingsName();
 };
 
 using MergeTreeSettingsPtr = std::shared_ptr<const MergeTreeSettings>;

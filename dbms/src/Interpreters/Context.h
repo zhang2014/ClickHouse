@@ -503,8 +503,6 @@ public:
     /// Provide table name to make required cheks.
     std::shared_ptr<PartLog> getPartLog(const String & part_database);
 
-    const MergeTreeSettings & getMergeTreeSettings() const;
-
     /// Prevents DROP TABLE if its size is greater than max_size (50GB by default, max_size=0 turn off this check)
     void setMaxTableSizeToDrop(size_t max_size);
     void checkTableCanBeDropped(const String & database, const String & table, const size_t & table_size) const;

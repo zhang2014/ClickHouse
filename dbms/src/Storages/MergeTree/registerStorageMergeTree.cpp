@@ -4,6 +4,7 @@
 #include <Storages/MergeTree/MergeTreeIndices.h>
 #include <Storages/MergeTree/MergeTreeIndexMinMax.h>
 #include <Storages/MergeTree/MergeTreeIndexSet.h>
+#include <Storages/StoragesSettings.h>
 
 #include <Common/typeid_cast.h>
 #include <Common/OptimizedRegularExpression.h>
@@ -578,7 +579,7 @@ static StoragePtr create(const StorageFactory::Arguments & args)
     IndicesDescription indices_description;
     ConstraintsDescription constraints_description;
 
-    std::unique_ptr<MergeTreeSettings> storage_settings = std::make_unique<MergeTreeSettings>(args.context.getMergeTreeSettings());
+    auto storage_settings = StoragesSettings::instance().mergeTreeSettings(args.context);
 
     if (is_extended_storage_def)
     {

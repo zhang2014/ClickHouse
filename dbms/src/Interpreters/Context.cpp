@@ -18,6 +18,7 @@
 #include <Databases/IDatabase.h>
 #include <Storages/IStorage.h>
 #include <Storages/MarkCache.h>
+#include <Storages/StoragesSettings.h>
 #include <Storages/MergeTree/BackgroundProcessingPool.h>
 #include <Storages/MergeTree/MergeList.h>
 #include <Storages/MergeTree/MergeTreeSettings.h>
@@ -160,7 +161,7 @@ struct ContextShared
     /// Storage policy chooser for MergeTree engines
     mutable std::unique_ptr<StoragePolicySelector> merge_tree_storage_policy_selector;
 
-    std::optional<MergeTreeSettings> merge_tree_settings;   /// Settings of MergeTree* engines.
+//    std::optional<MergeTreeSettings> merge_tree_settings;   /// Settings of MergeTree* engines.
     std::atomic_size_t max_table_size_to_drop = 50000000000lu; /// Protects MergeTree tables from accidental DROP (50GB by default)
     std::atomic_size_t max_partition_size_to_drop = 50000000000lu; /// Protects MergeTree partitions from accidental DROP (50GB by default)
     String format_schema_path;                              /// Path to a directory that contains schema files used by input formats.
@@ -1877,23 +1878,6 @@ StoragePolicySelector & Context::getStoragePolicySelector() const
     }
     return *shared->merge_tree_storage_policy_selector;
 }
-
-
-const MergeTreeSettings & Context::getMergeTreeSettings() const
-{
-    auto lock = getLock();
-
-    if (!shared->merge_tree_settings)
-    {
-        auto & config = getConfigRef();
-        MergeTreeSettings mt_settings;
-        mt_settings.loadFromConfig("merge_tree", config);
-        shared->merge_tree_settings.emplace(mt_settings);
-    }
-
-    return *shared->merge_tree_settings;
-}
-
 
 void Context::checkCanBeDropped(const String & database, const String & table, const size_t & size, const size_t & max_size_to_drop) const
 {

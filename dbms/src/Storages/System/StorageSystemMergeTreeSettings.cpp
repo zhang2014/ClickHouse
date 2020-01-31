@@ -1,6 +1,7 @@
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <Interpreters/Context.h>
+#include <Storages/StoragesSettings.h>
 #include <Storages/System/StorageSystemMergeTreeSettings.h>
 
 
@@ -19,7 +20,9 @@ NamesAndTypesList SystemMergeTreeSettings::getNamesAndTypes()
 
 void SystemMergeTreeSettings::fillData(MutableColumns & res_columns, const Context & context, const SelectQueryInfo &) const
 {
-    for (const auto & setting : context.getMergeTreeSettings())
+    const auto & settings = StoragesSettings::instance().mergeTreeSettingsRef(context);
+
+    for (const auto & setting : settings)
     {
         res_columns[0]->insert(setting.getName().toString());
         res_columns[1]->insert(setting.getValueAsString());
