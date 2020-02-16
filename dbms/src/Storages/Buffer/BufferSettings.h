@@ -2,6 +2,7 @@
 
 #include <Core/Defines.h>
 #include <Core/SettingsCollection.h>
+#include <Parsers/IAST_fwd.h>
 
 namespace DB
 {
@@ -23,6 +24,8 @@ struct BufferSettings : public SettingsCollection<BufferSettings>
     DECLARE_SETTINGS_COLLECTION(LIST_OF_BUFFER_SETTINGS)
 
     static std::vector<String> immutableSettingsName() { return {}; }
+
+    static SettingsChanges extractFromEngineArguments(const std::vector<ASTPtr> &  arguments);
 };
 
 

@@ -788,17 +788,12 @@ static StoragePtr create(const StorageFactory::Arguments & args)
 
     auto storage_setting = std::make_unique<StorageSettings<BufferSettings>>(StoragesSettings::instance().bufferSettings(args.context));
 
-    if (engine_args.size() > 2)
-//            storage_setting->loadFromEngineArguments(engine_args);
-    {
-        storage_setting->num_layers = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[2]->as<ASTLiteral &>().value);
-        storage_setting->flusher_min_time = applyVisitor(FieldVisitorConvertToNumber<Int64>(), engine_args[3]->as<ASTLiteral &>().value);
-        storage_setting->flusher_max_time = applyVisitor(FieldVisitorConvertToNumber<Int64>(), engine_args[4]->as<ASTLiteral &>().value);
-        storage_setting->flusher_min_rows = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[5]->as<ASTLiteral &>().value);
-        storage_setting->flusher_max_rows = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[6]->as<ASTLiteral &>().value);
-        storage_setting->flusher_min_bytes = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[7]->as<ASTLiteral &>().value);
-        storage_setting->flusher_max_bytes = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[8]->as<ASTLiteral &>().value);
-    }
+    if (args.storage_def->settings)
+        storage_setting->loadFromQuery(*args.storage_def);
+    else if (engine_args.size() > 2)
+        storage_setting->loadFromEngineArguments(engine_args);
+    else
+        throw Exception("Storage Buffer", ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH);
 
     return StorageBuffer::create(
         args.table_id,

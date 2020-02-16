@@ -111,9 +111,10 @@ void StorageSettings<SettingsType>::loadFromQuery(ASTStorage & storage_def)
 }
 
 template<typename SettingsType>
-void StorageSettings<SettingsType>::loadFromEngineArguments(const std::vector<ASTPtr> & /*arguments*/)
+void StorageSettings<SettingsType>::loadFromEngineArguments(const std::vector<ASTPtr> & arguments)
 {
-
+    const auto & changes = SettingsType::extractFromEngineArguments(arguments);
+    SettingsType::applyChanges(changes);
 }
 
 template struct StorageSettings<BufferSettings>;

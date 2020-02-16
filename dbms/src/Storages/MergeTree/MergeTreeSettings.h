@@ -3,6 +3,7 @@
 #include <Core/Defines.h>
 #include <Core/SettingsCollection.h>
 #include <Common/SettingsChanges.h>
+#include <Parsers/IAST_fwd.h>
 
 namespace DB
 {
@@ -85,6 +86,8 @@ struct MergeTreeSettings : public SettingsCollection<MergeTreeSettings>
     static bool isReadonlySetting(const String & name);
 
     static std::vector<String> immutableSettingsName();
+
+    static SettingsChanges extractFromEngineArguments(const std::vector<ASTPtr> &  /*arguments*/) { return {}; }
 };
 
 using MergeTreeSettingsPtr = std::shared_ptr<const MergeTreeSettings>;
