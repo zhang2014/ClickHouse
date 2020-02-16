@@ -771,6 +771,46 @@ void StorageBuffer::alter(const AlterCommands & params, const Context & context,
     setColumns(std::move(metadata.columns));
 }
 
+static StoragePtr create(const StorageFactory::Arguments & args)
+{
+    ASTs & engine_args = args.engine_args;
+
+    if (engine_args.size() != 2 && engine_args.size() != 9)
+        throw Exception("Storage Buffer requires 9 parameters: "
+                        " destination_database, destination_table, num_buckets, min_time, max_time, min_rows, max_rows, min_bytes, max_bytes.",
+                        ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH);
+
+    engine_args[0] = evaluateConstantExpressionOrIdentifierAsLiteral(engine_args[0], args.local_context);
+    engine_args[1] = evaluateConstantExpressionOrIdentifierAsLiteral(engine_args[1], args.local_context);
+
+    String destination_database = engine_args[0]->as<ASTLiteral &>().value.safeGet<String>();
+    String destination_table = engine_args[1]->as<ASTLiteral &>().value.safeGet<String>();
+
+    auto storage_setting = std::make_unique<StorageSettings<BufferSettings>>(StoragesSettings::instance().bufferSettings(args.context));
+
+    if (engine_args.size() > 2)
+//            storage_setting->loadFromEngineArguments(engine_args);
+    {
+        storage_setting->num_layers = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[2]->as<ASTLiteral &>().value);
+        storage_setting->flusher_min_time = applyVisitor(FieldVisitorConvertToNumber<Int64>(), engine_args[3]->as<ASTLiteral &>().value);
+        storage_setting->flusher_max_time = applyVisitor(FieldVisitorConvertToNumber<Int64>(), engine_args[4]->as<ASTLiteral &>().value);
+        storage_setting->flusher_min_rows = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[5]->as<ASTLiteral &>().value);
+        storage_setting->flusher_max_rows = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[6]->as<ASTLiteral &>().value);
+        storage_setting->flusher_min_bytes = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[7]->as<ASTLiteral &>().value);
+        storage_setting->flusher_max_bytes = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[8]->as<ASTLiteral &>().value);
+    }
+
+    return StorageBuffer::create(
+        args.table_id,
+        args.columns,
+        args.constraints,
+        args.context,
+        storage_setting->num_layers,
+        StorageBuffer::Thresholds{.time = time_t(storage_setting->flusher_min_time), .rows = storage_setting->flusher_min_rows, .bytes = storage_setting->flusher_min_bytes},
+        StorageBuffer::Thresholds{.time = time_t(storage_setting->flusher_max_time), .rows = storage_setting->flusher_max_rows, .bytes = storage_setting->flusher_max_bytes},
+        destination_database, destination_table,
+        static_cast<bool>(args.local_context.getSettingsRef().insert_allow_materialized_columns));
+}
 
 void registerStorageBuffer(StorageFactory & factory)
 {
@@ -780,49 +820,7 @@ void registerStorageBuffer(StorageFactory & factory)
       * num_buckets - level of parallelism.
       * min_time, max_time, min_rows, max_rows, min_bytes, max_bytes - conditions for flushing the buffer.
       */
-
-    factory.registerStorage("Buffer", [](const StorageFactory::Arguments & args)
-    {
-        ASTs & engine_args = args.engine_args;
-
-        if (engine_args.size() != 2 && engine_args.size() != 9)
-            throw Exception("Storage Buffer requires 9 parameters: "
-                " destination_database, destination_table, num_buckets, min_time, max_time, min_rows, max_rows, min_bytes, max_bytes.",
-                ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH);
-
-        engine_args[0] = evaluateConstantExpressionOrIdentifierAsLiteral(engine_args[0], args.local_context);
-        engine_args[1] = evaluateConstantExpressionOrIdentifierAsLiteral(engine_args[1], args.local_context);
-
-        String destination_database = engine_args[0]->as<ASTLiteral &>().value.safeGet<String>();
-        String destination_table = engine_args[1]->as<ASTLiteral &>().value.safeGet<String>();
-
-        if (engine_args.size() > 2)
-        {
-            auto settings = StoragesSettings::instance().bufferSettings(args.context);
-            settings.loadFromEngineArguments(engine_args);
-        }
-
-
-        UInt64 num_buckets = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[2]->as<ASTLiteral &>().value);
-
-        Int64 min_time = applyVisitor(FieldVisitorConvertToNumber<Int64>(), engine_args[3]->as<ASTLiteral &>().value);
-        Int64 max_time = applyVisitor(FieldVisitorConvertToNumber<Int64>(), engine_args[4]->as<ASTLiteral &>().value);
-        UInt64 min_rows = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[5]->as<ASTLiteral &>().value);
-        UInt64 max_rows = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[6]->as<ASTLiteral &>().value);
-        UInt64 min_bytes = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[7]->as<ASTLiteral &>().value);
-        UInt64 max_bytes = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[8]->as<ASTLiteral &>().value);
-
-        return StorageBuffer::create(
-            args.table_id,
-            args.columns,
-            args.constraints,
-            args.context,
-            num_buckets,
-            StorageBuffer::Thresholds{min_time, min_rows, min_bytes},
-            StorageBuffer::Thresholds{max_time, max_rows, max_bytes},
-            destination_database, destination_table,
-            static_cast<bool>(args.local_context.getSettingsRef().insert_allow_materialized_columns));
-    });
+    factory.registerStorage("Buffer", create, StorageFactory::StorageFeatures{.supports_settings = true});
 }
 
 }
