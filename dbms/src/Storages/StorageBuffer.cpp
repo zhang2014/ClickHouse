@@ -794,12 +794,11 @@ static StoragePtr create(const StorageFactory::Arguments & args)
     if (args.storage_def->settings)
         storage_setting->loadFromQuery(*args.storage_def);
 
+    std::cout << "Storage Buffer, " << storage_setting->flusher_min_time << "\t" << storage_setting->flusher_min_rows
+              << "\t" << storage_setting->flusher_min_bytes << "\t" << storage_setting->flusher_max_time << "\t"
+              << storage_setting->flusher_max_rows << "\t" << storage_setting->flusher_max_bytes << "\n";
     return StorageBuffer::create(
-        args.table_id,
-        args.columns,
-        args.constraints,
-        args.context,
-        storage_setting->num_layers,
+        args.table_id, args.columns, args.constraints, args.context, storage_setting->num_layers,
         StorageBuffer::Thresholds{.time = time_t(storage_setting->flusher_min_time), .rows = storage_setting->flusher_min_rows, .bytes = storage_setting->flusher_min_bytes},
         StorageBuffer::Thresholds{.time = time_t(storage_setting->flusher_max_time), .rows = storage_setting->flusher_max_rows, .bytes = storage_setting->flusher_max_bytes},
         destination_database, destination_table,

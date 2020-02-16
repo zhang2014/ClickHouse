@@ -13,8 +13,8 @@ struct BufferSettings : public SettingsCollection<BufferSettings>
 {
 #define LIST_OF_BUFFER_SETTINGS(M)                                 \
     M(SettingUInt64, num_layers, 16, "Parallelism layer. Physically, the table will be represented as num_layers of independent buffers.", 0) \
-    M(SettingUInt64, flusher_min_time, 1,  "", 0) \
-    M(SettingUInt64, flusher_max_time, 10,  "", 0) \
+    M(SettingInt64, flusher_min_time, 1,  "", 0) \
+    M(SettingInt64, flusher_max_time, 10,  "", 0) \
     M(SettingUInt64, flusher_min_rows, DEFAULT_BLOCK_SIZE,  "", 0) \
     M(SettingUInt64, flusher_max_rows, DEFAULT_INSERT_BLOCK_SIZE,  "", 0) \
     M(SettingUInt64, flusher_min_bytes, 10 * 1024 * 1024,  "", 0) \
