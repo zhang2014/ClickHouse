@@ -3,6 +3,7 @@
 #include <optional>
 #include <Interpreters/Context.h>
 #include <Core/SettingsCollection.h>
+#include <Parsers/IAST.h>
 #include <Parsers/ASTSetQuery.h>
 #include <Parsers/ASTFunction.h>
 #include <Parsers/ASTCreateQuery.h>
@@ -110,7 +111,7 @@ void StorageSettings<SettingsType>::loadFromQuery(ASTStorage & storage_def)
 }
 
 template<typename SettingsType>
-void StorageSettings<SettingsType>::loadFromEngineArguments(const std::vector<ASTPtr> & arguments)
+void StorageSettings<SettingsType>::loadFromEngineArguments(const std::vector<ASTPtr> & /*arguments*/)
 {
 
 }

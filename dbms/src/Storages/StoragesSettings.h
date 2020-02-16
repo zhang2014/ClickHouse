@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <Parsers/IAST_fwd.h>
 #include <Storages/Buffer/BufferSettings.h>
 #include <Storages/MergeTree/MergeTreeSettings.h>
 
