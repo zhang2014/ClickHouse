@@ -579,7 +579,7 @@ static StoragePtr create(const StorageFactory::Arguments & args)
     IndicesDescription indices_description;
     ConstraintsDescription constraints_description;
 
-    auto storage_settings = StoragesSettings::instance().mergeTreeSettings(args.context);
+    auto storage_settings = std::make_unique<StorageSettings<MergeTreeSettings>>(StoragesSettings::instance().mergeTreeSettings(args.context));
 
     if (is_extended_storage_def)
     {

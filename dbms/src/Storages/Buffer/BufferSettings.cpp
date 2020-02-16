@@ -1,18 +1,10 @@
-//#include <Storages/Buffer/BufferSettings.h>
-//#include "BufferSettings.h"
-//
-//
-//namespace DB
-//{
-//
-//void BufferSettings::loadFromQuery(const ASTStorage & storage_def)
-//{
-//
-//}
-//
-//void BufferSettings::loadFromConfig(const String & config_key, const Poco::Util::AbstractConfiguration & config)
-//{
-//
-//}
-//
-//}
+#include <Storages/Buffer/BufferSettings.h>
+#include <Core/SettingsCollectionImpl.h>
+
+
+namespace DB
+{
+
+IMPLEMENT_SETTINGS_COLLECTION(BufferSettings, LIST_OF_BUFFER_SETTINGS)
+
+}

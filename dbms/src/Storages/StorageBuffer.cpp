@@ -11,6 +11,8 @@
 #include <Storages/StorageBuffer.h>
 #include <Storages/StorageFactory.h>
 #include <Storages/AlterCommands.h>
+#include <Storages/StoragesSettings.h>
+#include <Storages/Buffer/BufferSettings.h>
 #include <Parsers/ASTInsertQuery.h>
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTLiteral.h>
@@ -783,7 +785,7 @@ void registerStorageBuffer(StorageFactory & factory)
     {
         ASTs & engine_args = args.engine_args;
 
-        if (engine_args.size() != 9)
+        if (engine_args.size() != 2 && engine_args.size() != 9)
             throw Exception("Storage Buffer requires 9 parameters: "
                 " destination_database, destination_table, num_buckets, min_time, max_time, min_rows, max_rows, min_bytes, max_bytes.",
                 ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH);
@@ -793,6 +795,13 @@ void registerStorageBuffer(StorageFactory & factory)
 
         String destination_database = engine_args[0]->as<ASTLiteral &>().value.safeGet<String>();
         String destination_table = engine_args[1]->as<ASTLiteral &>().value.safeGet<String>();
+
+        if (engine_args.size() > 2)
+        {
+            auto settings = StoragesSettings::instance().bufferSettings(args.context);
+            settings.loadFromEngineArguments(engine_args);
+        }
+
 
         UInt64 num_buckets = applyVisitor(FieldVisitorConvertToNumber<UInt64>(), engine_args[2]->as<ASTLiteral &>().value);
 

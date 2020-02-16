@@ -31,7 +31,7 @@ void ReplicasStatusHandler::handleRequest(Poco::Net::HTTPServerRequest & request
         /// Even if lag is small, output detailed information about the lag.
         bool verbose = params.get("verbose", "") == "1";
 
-        const auto & settings = StoragesSettings::instance().mergeTreeSettingsRef(context);
+        const auto & settings = StoragesSettings::instance().mergeTreeSettings(context);
 
         bool ok = true;
         std::stringstream message;

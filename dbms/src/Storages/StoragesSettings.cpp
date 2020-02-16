@@ -21,9 +21,9 @@ namespace ErrorCodes
 }
 
 template <typename T>
-static StoragesSettings::StorageSettings<T> loadSettingsFromConfig(const Poco::Util::AbstractConfiguration & config, const String & key)
+static StorageSettings<T> loadSettingsFromConfig(const Poco::Util::AbstractConfiguration & config, const String & key)
 {
-    StoragesSettings::StorageSettings<T> res;
+    StorageSettings<T> res;
 
     if (!config.has(key))
         return res;
@@ -33,6 +33,8 @@ static StoragesSettings::StorageSettings<T> loadSettingsFromConfig(const Poco::U
 
     try
     {
+        StorageSettings<MergeTreeSettings> ss;
+        ss.changes();
         for (const String & config_item_key : config_items_key)
             res.set(config_item_key, config.getString(key + "." + config_item_key));
     }
@@ -47,23 +49,34 @@ static StoragesSettings::StorageSettings<T> loadSettingsFromConfig(const Poco::U
     return res;
 }
 
-StoragesSettings::StorageSettingsPtr<MergeTreeSettings> StoragesSettings::mergeTreeSettings(const Context & context) const
+const StorageSettings<BufferSettings> & StoragesSettings::bufferSettings(const Context & context) const
 {
-    return std::make_unique<StorageSettings<MergeTreeSettings>>(mergeTreeSettingsRef(context));
+    const auto lock = context.getLock();
+
+    if (!buffer_settings)
+        buffer_settings.emplace(loadSettingsFromConfig<BufferSettings>(context.getConfigRef(), "storage_settings.buffer"));
+
+    return *buffer_settings;
 }
 
-const StoragesSettings::StorageSettings<MergeTreeSettings> & StoragesSettings::mergeTreeSettingsRef(const Context & context) const
+const StorageSettings<MergeTreeSettings> & StoragesSettings::mergeTreeSettings(const Context & context) const
 {
     const auto lock = context.getLock();
 
     if (!merge_tree_settings)
+    {
+        /// For merge tree, we need to be compatible with the previous configuration
+        const StorageSettings<MergeTreeSettings> & latest_settings =
+            loadSettingsFromConfig<MergeTreeSettings>(context.getConfigRef(), "storage_settings.merge_tree");
         merge_tree_settings.emplace(loadSettingsFromConfig<MergeTreeSettings>(context.getConfigRef(), "merge_tree"));
+        merge_tree_settings->applyChanges(latest_settings.changes());
+    }
 
     return *merge_tree_settings;
 }
 
 template<typename SettingsType>
-void StoragesSettings::StorageSettings<SettingsType>::loadFromQuery(ASTStorage & storage_def)
+void StorageSettings<SettingsType>::loadFromQuery(ASTStorage & storage_def)
 {
     if (storage_def.settings)
     {
@@ -96,6 +109,13 @@ void StoragesSettings::StorageSettings<SettingsType>::loadFromQuery(ASTStorage &
     }
 }
 
-template struct StoragesSettings::StorageSettings<MergeTreeSettings>;
+template<typename SettingsType>
+void StorageSettings<SettingsType>::loadFromEngineArguments(const std::vector<ASTPtr> & arguments)
+{
+
+}
+
+template struct StorageSettings<BufferSettings>;
+template struct StorageSettings<MergeTreeSettings>;
 
 }
