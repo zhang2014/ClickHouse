@@ -11,7 +11,7 @@ INSERT INTO buffer_01073_use_default_settings SELECT number FROM numbers(1048577
 SELECT COUNT() FROM buffer_01073_destination;
 SELECT COUNT() FROM buffer_01073_use_default_settings;
 
-INSERT INTO buffer_01073_use_custom_user_settings SELECT number FROM numbers(4);
+INSERT INTO buffer_01073_use_custom_user_settings SELECT number FROM numbers(5);
 
 SELECT COUNT() FROM buffer_01073_destination;
 SELECT COUNT() FROM buffer_01073_use_custom_user_settings;
