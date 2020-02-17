@@ -155,7 +155,10 @@ StoragePtr StorageFactory::get(
             throw Exception("Incorrect CREATE query: ENGINE required", ErrorCodes::ENGINE_REQUIRED);
 
         if (!query.storage->engine->arguments)
-            throw Exception("LOGICAL_ERROR Incorrect CREATE query: engine argument is nullptr.", ErrorCodes::LOGICAL_ERROR);
+        {
+            query.storage->engine->arguments = std::make_shared<ASTExpressionList>();
+            query.storage->engine->children.push_back(query.storage->engine->arguments);
+        }
 
         if (query.storage->engine->parameters)
             throw Exception("Engine definition cannot take the form of a parametric function", ErrorCodes::FUNCTION_CANNOT_HAVE_PARAMETERS);
