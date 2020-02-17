@@ -66,25 +66,25 @@ static String getUnSupportFeatureMsg(
 static StorageFactory::CreatorFn checkStorageFeaturesCreator(
     const StorageFactory::CreatorFn & creator_fn, StorageFactory::StorageFeatures features)
 {
-    const auto & supporting_settings_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
+    static const auto & supporting_settings_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
         [](StorageFactory::StorageFeatures f) { return f.supports_settings; });
 
-    const auto & supporting_ttl_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
+    static const auto & supporting_ttl_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
         [](StorageFactory::StorageFeatures f) { return f.supports_ttl; });
 
-    const auto & supporting_skipping_indices_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
+    static const auto & supporting_skipping_indices_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
         [](StorageFactory::StorageFeatures f) { return f.supports_skipping_indices; });
 
-    const auto & supporting_sort_order_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
+    static const auto & supporting_sort_order_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
         [](StorageFactory::StorageFeatures f) { return f.supports_sort_order; });
 
-    return [&](const StorageFactory::Arguments &arguments) -> StoragePtr
+    return [&](const StorageFactory::Arguments & arguments) -> StoragePtr
     {
         checkEngineTypeAllowedInCreateQuery(arguments.engine_name);
 
         if (arguments.storage_def->settings && !features.supports_settings)
             throw Exception(getUnSupportFeatureMsg("SETTINGS clause", arguments.engine_name, supporting_settings_engines),
-                            ErrorCodes::BAD_ARGUMENTS);
+                ErrorCodes::BAD_ARGUMENTS);
 
         if ((arguments.storage_def->ttl_table || !arguments.columns.getColumnTTLs().empty()) && !features.supports_ttl)
             throw Exception(getUnSupportFeatureMsg("TTL clause", arguments.engine_name, supporting_ttl_engines), ErrorCodes::BAD_ARGUMENTS);
