@@ -82,7 +82,7 @@ StoragePtr StorageFactory::get(
             if (!storage_def)
                 throw Exception("Incorrect CREATE query: ENGINE required", ErrorCodes::ENGINE_REQUIRED);
 
-            const ASTFunction & engine_def = *storage_def->engine;
+            ASTFunction & engine_def = *storage_def->engine;
 
             if (engine_def.parameters)
                 throw Exception(
