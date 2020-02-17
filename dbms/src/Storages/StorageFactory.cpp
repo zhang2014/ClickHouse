@@ -78,7 +78,7 @@ static StorageFactory::CreatorFn checkStorageFeaturesCreator(
     static const auto & supporting_sort_order_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
         [](StorageFactory::StorageFeatures f) { return f.supports_sort_order; });
 
-    return [&](const StorageFactory::Arguments & arguments) -> StoragePtr
+    return [&, features = features](const StorageFactory::Arguments & arguments) -> StoragePtr
     {
         checkEngineTypeAllowedInCreateQuery(arguments.engine_name);
 
@@ -181,27 +181,6 @@ StoragePtr StorageFactory::get(
     }
 }
 
-StorageFactory & StorageFactory::instance()
-{
-    static StorageFactory ret;
-    return ret;
-}
-
-const StorageFactory::CreatorFn & StorageFactory::findCreatorByName(const String & engine_name) const
-{
-    auto it = storages.find(engine_name);
-    if (it == storages.end())
-    {
-        auto hints = getHints(engine_name);
-        if (!hints.empty())
-            throw Exception("Unknown table engine " + engine_name + ". Maybe you meant: " + toString(hints), ErrorCodes::UNKNOWN_STORAGE);
-        else
-            throw Exception("Unknown table engine " + engine_name, ErrorCodes::UNKNOWN_STORAGE);
-    }
-
-    return it->second.creator_fn;
-}
-
 StoragePtr StorageFactory::getViewStorage(
     const String & engine_name, const ASTCreateQuery & query, const String & relative_data_path,
     Context &local_context, Context &context, const ColumnsDescription & columns,
@@ -223,6 +202,27 @@ StoragePtr StorageFactory::getViewStorage(
         .attach = query.attach,
         .has_force_restore_data_flag = has_force_restore_data_flag
     });
+}
+
+StorageFactory & StorageFactory::instance()
+{
+    static StorageFactory ret;
+    return ret;
+}
+
+const StorageFactory::CreatorFn & StorageFactory::findCreatorByName(const String & engine_name) const
+{
+    auto it = storages.find(engine_name);
+    if (it == storages.end())
+    {
+        auto hints = getHints(engine_name);
+        if (!hints.empty())
+            throw Exception("Unknown table engine " + engine_name + ". Maybe you meant: " + toString(hints), ErrorCodes::UNKNOWN_STORAGE);
+        else
+            throw Exception("Unknown table engine " + engine_name, ErrorCodes::UNKNOWN_STORAGE);
+    }
+
+    return it->second.creator_fn;
 }
 
 }
