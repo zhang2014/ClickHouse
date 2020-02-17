@@ -102,15 +102,26 @@ public:
     std::vector<String> getAllRegisteredNamesByFeatureMatcherFn(FeatureMatcherFn feature_matcher_fn) const
     {
         std::vector<String> result;
-        for (const auto& pair : storages)
+        for (const auto & pair : storages)
             if (feature_matcher_fn(pair.second.features))
                 result.push_back(pair.first);
         return result;
     }
 
-
 private:
     Storages storages;
+
+    const CreatorFn & findCreatorByName(const String & engine_name) const;
+
+    StoragePtr getViewStorage(
+        const String & engine_name,
+        const ASTCreateQuery & query,
+        const String & relative_data_path,
+        Context & local_context,
+        Context & context,
+        const ColumnsDescription & columns,
+        const ConstraintsDescription & constraints,
+        bool has_force_restore_data_flag) const;
 };
 
 }
