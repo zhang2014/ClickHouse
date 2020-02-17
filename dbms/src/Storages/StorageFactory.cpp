@@ -160,7 +160,7 @@ StoragePtr StorageFactory::get(
         if (query.storage->engine->parameters)
             throw Exception("Engine definition cannot take the form of a parametric function", ErrorCodes::FUNCTION_CANNOT_HAVE_PARAMETERS);
 
-        findCreatorByName(query.storage->engine->name)(Arguments
+        return findCreatorByName(query.storage->engine->name)(Arguments
         {
             .engine_name = query.storage->engine->name,
             .engine_args = query.storage->engine->arguments->children,
