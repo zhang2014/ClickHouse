@@ -50,6 +50,7 @@
 
 #include <TableFunctions/TableFunctionFactory.h>
 
+#include <Parsers/queryToString.h>
 
 namespace DB
 {
@@ -636,6 +637,9 @@ bool InterpreterCreateQuery::doCreateTable(const ASTCreateQuery & create,
             properties.constraints,
             false);
     }
+
+    std::cout << "Create Storage: " << queryToString(query_ptr) << "\n";
+    std::cout << "Created Storage: " << queryToString(create) << "\n";
 
     if (need_add_to_database)
         database->createTable(context, table_name, res, query_ptr);
