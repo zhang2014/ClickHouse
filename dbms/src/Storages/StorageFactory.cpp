@@ -199,4 +199,27 @@ const StorageFactory::CreatorFn & StorageFactory::findCreatorByName(const String
     return it->second.creator_fn;
 }
 
+StoragePtr StorageFactory::getViewStorage(
+    const String & engine_name, const ASTCreateQuery & query, const String & relative_data_path,
+    Context &local_context, Context &context, const ColumnsDescription & columns,
+    const ConstraintsDescription &constraints, bool has_force_restore_data_flag) const
+{
+    ASTs arguments;
+    return findCreatorByName(engine_name)(Arguments
+    {
+        .engine_name = engine_name,
+        .engine_args = arguments,
+        .storage_def = query.storage,
+        .query = query,
+        .relative_data_path = relative_data_path,
+        .table_id = StorageID(query.database, query.table, query.uuid),
+        .local_context = local_context,
+        .context = context,
+        .columns = columns,
+        .constraints = constraints,
+        .attach = query.attach,
+        .has_force_restore_data_flag = has_force_restore_data_flag
+    });
+}
+
 }
