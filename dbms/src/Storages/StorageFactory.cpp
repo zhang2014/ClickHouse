@@ -66,38 +66,38 @@ static String getUnSupportFeatureMsg(
 static StorageFactory::CreatorFn checkStorageFeaturesCreator(
     const StorageFactory::CreatorFn & creator_fn, StorageFactory::StorageFeatures features)
 {
-    static const auto & supporting_settings_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
-        [](StorageFactory::StorageFeatures f) { return f.supports_settings; });
-
-    static const auto & supporting_ttl_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
-        [](StorageFactory::StorageFeatures f) { return f.supports_ttl; });
-
-    static const auto & supporting_skipping_indices_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
-        [](StorageFactory::StorageFeatures f) { return f.supports_skipping_indices; });
-
-    static const auto & supporting_sort_order_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
-        [](StorageFactory::StorageFeatures f) { return f.supports_sort_order; });
+//    static const auto & supporting_settings_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
+//        [](StorageFactory::StorageFeatures f) { return f.supports_settings; });
+//
+//    static const auto & supporting_ttl_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
+//        [](StorageFactory::StorageFeatures f) { return f.supports_ttl; });
+//
+//    static const auto & supporting_skipping_indices_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
+//        [](StorageFactory::StorageFeatures f) { return f.supports_skipping_indices; });
+//
+//    static const auto & supporting_sort_order_engines = StorageFactory::instance().getAllRegisteredNamesByFeatureMatcherFn(
+//        [](StorageFactory::StorageFeatures f) { return f.supports_sort_order; });
 
     return [&, features = features](const StorageFactory::Arguments & arguments) -> StoragePtr
     {
         checkEngineTypeAllowedInCreateQuery(arguments.engine_name);
 
         if (arguments.storage_def->settings && !features.supports_settings)
-            throw Exception(getUnSupportFeatureMsg("SETTINGS clause", arguments.engine_name, supporting_settings_engines),
+            throw Exception(getUnSupportFeatureMsg("SETTINGS clause", arguments.engine_name, {}),
                 ErrorCodes::BAD_ARGUMENTS);
 
         if ((arguments.storage_def->ttl_table || !arguments.columns.getColumnTTLs().empty()) && !features.supports_ttl)
-            throw Exception(getUnSupportFeatureMsg("TTL clause", arguments.engine_name, supporting_ttl_engines), ErrorCodes::BAD_ARGUMENTS);
+            throw Exception(getUnSupportFeatureMsg("TTL clause", arguments.engine_name, {}), ErrorCodes::BAD_ARGUMENTS);
 
         if (arguments.query.columns_list && arguments.query.columns_list->indices &&
             !arguments.query.columns_list->indices->children.empty() && !features.supports_skipping_indices)
-            throw Exception(getUnSupportFeatureMsg("skipping indices", arguments.engine_name, supporting_skipping_indices_engines),
+            throw Exception(getUnSupportFeatureMsg("skipping indices", arguments.engine_name, {}),
                 ErrorCodes::BAD_ARGUMENTS);
 
         if ((arguments.storage_def->partition_by || arguments.storage_def->primary_key || arguments.storage_def->order_by ||
              arguments.storage_def->sample_by) && !features.supports_sort_order)
             throw Exception(getUnSupportFeatureMsg("PARTITION_BY, PRIMARY_KEY, ORDER_BY or SAMPLE_BY clauses", arguments.engine_name,
-                supporting_sort_order_engines), ErrorCodes::BAD_ARGUMENTS);
+                {}), ErrorCodes::BAD_ARGUMENTS);
 
         return creator_fn(arguments);
     };
