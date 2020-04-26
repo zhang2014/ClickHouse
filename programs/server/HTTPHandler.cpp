@@ -858,7 +858,7 @@ Poco::Net::HTTPRequestHandlerFactory * createPredefineHandlerFactory(IServer & s
             auto compiled_regex = std::make_shared<re2_st::RE2>(expression);
 
             if (!compiled_regex->ok())
-                throw Exception("cannot compile re2: " + expression + " for routing_rule, error: " + compiled_regex->error() +
+                throw Exception("Cannot compile re2: " + expression + " for routing_rule, error: " + compiled_regex->error() +
                     ". Look at https://github.com/google/re2/wiki/Syntax for reference.", ErrorCodes::CANNOT_COMPILE_REGEXP);
 
             const auto & named_capturing_groups = compiled_regex->NamedCapturingGroups();
