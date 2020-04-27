@@ -45,6 +45,6 @@ def test_predefine_query_handler():
 
         assert 404 == cluster.instance.http_request('test_predefine_handler_get?max_threads=1', method='POST', headers={'XXX': 'xxx'}).status_code
 
-        assert 400 == cluster.instance.http_request('test_predefine_handler_get?max_threads=1', method='GET', headers={'XXX': 'xxx'}).status_code
+        assert 500 == cluster.instance.http_request('test_predefine_handler_get?max_threads=1', method='GET', headers={'XXX': 'xxx'}).status_code
 
         assert '1\n' == cluster.instance.http_request('test_predefine_handler_get?max_threads=1&setting_name=max_threads', method='GET', headers={'XXX': 'xxx'}).content
