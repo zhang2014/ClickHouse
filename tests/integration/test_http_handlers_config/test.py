@@ -95,7 +95,7 @@ def test_absolute_path_static_handler():
         # check default status code
         assert 200 == cluster.instance.http_request('test_get_absolute_path_static_handler', method='GET', headers={'XXX': 'xxx'}).status_code
         assert 'text/html; charset=UTF-8' == cluster.instance.http_request('test_get_absolute_path_static_handler', method='GET', headers={'XXX': 'xxx'}).headers['Content-Type']
-        assert '<html><body>Absolute Path File</body></html>' == cluster.instance.http_request('test_get_absolute_path_static_handler', method='GET', headers={'XXX': 'xxx'}).content
+        assert '<html><body>Absolute Path File</body></html>\n' == cluster.instance.http_request('test_get_absolute_path_static_handler', method='GET', headers={'XXX': 'xxx'}).content
 
 
 def test_relative_path_static_handler():
@@ -113,5 +113,5 @@ def test_relative_path_static_handler():
         # check default status code
         assert 200 == cluster.instance.http_request('test_get_relative_path_static_handler', method='GET', headers={'XXX': 'xxx'}).status_code
         assert 'text/html; charset=UTF-8' == cluster.instance.http_request('test_get_relative_path_static_handler', method='GET', headers={'XXX': 'xxx'}).headers['Content-Type']
-        assert '<html><body>Relative Path File</body></html>' == cluster.instance.http_request('test_get_relative_path_static_handler', method='GET', headers={'XXX': 'xxx'}).content
+        assert '<html><body>Relative Path File</body></html>\n' == cluster.instance.http_request('test_get_relative_path_static_handler', method='GET', headers={'XXX': 'xxx'}).content
 
