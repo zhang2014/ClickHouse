@@ -67,7 +67,7 @@ StaticRequestHandler::StaticRequestHandler(IServer & server_, const String & exp
             throw Exception("Static routing rule handler must contain a complete configuration path, for example: config://config_key",
                 ErrorCodes::INVALID_CONFIG_PARAMETER);
 
-        response_content = server.config().getString(expression.substr(config_prefix.size(), expression.size() - config_prefix.size()), "Ok.\n");
+        response_content = server.config().getRawString(expression.substr(config_prefix.size(), expression.size() - config_prefix.size()), "Ok.\n");
     }
     else
         response_content = expression;
@@ -80,7 +80,7 @@ Poco::Net::HTTPRequestHandlerFactory * createStaticHandlerFactory(IServer & serv
     std::string response_content_type = server.config().getString(config_prefix + ".handler.content_type", "text/plain; charset=UTF-8");
 
     return addFiltersFromConfig(new RoutingRuleHTTPHandlerFactory<StaticRequestHandler>(
-        server, std::move(response_content), status, std::move(response_content_type)), server.config(), config_prefix);
+        server, std::move(response_content), std::move(status), std::move(response_content_type)), server.config(), config_prefix);
 }
 
 }
