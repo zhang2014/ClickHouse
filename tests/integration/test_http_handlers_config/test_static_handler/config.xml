@@ -5,7 +5,7 @@
 
     <routing_rules>
         <routing_rule>
-            <method>GET</method>
+            <methods>GET</methods>
             <headers><XXX>xxx</XXX></headers>
             <url>/test_get_fixed_static_handler</url>
             <handler>
@@ -17,7 +17,7 @@
         </routing_rule>
 
         <routing_rule>
-            <method>GET</method>
+            <methods>GET</methods>
             <headers><XXX>xxx</XXX></headers>
             <url>/test_get_config_static_handler</url>
             <handler>
@@ -27,7 +27,7 @@
         </routing_rule>
 
         <routing_rule>
-            <method>GET</method>
+            <methods>GET</methods>
             <headers><XXX>xxx</XXX></headers>
             <url>/test_get_absolute_path_static_handler</url>
             <handler>
@@ -38,7 +38,7 @@
         </routing_rule>
 
         <routing_rule>
-            <method>GET</method>
+            <methods>GET</methods>
             <headers><XXX>xxx</XXX></headers>
             <url>/test_get_relative_path_static_handler</url>
             <handler>
