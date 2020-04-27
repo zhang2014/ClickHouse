@@ -12,7 +12,7 @@
             </handler>
         </routing_rule>
         <routing_rule>
-            <url><![CDATA[/query_param_with_url/\w+/(?P<setting_name_1>[^/]+)]]></url>
+            <url><![CDATA[/query_param_with_url/(?P<setting_name_1>[^/]+)]]></url>
             <headers>
                 <XXX><![CDATA[(?P<setting_name_2>.+)]]></XXX>
             </headers>
