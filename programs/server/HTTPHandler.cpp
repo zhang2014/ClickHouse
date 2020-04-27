@@ -835,14 +835,10 @@ Poco::Net::HTTPRequestHandlerFactory * createDynamicHandlerFactory(IServer & ser
 
 static inline bool capturingNamedQueryParam(NameSet receive_params, const std::string & expression)
 {
-    if (!startsWith(expression, "regex:"))
-        return false;
-
-    const auto & regex = expression.substr(6);
-    auto compiled_regex = std::make_shared<re2_st::RE2>(regex);
+    auto compiled_regex = std::make_shared<re2_st::RE2>(expression);
 
     if (!compiled_regex->ok())
-        throw Exception("Cannot compile re2: " + regex + " for routing_rule, error: " +
+        throw Exception("Cannot compile re2: " + expression + " for routing_rule, error: " +
             compiled_regex->error() + ". Look at https://github.com/google/re2/wiki/Syntax for reference.", ErrorCodes::CANNOT_COMPILE_REGEXP);
 
     const auto & capturing_names = compiled_regex->NamedCapturingGroups();
@@ -871,13 +867,20 @@ Poco::Net::HTTPRequestHandlerFactory * createPredefineHandlerFactory(IServer & s
     {
         auto expression = configuration.getString(config_prefix + ".headers." + header_name);
 
+        if (!startsWith(expression, "regex:"))
+            continue;
+
+        expression = expression.substr(6);
         if (capturingNamedQueryParam(analyze_receive_params, expression))
             headers_name_with_regex.emplace(std::make_pair(header_name, expression));
     }
 
     if (configuration.has(config_prefix + ".url"))
     {
-        const std::string & url_expression = configuration.getString(config_prefix + ".url");
+        auto url_expression = configuration.getString(config_prefix + ".url");
+
+        if (startsWith(url_expression, "regex:"))
+            url_expression = url_expression.substr(6);
 
         if (capturingNamedQueryParam(analyze_receive_params, url_expression))
             return addFiltersFromConfig(new RoutingRuleHTTPHandlerFactory<PredefineQueryHandler>(
