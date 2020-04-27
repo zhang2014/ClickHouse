@@ -89,7 +89,7 @@ static inline auto headersFilter(Poco::Util::AbstractConfiguration & config, con
     {
         for (const auto & [header_name, header_expression] : headers_expression)
         {
-            const auto & header_value = request.get(header_name);
+            const auto & header_value = request.get(header_name, "");
             if (!checkExpression(StringRef(header_value.data(), header_value.size()), header_expression))
                 return false;
         }
