@@ -82,6 +82,10 @@ def test_config_static_handler():
 
 def test_absolute_path_static_handler():
     with contextlib.closing(SimpleCluster(ClickHouseCluster(__file__), "static_handler", "test_static_handler")) as cluster:
+        cluster.instance.exec_in_container(
+            ['bash', '-c', 'echo "<html><body>Absolute Path File</body></html>" > /var/lib/clickhouse/user_files/absolute_path_file.html'],
+            privileged=True, user='root')
+
         assert 404 == cluster.instance.http_request('', method='GET', headers={'XXX': 'xxx'}).status_code
 
         assert 404 == cluster.instance.http_request('test_get_absolute_path_static_handler', method='GET', headers={'XXX': 'bad'}).status_code
@@ -96,6 +100,10 @@ def test_absolute_path_static_handler():
 
 def test_relative_path_static_handler():
     with contextlib.closing(SimpleCluster(ClickHouseCluster(__file__), "static_handler", "test_static_handler")) as cluster:
+        cluster.instance.exec_in_container(
+            ['bash', '-c', 'echo "<html><body>Relative Path File</body></html>" > /var/lib/clickhouse/user_files/relative_path_file.html'],
+            privileged=True, user='root')
+
         assert 404 == cluster.instance.http_request('', method='GET', headers={'XXX': 'xxx'}).status_code
 
         assert 404 == cluster.instance.http_request('test_get_relative_path_static_handler', method='GET', headers={'XXX': 'bad'}).status_code
