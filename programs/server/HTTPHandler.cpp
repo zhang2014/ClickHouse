@@ -756,9 +756,9 @@ std::string DynamicQueryHandler::getQuery(Poco::Net::HTTPServerRequest & request
 
 PredefineQueryHandler::PredefineQueryHandler(
     IServer & server, const NameSet & receive_params_, const std::string & predefine_query_
-    , const std::unordered_map<String, String> & header_name_with_capture_regex_)
+    , const std::optional<String> & url_regex_, const std::unordered_map<String, String> & header_name_with_regex_)
     : HTTPHandler(server, "PredefineQueryHandler"), receive_params(receive_params_), predefine_query(predefine_query_)
-    , header_name_with_capture_regex(header_name_with_capture_regex_)
+    , url_regex(url_regex_), header_name_with_capture_regex(header_name_with_regex_)
 {
 }
 
@@ -835,47 +835,61 @@ Poco::Net::HTTPRequestHandlerFactory * createDynamicHandlerFactory(IServer & ser
     return addFiltersFromConfig(new RoutingRuleHTTPHandlerFactory<DynamicQueryHandler>(server, std::move(query_param_name)), server.config(), config_prefix);
 }
 
+static inline bool capturingNamedQueryParam(NameSet receive_params, const std::string & expression)
+{
+    if (!startsWith(expression, "regex:"))
+        return false;
+
+    const auto & regex = expression.substr(6);
+    auto compiled_regex = std::make_shared<re2_st::RE2>(regex);
+
+    if (!compiled_regex->ok())
+        throw Exception("Cannot compile re2: " + regex + " for routing_rule, error: " +
+            compiled_regex->error() + ". Look at https://github.com/google/re2/wiki/Syntax for reference.", ErrorCodes::CANNOT_COMPILE_REGEXP);
+
+    const auto & capturing_names = compiled_regex->NamedCapturingGroups();
+    return std::count_if(capturing_names.begin(), capturing_names.end(), [&](const auto & iterator)
+    {
+        return std::count_if(receive_params.begin(), receive_params.end(),
+            [&](const auto & param_name) { return param_name == iterator.first; });
+    });
+}
 
 Poco::Net::HTTPRequestHandlerFactory * createPredefineHandlerFactory(IServer & server, const std::string & config_prefix)
 {
-    if (!server.config().has(config_prefix + ".handler.query"))
+    Poco::Util::AbstractConfiguration & configuration = server.config();
+
+    if (!configuration.has(config_prefix + ".handler.query"))
         throw Exception("There is no path '" + config_prefix + ".handler.query" + "' in configuration file.", ErrorCodes::NO_ELEMENTS_IN_CONFIG);
 
-    std::string predefine_query = server.config().getString(config_prefix + ".handler.query");
+    std::string predefine_query = configuration.getString(config_prefix + ".handler.query");
     NameSet analyze_receive_params = analyzeReceiveQueryParams(predefine_query);
 
-    std::unordered_map<String, String> type_and_regex;
-    Poco::Util::AbstractConfiguration::Keys filters_type;
-    server.config().keys(config_prefix, filters_type);
+    std::unordered_map<String, String> headers_name_with_regex;
+    Poco::Util::AbstractConfiguration::Keys headers_name;
+    configuration.keys(config_prefix + ".headers", headers_name);
 
-    for (const auto & filter_type : filters_type)
+    for (const auto & header_name : headers_name)
     {
-        auto expression = server.config().getString(config_prefix + "." + filter_type);
+        auto expression = configuration.getString(config_prefix + ".headers." + header_name);
 
-        if (startsWith(expression, "regex:"))
-        {
-            expression = expression.substr(6);
-            auto compiled_regex = std::make_shared<re2_st::RE2>(expression);
-
-            if (!compiled_regex->ok())
-                throw Exception("Cannot compile re2: " + expression + " for routing_rule, error: " + compiled_regex->error() +
-                    ". Look at https://github.com/google/re2/wiki/Syntax for reference.", ErrorCodes::CANNOT_COMPILE_REGEXP);
-
-            const auto & named_capturing_groups = compiled_regex->NamedCapturingGroups();
-            const auto & has_capturing_named_query_param = std::count_if(
-                named_capturing_groups.begin(), named_capturing_groups.end(), [&](const auto & iterator)
-                {
-                    return std::count_if(analyze_receive_params.begin(), analyze_receive_params.end(), [&](const auto & param_name)
-                    {
-                        return param_name == iterator.first;
-                    });
-                });
-
-            if (has_capturing_named_query_param)
-                type_and_regex.emplace(std::make_pair(filter_type, expression));
-        }
+        if (capturingNamedQueryParam(analyze_receive_params, expression))
+            headers_name_with_regex.emplace(std::make_pair(header_name, expression));
     }
+
+    if (configuration.has(config_prefix + ".url"))
+    {
+        const std::string & url_expression = configuration.getString(config_prefix + ".url");
+
+        if (capturingNamedQueryParam(analyze_receive_params, url_expression))
+            return addFiltersFromConfig(new RoutingRuleHTTPHandlerFactory<PredefineQueryHandler>(
+                server, std::move(analyze_receive_params), std::move(predefine_query), std::optional<String>(url_expression),
+                std::move(headers_name_with_regex)), configuration, config_prefix);
+    }
+
     return addFiltersFromConfig(new RoutingRuleHTTPHandlerFactory<PredefineQueryHandler>(
-        server, std::move(analyze_receive_params), std::move(predefine_query), std::move(type_and_regex)), server.config(), config_prefix);
+        server, std::move(analyze_receive_params), std::move(predefine_query), std::optional<String>{} ,std::move(headers_name_with_regex)),
+        configuration, config_prefix);
 }
+
 }
