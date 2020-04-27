@@ -8,7 +8,7 @@
             <url>/test_predefine_handler_get</url>
             <handler>
                 <type>predefine_query_handler</type>
-                <query>SELECT * FROM system.settings WHERE name = {setting_name:String}</query>
+                <query>SELECT name, value FROM system.settings WHERE name = {setting_name:String}</query>
             </handler>
         </routing_rule>
     </routing_rules>
