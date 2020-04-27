@@ -802,18 +802,16 @@ void PredefineQueryHandler::customizeContext(Poco::Net::HTTPServerRequest & requ
         }
     };
 
+    if (url_regex)
+    {
+        const auto & uri = request.getURI();
+        set_query_params(uri.data(), find_first_symbols<'?'>(uri.data(), uri.data() + uri.size()), *url_regex);
+    }
+
     for (const auto & [header_name, regex] : header_name_with_capture_regex)
     {
-        if (header_name == "url")
-        {
-            const auto & uri = request.getURI();
-            set_query_params(uri.data(), find_first_symbols<'?'>(uri.data(), uri.data() + uri.size()), regex);
-        }
-        else
-        {
-            const auto & header_value = request.get(header_name);
-            set_query_params(header_value.data(), header_value.data() + header_value.size(), regex);
-        }
+        const auto & header_value = request.get(header_name);
+        set_query_params(header_value.data(), header_value.data() + header_value.size(), regex);
     }
 }
 
