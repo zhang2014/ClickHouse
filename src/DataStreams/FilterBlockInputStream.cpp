@@ -26,6 +26,8 @@ FilterBlockInputStream::FilterBlockInputStream(const BlockInputStreamPtr & input
 
     /// Determine position of filter column.
     header = input->getHeader();
+
+    std::cout << "Header Structure: " << header.dumpStructure() << "\n";
     expression->execute(header);
 
     filter_column = header.getPositionByName(filter_column_name);
