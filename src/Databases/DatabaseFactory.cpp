@@ -18,6 +18,7 @@
 
 #if USE_MYSQL
 #    include <Databases/MySQL/DatabaseConnectionMySQL.h>
+#    include <Databases/MySQL/DatabaseMaterializeMySQL.h>
 #    include <Interpreters/evaluateConstantExpression.h>
 #    include <Common/parseAddress.h>
 #    include <mysqlxx/Pool.h>
@@ -62,6 +63,23 @@ static inline ValueType safeGetLiteralValue(const ASTPtr &ast, const String &eng
         throw Exception("Database engine " + engine_name + " requested literal argument.", ErrorCodes::BAD_ARGUMENTS);
 
     return ast->as<ASTLiteral>()->value.safeGet<ValueType>();
+}
+
+static inline bool materializeMySQLDatabase(const ASTSetQuery * settings)
+{
+    if (!settings || settings->changes.empty())
+        return false;
+
+    for (const auto & change : settings->changes)
+    {
+        if (change.name == "materialize_data")
+        {
+            if (change.value.getType() == Field::Types::String)
+                return change.value.safeGet<String>() == "true"; ///TODO: ignore case
+        }
+    }
+
+    return false;
 }
 
 DatabasePtr DatabaseFactory::getImpl(
@@ -109,9 +127,9 @@ DatabasePtr DatabaseFactory::getImpl(
             const auto & [remote_host_name, remote_port] = parseAddress(host_name_and_port, 3306);
             auto mysql_pool = mysqlxx::Pool(mysql_database_name, remote_host_name, mysql_user_name, mysql_user_password, remote_port);
 
-            /*if (materializeMySQLDatabase(define->settings))
+            if (materializeMySQLDatabase(engine_define->settings))
                 return std::make_shared<DatabaseMaterializeMySQL>(
-                    context, database_name, metadata_path, define, mysql_database_name, std::move(mysql_pool));*/
+                    context, database_name, metadata_path, engine_define, mysql_database_name, std::move(mysql_pool));
 
             return std::make_shared<DatabaseConnectionMySQL>(context, database_name, metadata_path, engine_define, mysql_database_name, std::move(mysql_pool));
         }
