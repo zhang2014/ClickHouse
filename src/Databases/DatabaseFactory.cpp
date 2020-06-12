@@ -17,12 +17,13 @@
 #endif
 
 #if USE_MYSQL
+#    include <Core/MySQLClient.h>
 #    include <Databases/MySQL/DatabaseConnectionMySQL.h>
 #    include <Databases/MySQL/DatabaseMaterializeMySQL.h>
+#    include <Databases/MySQL/MaterializeModeSettings.h>
 #    include <Interpreters/evaluateConstantExpression.h>
 #    include <Common/parseAddress.h>
 #    include <mysqlxx/Pool.h>
-#    include <Core/MySQLClient.h>
 #endif
 
 namespace DB
@@ -36,8 +37,7 @@ namespace ErrorCodes
     extern const int CANNOT_CREATE_DATABASE;
 }
 
-DatabasePtr DatabaseFactory::get(
-    const String & database_name, const String & metadata_path, const ASTStorage * engine_define, Context & context)
+DatabasePtr DatabaseFactory::get(const String & database_name, const String & metadata_path, ASTStorage * engine_define, Context & context)
 {
     bool created = false;
 
@@ -66,28 +66,7 @@ static inline ValueType safeGetLiteralValue(const ASTPtr &ast, const String &eng
     return ast->as<ASTLiteral>()->value.safeGet<ValueType>();
 }
 
-#if USE_MYSQL
-static inline bool materializeMySQLDatabase(const ASTSetQuery * settings)
-{
-    if (!settings || settings->changes.empty())
-        return false;
-
-    for (const auto & change : settings->changes)
-    {
-        if (change.name == "materialize_data")
-        {
-            if (change.value.getType() == Field::Types::String)
-                return change.value.safeGet<String>() == "true"; ///TODO: ignore case
-        }
-    }
-
-    return false;
-}
-
-#endif
-
-DatabasePtr DatabaseFactory::getImpl(
-    const String & database_name, const String & metadata_path, const ASTStorage * engine_define, Context & context)
+DatabasePtr DatabaseFactory::getImpl(const String & database_name, const String & metadata_path, ASTStorage * engine_define, Context & context)
 {
     String engine_name = engine_define->engine->name;
 
@@ -131,12 +110,18 @@ DatabasePtr DatabaseFactory::getImpl(
             const auto & [remote_host_name, remote_port] = parseAddress(host_name_and_port, 3306);
             auto mysql_pool = mysqlxx::Pool(mysql_database_name, remote_host_name, mysql_user_name, mysql_user_password, remote_port);
 
-            if (materializeMySQLDatabase(engine_define->settings))
+            auto materialize_mode_settings = std::make_unique<MaterializeModeSettings>();
+
+            if (engine_define->settings)
+                materialize_mode_settings->loadFromQuery(*engine_define);
+
+            if (materialize_mode_settings->locality_data)
             {
                 MySQLClient client(remote_host_name, remote_port, mysql_user_name, mysql_user_password);
 
                 return std::make_shared<DatabaseMaterializeMySQL>(
-                    context, database_name, metadata_path, engine_define, mysql_database_name, std::move(mysql_pool), std::move(client));
+                    context, database_name, metadata_path, engine_define, mysql_database_name, std::move(mysql_pool), std::move(client)
+                    , std::move(materialize_mode_settings));
             }
 
             return std::make_shared<DatabaseConnectionMySQL>(context, database_name, metadata_path, engine_define, mysql_database_name, std::move(mysql_pool));
