@@ -350,6 +350,7 @@ public:
 
     void setCurrentDatabase(const String & name);
     void setCurrentQueryId(const String & query_id);
+    void unsafeSetCurrentDatabase(const String & name);
 
     void killCurrentQuery();
 
