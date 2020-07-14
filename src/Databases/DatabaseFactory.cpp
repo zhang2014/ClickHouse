@@ -124,7 +124,8 @@ DatabasePtr DatabaseFactory::getImpl(const String & database_name, const String 
                     , std::move(materialize_mode_settings));
             }
 
-            return std::make_shared<DatabaseConnectionMySQL>(context, database_name, metadata_path, engine_define, mysql_database_name, std::move(mysql_pool));
+            return std::make_shared<DatabaseConnectionMySQL>(
+                context, database_name, metadata_path, engine_define, mysql_database_name, std::move(mysql_pool));
         }
         catch (...)
         {
