@@ -111,6 +111,7 @@ add_subdirectory (format)
 add_subdirectory (obfuscator)
 add_subdirectory (install)
 add_subdirectory (git-import)
+add_subdirectory (data-writer)
 
 if (ENABLE_CLICKHOUSE_ODBC_BRIDGE)
     add_subdirectory (odbc-bridge)

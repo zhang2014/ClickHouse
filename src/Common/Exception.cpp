@@ -43,8 +43,8 @@ Exception::Exception(const std::string & msg, int code)
 #ifdef ABORT_ON_LOGICAL_ERROR
     if (code == ErrorCodes::LOGICAL_ERROR)
     {
-        LOG_FATAL(&Poco::Logger::root(), "Logical error: '{}'.", msg);
-        abort();
+        LOG_ERROR(&Poco::Logger::root(), "Logical error: '{}'.", msg);
+//        assert(false);
     }
 #endif
     ErrorCodes::increment(code);
