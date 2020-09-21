@@ -15,26 +15,27 @@ include(${ClickHouse_SOURCE_DIR}/cmake/dbms_glob_sources.cmake)
 add_headers_and_sources(storages_system .)
 list (APPEND storages_system_sources ${CONFIG_BUILD})
 
-add_custom_target(generate-contributors
-    ./StorageSystemContributors.sh
-    SOURCES StorageSystemContributors.sh
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    # BYPRODUCTS StorageSystemContributors.generated.cpp
-)
+#add_custom_target(generate-contributors
+#    ./StorageSystemContributors.sh
+#    SOURCES StorageSystemContributors.sh
+#    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+#    # BYPRODUCTS StorageSystemContributors.generated.cpp
+#)
+#
+#if(NOT TARGET generate-source)
+#    add_custom_target(generate-source)
+#endif()
+#
+#add_dependencies(generate-source generate-contributors)
 
-if(NOT TARGET generate-source)
-    add_custom_target(generate-source)
-endif()
-
-add_dependencies(generate-source generate-contributors)
-
-set(GENERATED_LICENSES_SRC ${CMAKE_CURRENT_BINARY_DIR}/StorageSystemLicenses.generated.cpp)
-set(GENERATED_TIMEZONES_SRC ${CMAKE_CURRENT_BINARY_DIR}/StorageSystemTimeZones.generated.cpp)
-
-add_custom_command(
-    OUTPUT StorageSystemLicenses.generated.cpp
-    COMMAND ./StorageSystemLicenses.sh > ${GENERATED_LICENSES_SRC}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+#set(GENERATED_LICENSES_SRC ${CMAKE_CURRENT_BINARY_DIR}/StorageSystemLicenses.generated.cpp)
+#set(GENERATED_TIMEZONES_SRC ${CMAKE_CURRENT_BINARY_DIR}/StorageSystemTimeZones.generated.cpp)
+#
+#message(STATUS "GENERATED_LICENSES_SRC ${GENERATED_LICENSES_SRC} CMAKE_CURRENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}")
+#add_custom_command(
+#    OUTPUT StorageSystemLicenses.generated.cpp
+#    COMMAND ./StorageSystemLicenses.sh > ${GENERATED_LICENSES_SRC}
+#    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 list (APPEND storages_system_sources ${GENERATED_LICENSES_SRC})
 list (APPEND storages_system_sources ${GENERATED_TIMEZONES_SRC})

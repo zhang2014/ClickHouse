@@ -31,21 +31,15 @@ DataPartWriter::DataPartWriter(
     }
 
     local_environment.initializeEnvironment(data_dir);
-    auto query_context_ptr = local_environment.getQueryContext();
-    local_environment.tryExecuteQuery("CREATE TABLE temporary_table(" + queryToString(InterpreterCreateQuery::formatColumns(columns_type_and_name))
-        + ")" + " ENGINE = MergeTree() " + (partition_by.empty() ? " PARTITION tuple() " : partition_by)
-        + " " + (order_by.empty() ? " ORDER BY tuple() " : order_by) + " SETTINGS index_granularity = " + toString(granularity_size), *query_context_ptr);
-
-    temporary_storage = local_environment.getDefaultDatabase()->tryGetTable("temporary_table", *query_context_ptr);
-    /// TODO: stop merge
+    local_environment.createTemporaryTable(columns_type_and_name, granularity_size, partition_by, order_by);
 }
 
 std::shared_ptr<IPartOutputStream> DataPartWriter::getPartOutputStream(const std::string & part_name)
 {
-    StorageMergeTree * temporary_storage_merge_tree = typeid_cast<StorageMergeTree *>(temporary_storage.get());
+    StorageMergeTree * temporary_storage_merge_tree = typeid_cast<StorageMergeTree *>(local_environment.getTemporaryTable().get());
     std::shared_ptr<MergeTreeDataWriter> data_writer_ptr = std::make_shared<MergeTreeDataWriter>(*temporary_storage_merge_tree);
 
-    const StorageMetadataPtr & metadata_snapshot = temporary_storage->getInMemoryMetadataPtr();
+    const StorageMetadataPtr & metadata_snapshot = local_environment.getTemporaryTable()->getInMemoryMetadataPtr();
     return std::make_shared<MergeTreeDataPartOutputStream>(
         data_writer_ptr, metadata_snapshot, *temporary_storage_merge_tree, data_dir, part_name);
 }
@@ -53,7 +47,7 @@ std::shared_ptr<IPartOutputStream> DataPartWriter::getPartOutputStream(const std
 DataPartWriter::~DataPartWriter()
 {
     auto query_context_ptr = local_environment.getQueryContext();
-    local_environment.getDefaultDatabase()->dropTable(*query_context_ptr, temporary_storage->getName(), true);
+    local_environment.getDefaultDatabase()->dropTable(*query_context_ptr, local_environment.getTemporaryTable()->getStorageID().table_name, true);
     local_environment.destroyEnvironment();
 }
 

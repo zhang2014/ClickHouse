@@ -13,6 +13,8 @@ class LocalEnvironment
 public:
     Context & getGlobalContext();
 
+    StoragePtr getTemporaryTable();
+
     DatabasePtr getDefaultDatabase();
 
     std::shared_ptr<Context> getQueryContext();
@@ -21,6 +23,8 @@ public:
 
     void initializeEnvironment(const std::string & data_dir);
 
+    void createTemporaryTable(const NamesAndTypesList & columns_type_and_name, size_t granularity_size, const std::string & partition_by, const std::string & order_by);
+
     BlockIO tryExecuteQuery(const std::string & query, Context & context);
 private:
     std::mutex mutex;
@@ -28,6 +32,7 @@ private:
     std::unique_ptr<Context> global_context;
 
     ConfigurationPtr configuration;
+    StoragePtr temporary_storage;
 
     ConfigurationPtr config();
 

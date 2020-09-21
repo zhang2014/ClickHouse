@@ -1,3 +1,5 @@
+#include "LocalEnvironment.h"
+
 #include <Interpreters/Context.h>
 #include <Disks/registerDisks.h>
 #include <Storages/registerStorages.h>
@@ -8,7 +10,10 @@
 #include <Databases/DatabaseMemory.h>
 #include <Storages/System/attachSystemTables.h>
 #include <Interpreters/executeQuery.h>
-#include "LocalEnvironment.h"
+#include <Parsers/queryToString.h>
+#include <Interpreters/InterpreterCreateQuery.h>
+#include <boost/algorithm/string/replace.hpp>
+
 
 namespace DB
 {
@@ -116,6 +121,26 @@ BlockIO LocalEnvironment::tryExecuteQuery(const std::string & query, Context & c
     /// Use the same query_id (and thread group) for all queries
     CurrentThread::QueryScope query_scope_holder(context);
     return executeQuery(query, context, true);
+}
+
+void LocalEnvironment::createTemporaryTable(
+    const NamesAndTypesList & columns_type_and_name, size_t granularity_size, const std::string & partition_by, const std::string & order_by)
+{
+    auto table_name = toString(UUIDHelpers::generateV4());
+    table_name = boost::replace_all_copy<std::string>(table_name, "-", "");
+
+    auto query_context_ptr = getQueryContext();
+    tryExecuteQuery("CREATE TABLE " + table_name + "(" + queryToString(InterpreterCreateQuery::formatColumns(columns_type_and_name))
+        + ")" + " ENGINE = MergeTree() " + (partition_by.empty() ? " PARTITION tuple() " : partition_by)
+        + " " + (order_by.empty() ? " ORDER BY tuple() " : order_by) + " SETTINGS index_granularity = " + toString(granularity_size), *query_context_ptr);
+
+    temporary_storage = getDefaultDatabase()->tryGetTable(table_name, *query_context_ptr);
+    /// TODO: stop merge
+}
+
+StoragePtr LocalEnvironment::getTemporaryTable()
+{
+    return temporary_storage;
 }
 
 }

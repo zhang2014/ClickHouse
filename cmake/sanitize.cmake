@@ -24,7 +24,7 @@ if (SANITIZE)
         # RelWithDebInfo, and downgrade optimizations to -O1 but not to -Og, to
         # keep the binary size down.
         # TODO: try compiling with -Og and with ld.gold.
-        set (MSAN_FLAGS "-fsanitize=memory -fsanitize-memory-track-origins -fno-optimize-sibling-calls -fsanitize-blacklist=${CMAKE_SOURCE_DIR}/tests/msan_suppressions.txt")
+        set (MSAN_FLAGS "-fsanitize=memory -fsanitize-memory-track-origins -fno-optimize-sibling-calls -fsanitize-blacklist=${PROJECT_SOURCE_DIR}/tests/msan_suppressions.txt")
 
         set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SAN_FLAGS} ${MSAN_FLAGS}")
         set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SAN_FLAGS} ${MSAN_FLAGS}")
@@ -39,11 +39,11 @@ if (SANITIZE)
     elseif (SANITIZE STREQUAL "thread")
         set (TSAN_FLAGS "-fsanitize=thread")
         if (COMPILER_CLANG)
-            set (TSAN_FLAGS "${TSAN_FLAGS} -fsanitize-blacklist=${CMAKE_SOURCE_DIR}/tests/tsan_suppressions.txt")
+            set (TSAN_FLAGS "${TSAN_FLAGS} -fsanitize-blacklist=${PROJECT_SOURCE_DIR}/tests/tsan_suppressions.txt")
         else()
             message (WARNING "TSAN suppressions was not passed to the compiler (since the compiler is not clang)")
             message (WARNING "Use the following command to pass them manually:")
-            message (WARNING "    export TSAN_OPTIONS=\"$TSAN_OPTIONS suppressions=${CMAKE_SOURCE_DIR}/tests/tsan_suppressions.txt\"")
+            message (WARNING "    export TSAN_OPTIONS=\"$TSAN_OPTIONS suppressions=${PROJECT_SOURCE_DIR}/tests/tsan_suppressions.txt\"")
         endif()
 
 

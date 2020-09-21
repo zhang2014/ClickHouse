@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vector>
-#include <Storages/IStorage.h>
 #include "IPartDataOutputStream.h"
 
 namespace DB
@@ -23,7 +22,6 @@ public:
 
 private:
     std::string data_dir;
-    StoragePtr temporary_storage;
 };
 
 }
