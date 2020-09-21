@@ -12,7 +12,7 @@ public:
 
     virtual void writePrefix() const = 0;
 
-    virtual void writeSuffix() const = 0;
+    virtual std::string writeSuffix() const = 0;
 
     virtual Columns getSampleColumns() const = 0;
 

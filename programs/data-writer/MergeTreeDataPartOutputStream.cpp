@@ -38,16 +38,18 @@ static void renamePart(const std::string & source_path, const std::string & dest
     }
 }
 
-void MergeTreeDataPartOutputStream::writeSuffix() const
+String MergeTreeDataPartOutputStream::writeSuffix() const
 {
     merged_block_out->writeSuffixAndFinalizePart(data_part, true, nullptr, nullptr);
 
     if (output_name.empty())
+    {
         renamePart(data_part->getFullPath(), data_dir + "/" + data_part->info.getPartName());
-    else
-        renamePart(data_part->getFullPath(), data_dir + "/" + output_name);
+        return data_dir + "/" + data_part->info.getPartName();
+    }
 
-    std::cerr << "part path : " << data_part->getFullPath() << "\n";
+    renamePart(data_part->getFullPath(), data_dir + "/" + output_name);
+    return data_dir + "/" + output_name;
 }
 
 Columns MergeTreeDataPartOutputStream::getSampleColumns() const
@@ -67,7 +69,6 @@ void MergeTreeDataPartOutputStream::writeColumns(const Columns & write_columns) 
     const NamesAndTypesList & columns = metadata_snapshot->getColumns().getAllPhysical();
 
     Block data_block = createBlock(write_columns, columns);
-    std::cerr << data_block.dumpStructure() << "\n";
     BlocksWithPartition blocks_with_partition = data_writer_ptr->splitBlockIntoParts(
         data_block, std::numeric_limits<size_t>::max(), metadata_snapshot);
 

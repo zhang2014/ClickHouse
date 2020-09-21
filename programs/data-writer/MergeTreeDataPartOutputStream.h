@@ -17,7 +17,7 @@ public:
 
     void writePrefix() const override;
 
-    void writeSuffix() const override;
+    String writeSuffix() const override;
 
     Columns getSampleColumns() const override;
 
