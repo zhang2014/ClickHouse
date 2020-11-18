@@ -71,7 +71,7 @@ private:
     /// The approximate total number of rows to read. For progress bar.
     size_t total_rows_approx = 0;
 
-    Stopwatch total_stopwatch {CLOCK_MONOTONIC_COARSE};    /// Time with waiting time.
+    Stopwatch total_stopwatch {CLOCK_MONOTONIC};    /// Time with waiting time.
     /// According to total_stopwatch in microseconds.
     UInt64 last_profile_events_update_time = 0;
 

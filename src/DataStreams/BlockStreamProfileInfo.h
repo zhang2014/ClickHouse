@@ -20,7 +20,7 @@ struct BlockStreamProfileInfo
     IBlockInputStream * parent = nullptr;
 
     bool started = false;
-    Stopwatch total_stopwatch {CLOCK_MONOTONIC_COARSE};    /// Time with waiting time
+    Stopwatch total_stopwatch {CLOCK_MONOTONIC};    /// Time with waiting time
 
     size_t rows = 0;
     size_t blocks = 0;
