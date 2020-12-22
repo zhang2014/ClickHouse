@@ -42,7 +42,7 @@ ${LIBCXX_SOURCE_DIR}/src/variant.cpp
 ${LIBCXX_SOURCE_DIR}/src/vector.cpp
 )
 
-add_library(cxx ${SRCS})
+add_library(cxx STATIC ${SRCS})
 
 target_include_directories(cxx SYSTEM BEFORE PUBLIC $<BUILD_INTERFACE:${LIBCXX_SOURCE_DIR}/include>)
 target_compile_definitions(cxx PRIVATE -D_LIBCPP_BUILDING_LIBRARY -DLIBCXX_BUILDING_LIBCXXABI)

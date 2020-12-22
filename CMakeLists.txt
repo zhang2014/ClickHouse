@@ -523,7 +523,7 @@ include_directories(${ConfigIncludePath})
 include (cmake/warnings.cmake)
 
 add_subdirectory (base)
-add_subdirectory (programs)
+#add_subdirectory (programs)
 add_subdirectory (src)
 add_subdirectory (tests)
 add_subdirectory (utils)

@@ -2211,16 +2211,16 @@ void Context::addXDBCBridgeCommand(std::unique_ptr<ShellCommand> cmd) const
 }
 
 
-IHostContextPtr & Context::getHostContext()
-{
-    return host_context;
-}
+/// IHostContextPtr & Context::getHostContext()
+/// {
+///    return host_context;
+/// }
 
 
-const IHostContextPtr & Context::getHostContext() const
-{
-    return host_context;
-}
+/// const IHostContextPtr & Context::getHostContext() const
+/// {
+///    return host_context;
+/// }
 
 
 std::shared_ptr<ActionLocksManager> Context::getActionLocksManager()

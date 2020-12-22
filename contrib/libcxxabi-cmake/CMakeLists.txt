@@ -22,7 +22,7 @@ ${LIBCXXABI_SOURCE_DIR}/src/cxa_vector.cpp
 ${LIBCXXABI_SOURCE_DIR}/src/stdlib_new_delete.cpp
 )
 
-add_library(cxxabi ${SRCS})
+add_library(cxxabi STATIC ${SRCS})
 
 # Third party library may have substandard code.
 target_compile_options(cxxabi PRIVATE -w)

@@ -132,12 +132,12 @@ using Scalars = std::map<String, Block>;
 
 /// An empty interface for an arbitrary object that may be attached by a shared pointer
 /// to query context, when using ClickHouse as a library.
-struct IHostContext
-{
-    virtual ~IHostContext() = default;
-};
+/// struct IHostContext
+/// {
+///    virtual ~IHostContext() = default;
+/// };
 
-using IHostContextPtr = std::shared_ptr<IHostContext>;
+/// using IHostContextPtr = std::shared_ptr<IHostContext>;
 
 /// A small class which owns ContextShared.
 /// We don't use something like unique_ptr directly to allow ContextShared type to be incomplete.
@@ -206,7 +206,7 @@ private:
     NameToNameMap query_parameters;   /// Dictionary with query parameters for prepared statements.
                                                      /// (key=name, value)
 
-    IHostContextPtr host_context;  /// Arbitrary object that may used to attach some host specific information to query context,
+    /// IHostContextPtr host_context;  /// Arbitrary object that may used to attach some host specific information to query context,
                                    /// when using ClickHouse as a library in some project. For example, it may contain host
                                    /// logger, some query identification information, profiling guards, etc. This field is
                                    /// to be customized in HTTP and TCP servers by overloading the customizeContext(DB::Context&)
@@ -632,8 +632,8 @@ public:
     /// Add started bridge command. It will be killed after context destruction
     void addXDBCBridgeCommand(std::unique_ptr<ShellCommand> cmd) const;
 
-    IHostContextPtr & getHostContext();
-    const IHostContextPtr & getHostContext() const;
+    // IHostContextPtr & getHostContext();
+    // const IHostContextPtr & getHostContext() const;
 
     struct MySQLWireContext
     {
